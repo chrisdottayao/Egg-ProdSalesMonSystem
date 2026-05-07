@@ -3,25 +3,20 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EggProduction extends Model
 {
     protected $fillable = [
-        'flock_id', 'date', 'total_eggs', 'cracked_eggs', 'notes',
+        'date', 'eggs_collected', 'active_hens', 'egg_size', 'egg_weight', 'mortality', 'notes',
     ];
 
     protected $casts = [
         'date' => 'date',
     ];
 
-    public function flock(): BelongsTo
+    public function getProductionRateAttribute(): float
     {
-        return $this->belongsTo(Flock::class);
-    }
-
-    public function getGoodEggsAttribute(): int
-    {
-        return $this->total_eggs - $this->cracked_eggs;
+        if (!$this->active_hens) return 0;
+        return round(($this->eggs_collected / $this->active_hens) * 100, 1);
     }
 }

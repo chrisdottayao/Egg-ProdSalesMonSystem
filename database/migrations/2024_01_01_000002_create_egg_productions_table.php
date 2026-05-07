@@ -8,12 +8,11 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('egg_productions', function (Blueprint $table) {
+        Schema::create('cattle_records', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('flock_id')->constrained()->cascadeOnDelete();
-            $table->date('date');
-            $table->integer('total_eggs');
-            $table->integer('cracked_eggs')->default(0);
+            $table->string('ear_tag')->unique(); // e.g. CT-001
+            $table->enum('status', ['Active', 'Sold', 'Deceased'])->default('Active');
+            $table->date('entry_date');
             $table->text('notes')->nullable();
             $table->timestamps();
         });
@@ -21,6 +20,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('egg_productions');
+        Schema::dropIfExists('cattle_records');
     }
 };

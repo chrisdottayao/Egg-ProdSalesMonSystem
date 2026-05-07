@@ -8,13 +8,13 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('sales', function (Blueprint $table) {
+        Schema::create('egg_sales', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('customer_id')->nullable()->constrained()->nullOnDelete();
-            $table->date('sale_date');
-            $table->decimal('total_amount', 10, 2)->default(0);
-            $table->decimal('amount_paid', 10, 2)->default(0);
-            $table->enum('payment_status', ['paid', 'partial', 'unpaid'])->default('unpaid');
+            $table->date('date');
+            $table->string('egg_size')->default('Large');
+            $table->integer('quantity');
+            $table->decimal('price_per_unit', 8, 2);
+            $table->decimal('total_amount', 10, 2);
             $table->text('notes')->nullable();
             $table->timestamps();
         });
@@ -22,6 +22,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('sales');
+        Schema::dropIfExists('egg_sales');
     }
 };
