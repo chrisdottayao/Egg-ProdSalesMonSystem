@@ -95,6 +95,8 @@
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Qty Sold</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Price/Unit</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Total</th>
+                        <th class="text-right py-3 text-sm font-semibold text-gray-700">Sales Rate</th>
+                        <th class="text-right py-3 text-sm font-semibold text-gray-700">Remaining</th>
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Notes</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
@@ -107,6 +109,14 @@
                             <td class="text-right py-3 text-sm">{{ number_format($sale->quantity) }}</td>
                             <td class="text-right py-3 text-sm">₱{{ number_format($sale->price_per_unit, 2) }}</td>
                             <td class="text-right py-3 text-sm font-semibold text-[#4CAF50]">₱{{ number_format($sale->total_amount, 2) }}</td>
+                            @php
+                                $dateKey = $sale->date->format('Y-m-d');
+                                $produced = $producedByDate[$dateKey] ?? null;
+                                $salesRate = $produced > 0 ? round(($sale->quantity / $produced) * 100, 1) : null;
+                                $remaining = $produced !== null ? $produced - $sale->quantity : null;
+                            @endphp
+                            <td class="text-right py-3 text-sm font-semibold text-[#4CAF50]">{{ $salesRate !== null ? $salesRate . '%' : '—' }}</td>
+                            <td class="text-right py-3 text-sm text-gray-600">{{ $remaining !== null ? number_format($remaining) : '—' }}</td>
                             <td class="py-3 text-sm text-gray-600">{{ $sale->notes ?? '—' }}</td>
                             <td class="text-right py-3 text-sm space-x-2">
                                 <a href="{{ route('sales.edit', $sale) }}" class="text-blue-600 hover:underline">Edit</a>
@@ -117,7 +127,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="py-8 text-center text-gray-400 text-sm">No sales records yet.</td></tr>
+                        <tr><td colspan="9" class="py-8 text-center text-gray-400 text-sm">No sales records yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

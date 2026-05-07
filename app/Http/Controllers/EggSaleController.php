@@ -11,17 +11,25 @@ class EggSaleController extends Controller
     public function index()
     {
         $sales = EggSale::latest('date')->paginate(20);
-        return view('sales.index', compact('sales'));
+
+        // Build produced-by-date lookup for Sales Rate + Remaining columns
+        $dates = $sales->pluck('date')->map(fn($d) => $d->format('Y-m-d'))->unique()->values();
+        $producedByDate = EggProduction::whereIn(\DB::raw('DATE(date)'), $dates)
+            ->selectRaw('DATE(date) as date_key, SUM(eggs_collected) as total')
+            ->groupBy('date_key')
+            ->pluck('total', 'date_key');
+
+        return view('sales.index', compact('sales', 'producedByDate'));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'date'          => 'required|date',
-            'egg_size'      => 'required|string',
-            'quantity'      => 'required|integer|min:1',
-            'price_per_unit'=> 'required|numeric|min:0',
-            'notes'         => 'nullable|string',
+            'date'           => 'required|date',
+            'egg_size'       => 'required|string',
+            'quantity'       => 'required|integer|min:1',
+            'price_per_unit' => 'required|numeric|min:0',
+            'notes'          => 'nullable|string',
         ]);
 
         // Hard block: sold > produced on that date
@@ -48,11 +56,11 @@ class EggSaleController extends Controller
     public function update(Request $request, EggSale $sale)
     {
         $validated = $request->validate([
-            'date'          => 'required|date',
-            'egg_size'      => 'required|string',
-            'quantity'      => 'required|integer|min:1',
-            'price_per_unit'=> 'required|numeric|min:0',
-            'notes'         => 'nullable|string',
+            'date'           => 'required|date',
+            'egg_size'       => 'required|string',
+            'quantity'       => 'required|integer|min:1',
+            'price_per_unit' => 'required|numeric|min:0',
+            'notes'          => 'nullable|string',
         ]);
 
         $validated['total_amount'] = $validated['quantity'] * $validated['price_per_unit'];

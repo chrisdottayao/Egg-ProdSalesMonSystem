@@ -77,9 +77,34 @@
     </div>
 
     {{-- Production History --}}
-    <div class="bg-white rounded-lg shadow-md p-6">
+    <div class="bg-white rounded-lg shadow-md p-6" x-data="{ showImport: false }">
         <div class="flex items-center justify-between mb-4">
             <h2 class="text-lg font-bold text-gray-800">Production History</h2>
+            <button @click="showImport = true"
+                class="flex items-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                Import Historical Logbooks
+            </button>
+        </div>
+
+        {{-- Import Modal --}}
+        <div x-show="showImport" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div class="bg-white rounded-lg p-6 max-w-md w-full">
+                <h3 class="text-lg font-bold mb-4">Import Historical Logbooks</h3>
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-4">
+                    <svg class="w-12 h-12 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    <p class="text-sm text-gray-600 mb-2">Drag and drop CSV file here</p>
+                    <button type="button" class="text-[#4CAF50] text-sm hover:underline">or browse files</button>
+                </div>
+                <a href="#" class="text-sm text-[#4CAF50] hover:underline block mb-4">Download CSV Template</a>
+                <p class="text-xs text-gray-500 mb-4">Note: Imported records will be validated and used as training data for the forecasting model.</p>
+                <div class="flex gap-2">
+                    <button type="button" @click="showImport = false"
+                        class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300">Cancel</button>
+                    <button type="button"
+                        class="flex-1 bg-[#4CAF50] text-white py-2 rounded-lg hover:bg-green-600">Upload</button>
+                </div>
+            </div>
         </div>
 
         <div class="overflow-x-auto">
@@ -125,7 +150,7 @@
 
         <p class="text-sm italic text-gray-500 mt-4">Active hen count syncs automatically with the Livestock Records module.</p>
         <div class="mt-3">{{ $productions->links() }}</div>
-    </div>
+    </div> {{-- end x-data="{ showImport }" --}}
 </div>
 
 <script>

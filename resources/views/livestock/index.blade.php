@@ -2,8 +2,11 @@
 <div class="space-y-6" x-data="{ tab: 'hens', editHen: null, editCattle: null }">
     <div class="flex items-center justify-between">
         <h1 class="text-2xl font-bold text-gray-800">Livestock Records</h1>
-        <div class="bg-[#4CAF50] text-white text-sm font-semibold px-4 py-1.5 rounded-full">
-            Active Hens: {{ number_format($activeHenCount) }}
+        <div class="bg-green-50 border border-green-200 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+            <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span class="text-gray-600">Active Laying Hens:</span>
+            <span class="font-bold text-[#4CAF50] text-base">{{ number_format($activeHenCount) }}</span>
+            <span class="text-gray-400 text-xs">(synced to Production module)</span>
         </div>
     </div>
 

@@ -10,7 +10,7 @@
                 <svg class="w-5 h-5 text-[#4CAF50]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
             </div>
             <div class="text-3xl font-bold text-gray-800">{{ number_format($stats['eggs_today']) }}</div>
-            <div class="text-sm text-gray-500 mt-1">collected today</div>
+            <div class="text-sm text-green-600 mt-1">collected today</div>
         </div>
 
         <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-[#4CAF50] hover:shadow-lg transition-shadow">
@@ -19,7 +19,7 @@
                 <svg class="w-5 h-5 text-[#4CAF50]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             </div>
             <div class="text-3xl font-bold text-gray-800">₱{{ number_format($stats['revenue_today'], 2) }}</div>
-            <div class="text-sm text-gray-500 mt-1">from sales today</div>
+            <div class="text-sm text-gray-600 mt-1">from sales today</div>
         </div>
 
         <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-[#4CAF50] hover:shadow-lg transition-shadow">
@@ -28,7 +28,7 @@
                 <svg class="w-5 h-5 text-[#4CAF50]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
             </div>
             <div class="text-3xl font-bold text-gray-800">{{ $stats['production_rate'] }}%</div>
-            <div class="text-sm text-gray-500 mt-1">{{ number_format($stats['active_hens']) }} active hens</div>
+            <div class="text-sm text-gray-600 mt-1">{{ number_format($stats['active_hens']) }} active hens</div>
         </div>
 
         <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-[#4CAF50] hover:shadow-lg transition-shadow">
@@ -37,55 +37,202 @@
                 <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
             </div>
             <div class="text-3xl font-bold text-gray-800">₱{{ number_format($stats['sales_this_month'], 2) }}</div>
-            <div class="text-sm text-gray-500 mt-1">{{ now()->format('F Y') }}</div>
+            <div class="text-sm text-gray-600 mt-1">{{ now()->format('F Y') }}</div>
         </div>
     </div>
 
-    {{-- Quick Actions --}}
-    <div class="bg-white rounded-lg shadow-md p-5">
-        <h3 class="text-sm font-semibold text-gray-700 mb-3">Quick Actions</h3>
-        <div class="flex flex-wrap gap-3">
-            <a href="{{ route('productions.index') }}" class="bg-[#4CAF50] hover:bg-green-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">+ Log Production</a>
-            <a href="{{ route('sales.index') }}" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">+ Record Sale</a>
-            <a href="{{ route('livestock.index') }}" class="bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">+ Add Livestock</a>
-            <a href="{{ route('cull.index') }}" class="bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">+ Cull Record</a>
+    {{-- Charts --}}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <div class="mb-4">
+                <h2 class="text-lg font-bold text-gray-800">Production Trend</h2>
+                <p class="text-sm text-gray-500">Last 30 days</p>
+            </div>
+            <canvas id="productionChart" height="130"></canvas>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <div class="mb-4">
+                <h2 class="text-lg font-bold text-gray-800">Revenue Trend</h2>
+                <p class="text-sm text-green-600">Last 10 days of sales</p>
+            </div>
+            <canvas id="revenueChart" height="130"></canvas>
         </div>
     </div>
 
-    {{-- Recent Activity --}}
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-bold text-gray-800">Recent Activity</h2>
-            <a href="{{ route('productions.index') }}" class="text-xs text-[#4CAF50] hover:underline">View all</a>
+    {{-- AI Insights & Recent Activity --}}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-gray-800">AI Insights</h2>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">AI — Analytics</span>
+                </div>
+            </div>
+            <div class="flex gap-4">
+                <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                </div>
+                <p class="text-gray-700 leading-relaxed">{{ $aiInsight }}</p>
+            </div>
         </div>
-        <div class="overflow-x-auto">
-            <table class="w-full">
-                <thead>
-                    <tr class="border-b">
-                        <th class="text-left py-2 text-sm font-semibold text-gray-700">Date</th>
-                        <th class="text-right py-2 text-sm font-semibold text-gray-700">Eggs Prod.</th>
-                        <th class="text-right py-2 text-sm font-semibold text-gray-700">Sold</th>
-                        <th class="text-right py-2 text-sm font-semibold text-gray-700">Revenue</th>
-                        <th class="text-right py-2 text-sm font-semibold text-gray-700">Remaining</th>
-                        <th class="text-left py-2 text-sm font-semibold text-gray-700">Notes</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($recentActivity as $item)
-                        <tr class="border-b last:border-0">
-                            <td class="py-2 text-sm">{{ $item['date'] }}</td>
-                            <td class="text-right py-2 text-sm">{{ number_format($item['eggsProd']) }}</td>
-                            <td class="text-right py-2 text-sm">{{ number_format($item['sold']) }}</td>
-                            <td class="text-right py-2 text-sm font-semibold text-[#4CAF50]">{{ $item['revenue'] }}</td>
-                            <td class="text-right py-2 text-sm text-gray-600">{{ $item['remaining'] }}</td>
-                            <td class="py-2 text-sm text-gray-500">{{ $item['notes'] }}</td>
+
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-gray-800">Recent Activity</h2>
+                <a href="{{ route('productions.index') }}" class="text-xs text-[#4CAF50] hover:underline">View all</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="border-b">
+                            <th class="text-left py-2 text-sm font-semibold text-gray-700">Date</th>
+                            <th class="text-right py-2 text-sm font-semibold text-gray-700">Eggs Prod</th>
+                            <th class="text-right py-2 text-sm font-semibold text-gray-700">Sold</th>
+                            <th class="text-right py-2 text-sm font-semibold text-gray-700">Revenue</th>
+                            <th class="text-right py-2 text-sm font-semibold text-gray-700">Remaining</th>
+                            <th class="text-left py-2 text-sm font-semibold text-gray-700">Notes</th>
                         </tr>
-                    @empty
-                        <tr><td colspan="6" class="py-8 text-center text-gray-400 text-sm">No activity yet. Start by logging production.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @forelse($recentActivity as $item)
+                            <tr class="border-b last:border-0">
+                                <td class="py-2 text-sm">{{ $item['date'] }}</td>
+                                <td class="text-right py-2 text-sm">{{ number_format($item['eggsProd']) }}</td>
+                                <td class="text-right py-2 text-sm">{{ number_format($item['sold']) }}</td>
+                                <td class="text-right py-2 text-sm font-semibold text-[#4CAF50]">{{ $item['revenue'] }}</td>
+                                <td class="text-right py-2 text-sm text-gray-600">{{ $item['remaining'] }}</td>
+                                <td class="py-2 text-sm text-gray-500">{{ $item['notes'] }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6" class="py-8 text-center text-gray-400 text-sm">No activity yet. Start by logging production.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {{-- Anomaly Alerts --}}
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h2 class="text-lg font-bold text-gray-800 mb-4">Anomaly Alerts</h2>
+        @if(count($anomalyAlerts) > 0)
+            <div class="space-y-3">
+                @foreach($anomalyAlerts as $alert)
+                    <div class="p-4 rounded-lg border-l-4 {{ $alert['severity'] === 'high' ? 'bg-red-50 border-red-500' : 'bg-orange-50 border-orange-500' }}">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <svg class="w-5 h-5 {{ $alert['severity'] === 'high' ? 'text-red-600' : 'text-orange-600' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                    <span class="font-semibold {{ $alert['severity'] === 'high' ? 'text-red-900' : 'text-orange-900' }}">{{ $alert['type'] }}</span>
+                                    <span class="text-sm text-gray-600">• {{ $alert['date'] }}</span>
+                                </div>
+                                <p class="text-sm text-gray-700 mb-2">{{ $alert['description'] }}</p>
+                                <div class="flex gap-4 text-sm">
+                                    <span class="text-gray-600">Expected: <span class="font-semibold">{{ $alert['expected'] }}</span></span>
+                                    <span class="text-gray-600">Actual: <span class="font-semibold">{{ $alert['actual'] }}</span></span>
+                                    <span class="font-semibold {{ $alert['severity'] === 'high' ? 'text-red-700' : 'text-orange-700' }}">{{ $alert['deviation'] }}</span>
+                                </div>
+                            </div>
+                            <span class="text-xs px-3 py-1 rounded-full font-semibold whitespace-nowrap {{ $alert['status'] === 'Reviewed' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700' }}">
+                                {{ $alert['status'] }}
+                            </span>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @else
+            <p class="text-sm text-gray-400 italic">No anomalies detected in the last 7 days.</p>
+        @endif
+    </div>
+
+    {{-- Farm Recommendations --}}
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h2 class="text-lg font-bold text-gray-800 mb-4">Farm Recommendations</h2>
+        <div class="space-y-3">
+            @foreach($farmRecommendations as $rec)
+                <div class="p-4 rounded-lg border-l-4 {{ $rec['active'] ? 'bg-blue-50 border-blue-500' : 'bg-gray-50 border-gray-300' }}">
+                    <div class="flex items-start gap-3">
+                        @if($rec['active'])
+                            <svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        @endif
+                        <div class="flex-1">
+                            <p class="text-sm font-semibold text-gray-800 mb-1">Condition: {{ $rec['condition'] }}</p>
+                            <p class="text-sm text-gray-700"><span class="font-semibold">Recommendation:</span> {{ $rec['recommendation'] }}</p>
+                        </div>
+                    </div>
+                </div>
+            @endforeach
         </div>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const prodData = @json($productionChartData->values());
+    const revData  = @json($revenueChartData->values());
+
+    // Production Trend — Line Chart
+    const prodCtx = document.getElementById('productionChart');
+    if (prodCtx && prodData.length) {
+        new Chart(prodCtx, {
+            type: 'line',
+            data: {
+                labels: prodData.map(d => d.date),
+                datasets: [{
+                    label: 'Eggs Collected',
+                    data: prodData.map(d => d.eggs),
+                    borderColor: '#4CAF50',
+                    backgroundColor: 'rgba(76,175,80,0.1)',
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    tension: 0.3,
+                    fill: true,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { maxTicksLimit: 8, font: { size: 11 } }, grid: { display: false } },
+                    y: { ticks: { font: { size: 11 } }, beginAtZero: false }
+                }
+            }
+        });
+    } else if (prodCtx) {
+        prodCtx.parentElement.innerHTML += '<p class="text-sm text-gray-400 text-center mt-8">No production data yet.</p>';
+    }
+
+    // Revenue Trend — Bar Chart
+    const revCtx = document.getElementById('revenueChart');
+    if (revCtx && revData.length) {
+        new Chart(revCtx, {
+            type: 'bar',
+            data: {
+                labels: revData.map(d => d.date),
+                datasets: [{
+                    label: 'Revenue (₱)',
+                    data: revData.map(d => d.revenue),
+                    backgroundColor: '#4CAF50',
+                    borderRadius: 4,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => '₱' + ctx.parsed.y.toLocaleString() } }
+                },
+                scales: {
+                    x: { ticks: { font: { size: 11 } }, grid: { display: false } },
+                    y: { ticks: { callback: v => '₱' + v.toLocaleString(), font: { size: 11 } }, beginAtZero: true }
+                }
+            }
+        });
+    } else if (revCtx) {
+        revCtx.parentElement.innerHTML += '<p class="text-sm text-gray-400 text-center mt-8">No sales data yet.</p>';
+    }
+})();
+</script>
 </x-app-layout>
