@@ -8,11 +8,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('customers', function (Blueprint $table) {
+        Schema::create('egg_productions', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->string('phone')->nullable();
-            $table->text('address')->nullable();
+            $table->date('date');
+            $table->integer('eggs_collected');
+            $table->integer('active_hens');
+            $table->string('egg_size')->default('Large'); // Peewee/Small/Medium/Large/XL/Jumbo
+            $table->decimal('egg_weight', 6, 2)->nullable(); // avg grams
+            $table->integer('mortality')->default(0);
             $table->text('notes')->nullable();
             $table->timestamps();
         });
@@ -20,6 +23,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('customers');
+        Schema::dropIfExists('egg_productions');
     }
 };

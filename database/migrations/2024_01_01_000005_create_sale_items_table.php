@@ -8,20 +8,19 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('sale_items', function (Blueprint $table) {
+        Schema::create('cull_records', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('sale_id')->constrained()->cascadeOnDelete();
-            $table->string('egg_type'); // e.g. Large, Medium, Small, Cracked
-            $table->integer('quantity');
-            $table->string('unit')->default('tray'); // tray or piece
-            $table->decimal('unit_price', 8, 2);
-            $table->decimal('subtotal', 10, 2);
+            $table->date('date');
+            $table->foreignId('hen_batch_id')->nullable()->constrained('hen_batches')->nullOnDelete();
+            $table->integer('quantity_culled');
+            $table->string('reason')->nullable();
+            $table->text('notes')->nullable();
             $table->timestamps();
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('sale_items');
+        Schema::dropIfExists('cull_records');
     }
 };

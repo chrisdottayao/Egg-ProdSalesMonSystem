@@ -8,13 +8,12 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('flocks', function (Blueprint $table) {
+        Schema::create('hen_batches', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->string('breed')->nullable();
-            $table->integer('quantity');
-            $table->date('acquisition_date');
-            $table->enum('status', ['active', 'sold', 'retired'])->default('active');
+            $table->string('batch_id')->unique(); // e.g. HB-2024-001
+            $table->integer('batch_size');
+            $table->enum('status', ['Active', 'Culled', 'Mortality'])->default('Active');
+            $table->date('entry_date');
             $table->text('notes')->nullable();
             $table->timestamps();
         });
@@ -22,6 +21,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('flocks');
+        Schema::dropIfExists('hen_batches');
     }
 };
