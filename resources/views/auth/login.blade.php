@@ -95,9 +95,6 @@
                 </button>
             </div>
 
-            <div class="mt-5 text-center">
-                <a href="{{ route('password.request') }}" class="text-sm text-[#4CAF50] hover:underline">Forgot Password?</a>
-            </div>
         </div>
 
         <p class="mt-5 text-sm text-gray-500 text-center">

@@ -42,7 +42,9 @@
     </div>
 
     {{-- Charts --}}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6"
+         data-prod-chart="{{ $productionChartData->values()->toJson() }}"
+         data-rev-chart="{{ $revenueChartData->values()->toJson() }}">
         <div class="bg-white rounded-lg shadow-md p-6">
             <div class="mb-4">
                 <h2 class="text-lg font-bold text-gray-800">Production Trend</h2>
@@ -168,10 +170,11 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
+<script type="text/javascript">
 (function () {
-    const prodData = @json($productionChartData->values());
-    const revData  = @json($revenueChartData->values());
+    const chartContainer = document.querySelector('[data-prod-chart]');
+    const prodData = JSON.parse(chartContainer?.getAttribute('data-prod-chart') || '[]');
+    const revData = JSON.parse(chartContainer?.getAttribute('data-rev-chart') || '[]');
 
     // Production Trend — Line Chart
     const prodCtx = document.getElementById('productionChart');
