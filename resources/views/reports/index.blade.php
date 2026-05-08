@@ -28,21 +28,17 @@
                 <a href="{{ route('reports.index') }}" class="text-sm text-gray-500 hover:underline self-center">Reset</a>
             </div>
             <div class="flex gap-2 flex-wrap">
-                <button type="button" onclick="alert('PDF export — coming soon.')"
+                @php $exportParams = http_build_query(['start_date' => $startDate, 'end_date' => $endDate, 'period' => $period]); @endphp
+                <a href="{{ route('reports.export.pdf') . '?' . $exportParams }}"
                     class="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm font-medium">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     PDF
-                </button>
-                <button type="button" onclick="alert('Excel export — coming soon.')"
-                    class="flex items-center gap-2 bg-green-700 text-white px-4 py-2 rounded-lg hover:bg-green-800 transition-colors text-sm font-medium">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    Excel
-                </button>
-                <button type="button" onclick="alert('CSV export — coming soon.')"
+                </a>
+                <a href="{{ route('reports.export.csv') . '?' . $exportParams }}"
                     class="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     CSV
-                </button>
+                </a>
             </div>
         </form>
     </div>

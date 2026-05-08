@@ -52,14 +52,20 @@ Route::middleware('auth')->group(function () {
     Route::patch('/livestock/cattle/{cattleRecord}', [LivestockController::class, 'updateCattle'])->name('livestock.cattle.update');
     Route::delete('/livestock/cattle/{cattleRecord}', [LivestockController::class, 'destroyCattle'])->name('livestock.cattle.destroy');
 
-    // Reports
-    Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
+    // Reports (admin + manager only)
+    Route::middleware('role:admin,manager')->group(function () {
+        Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
+        Route::get('/reports/export/pdf', [ReportsController::class, 'exportPdf'])->name('reports.export.pdf');
+        Route::get('/reports/export/csv', [ReportsController::class, 'exportCsv'])->name('reports.export.csv');
+    });
 
     // Users (admin only)
-    Route::get('/users', [UserController::class, 'index'])->name('users.index');
-    Route::post('/users', [UserController::class, 'store'])->name('users.store');
-    Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
-    Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/users', [UserController::class, 'index'])->name('users.index');
+        Route::post('/users', [UserController::class, 'store'])->name('users.store');
+        Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
+        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    });
 });
 
 require __DIR__.'/auth.php';

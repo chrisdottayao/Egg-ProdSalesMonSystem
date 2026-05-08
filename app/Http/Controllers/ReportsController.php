@@ -4,23 +4,23 @@ namespace App\Http\Controllers;
 
 use App\Models\EggProduction;
 use App\Models\EggSale;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
 class ReportsController extends Controller
 {
-    public function index(Request $request)
+    private function getReportData(Request $request): array
     {
-        $startDate = $request->get('start_date', Carbon::now()->subDays(7)->format('Y-m-d'));
-        $endDate   = $request->get('end_date', Carbon::today()->format('Y-m-d'));
-        $period    = $request->get('period', 'Daily');
+        $startDate = $request->input('start_date', Carbon::now()->subDays(7)->format('Y-m-d'));
+        $endDate   = $request->input('end_date', Carbon::today()->format('Y-m-d'));
+        $period    = $request->input('period', 'Daily');
 
         $productions = EggProduction::whereBetween('date', [$startDate, $endDate])->get();
         $sales       = EggSale::whereBetween('date', [$startDate, $endDate])->get();
 
-        $totalProduced  = $productions->sum('eggs_collected');
-        $totalSold      = $sales->sum('quantity');
-        $avgSalesRate   = $totalProduced > 0 ? round(($totalSold / $totalProduced) * 100, 1) : 0;
+        $totalProduced = $productions->sum('eggs_collected');
+        $totalSold     = $sales->sum('quantity');
 
         $summary = [
             'total_eggs_produced' => $totalProduced,
@@ -29,11 +29,12 @@ class ReportsController extends Controller
             'avg_production_rate' => $productions->count()
                 ? round($productions->avg(fn($p) => $p->production_rate), 1)
                 : 0,
-            'avg_sales_rate'      => $avgSalesRate,
+            'avg_sales_rate'      => $totalProduced > 0
+                ? round(($totalSold / $totalProduced) * 100, 1)
+                : 0,
             'remaining_eggs'      => $totalProduced - $totalSold,
         ];
 
-        // Daily breakdown for charts
         $dailyData = EggProduction::whereBetween('date', [$startDate, $endDate])
             ->orderBy('date')
             ->get()
@@ -41,14 +42,71 @@ class ReportsController extends Controller
                 $sold    = EggSale::whereDate('date', $prod->date)->sum('quantity');
                 $revenue = EggSale::whereDate('date', $prod->date)->sum('total_amount');
                 return [
-                    'date'        => $prod->date->format('M d'),
-                    'eggs'        => $prod->eggs_collected,
-                    'sold'        => $sold,
-                    'revenue'     => $revenue,
-                    'prod_rate'   => $prod->production_rate,
+                    'date'      => $prod->date->format('M d'),
+                    'eggs'      => $prod->eggs_collected,
+                    'sold'      => $sold,
+                    'revenue'   => $revenue,
+                    'prod_rate' => $prod->production_rate,
                 ];
             });
 
-        return view('reports.index', compact('summary', 'dailyData', 'startDate', 'endDate', 'period'));
+        return compact('summary', 'dailyData', 'startDate', 'endDate', 'period');
+    }
+
+    public function index(Request $request)
+    {
+        return view('reports.index', $this->getReportData($request));
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $data = $this->getReportData($request);
+        $pdf  = Pdf::loadView('reports.pdf', $data)->setPaper('a4', 'landscape');
+
+        $filename = 'report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.pdf';
+        return $pdf->download($filename);
+    }
+
+    public function exportCsv(Request $request)
+    {
+        $data      = $this->getReportData($request);
+        $dailyData = $data['dailyData'];
+        $summary   = $data['summary'];
+
+        $rows   = [];
+        $rows[] = ['Date', 'Eggs Produced', 'Eggs Sold', 'Revenue (PHP)', 'Prod Rate (%)', 'Remaining'];
+
+        foreach ($dailyData as $row) {
+            $rows[] = [
+                $row['date'],
+                $row['eggs'],
+                $row['sold'],
+                number_format($row['revenue'], 2),
+                $row['prod_rate'],
+                $row['eggs'] - $row['sold'],
+            ];
+        }
+
+        $rows[] = [];
+        $rows[] = ['TOTAL', $summary['total_eggs_produced'], $summary['total_eggs_sold'],
+                   number_format($summary['total_revenue'], 2), $summary['avg_production_rate'] . '%',
+                   $summary['remaining_eggs']];
+
+        $filename = 'report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.csv';
+
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function () use ($rows) {
+            $handle = fopen('php://output', 'w');
+            foreach ($rows as $row) {
+                fputcsv($handle, $row);
+            }
+            fclose($handle);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 }

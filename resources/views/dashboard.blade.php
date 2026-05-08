@@ -172,7 +172,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script type="text/javascript">
 (function () {
-    const chartContainer = document.querySelector('[data-prod-chart]');
+    const chartContainer = document
+    .querySelector('[data-prod-chart]');
     const prodData = JSON.parse(chartContainer?.getAttribute('data-prod-chart') || '[]');
     const revData = JSON.parse(chartContainer?.getAttribute('data-rev-chart') || '[]');
 
