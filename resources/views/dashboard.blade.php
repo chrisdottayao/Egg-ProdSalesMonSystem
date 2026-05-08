@@ -117,34 +117,75 @@
 
     {{-- Anomaly Alerts --}}
     <div class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-4">Anomaly Alerts</h2>
-        @if(count($anomalyAlerts) > 0)
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold text-gray-800">Anomaly Alerts</h2>
+            @if($anomalyAlerts->where('status','unreviewed')->count() > 0)
+                <span class="text-xs bg-red-100 text-red-700 font-semibold px-2 py-1 rounded-full">
+                    {{ $anomalyAlerts->where('status','unreviewed')->count() }} unreviewed
+                </span>
+            @endif
+        </div>
+
+        @if(session('success'))
+            <div class="mb-3 text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">{{ session('success') }}</div>
+        @endif
+
+        @if($anomalyAlerts->count() > 0)
             <div class="space-y-3">
                 @foreach($anomalyAlerts as $alert)
-                    <div class="p-4 rounded-lg border-l-4 {{ $alert['severity'] === 'high' ? 'bg-red-50 border-red-500' : 'bg-orange-50 border-orange-500' }}">
-                        <div class="flex items-start justify-between">
-                            <div class="flex-1">
-                                <div class="flex items-center gap-2 mb-2">
-                                    <svg class="w-5 h-5 {{ $alert['severity'] === 'high' ? 'text-red-600' : 'text-orange-600' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                                    <span class="font-semibold {{ $alert['severity'] === 'high' ? 'text-red-900' : 'text-orange-900' }}">{{ $alert['type'] }}</span>
-                                    <span class="text-sm text-gray-600">• {{ $alert['date'] }}</span>
+                    @php
+                        $isHigh     = $alert->severity === 'high';
+                        $isResolved = $alert->status   === 'resolved';
+                        $bgClass    = $isResolved ? 'bg-gray-50 border-gray-300' : ($isHigh ? 'bg-red-50 border-red-500' : 'bg-orange-50 border-orange-400');
+                        $textClass  = $isHigh ? 'text-red-900' : 'text-orange-900';
+                        $iconClass  = $isHigh ? 'text-red-600' : 'text-orange-500';
+                        $devClass   = $isHigh ? 'text-red-700' : 'text-orange-700';
+                    @endphp
+                    <div class="p-4 rounded-lg border-l-4 {{ $bgClass }} {{ $isResolved ? 'opacity-60' : '' }}">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex flex-wrap items-center gap-2 mb-1">
+                                    <svg class="w-4 h-4 {{ $iconClass }} flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                    <span class="font-semibold text-sm {{ $textClass }}">{{ $alert->type }}</span>
+                                    <span class="text-xs text-gray-500">{{ $alert->alert_date->format('M d, Y') }}</span>
+                                    <span class="text-xs px-2 py-0.5 rounded-full font-semibold
+                                        {{ $alert->status === 'resolved'   ? 'bg-green-100 text-green-700' :
+                                           ($alert->status === 'reviewed'  ? 'bg-blue-100 text-blue-700'  :
+                                                                             'bg-red-100 text-red-700') }}">
+                                        {{ ucfirst($alert->status) }}
+                                    </span>
                                 </div>
-                                <p class="text-sm text-gray-700 mb-2">{{ $alert['description'] }}</p>
-                                <div class="flex gap-4 text-sm">
-                                    <span class="text-gray-600">Expected: <span class="font-semibold">{{ $alert['expected'] }}</span></span>
-                                    <span class="text-gray-600">Actual: <span class="font-semibold">{{ $alert['actual'] }}</span></span>
-                                    <span class="font-semibold {{ $alert['severity'] === 'high' ? 'text-red-700' : 'text-orange-700' }}">{{ $alert['deviation'] }}</span>
+                                <p class="text-xs text-gray-600 mb-2">{{ $alert->description }}</p>
+                                <div class="flex flex-wrap gap-4 text-xs">
+                                    <span class="text-gray-500">Expected: <span class="font-semibold text-gray-700">{{ $alert->expected_value }}</span></span>
+                                    <span class="text-gray-500">Actual: <span class="font-semibold text-gray-700">{{ $alert->actual_value }}</span></span>
+                                    <span class="font-semibold {{ $devClass }}">{{ $alert->deviation_pct }}%</span>
                                 </div>
+                                @if($alert->status === 'resolved' && $alert->resolver)
+                                    <p class="text-xs text-gray-400 mt-1">Resolved by {{ $alert->resolver->name }} on {{ $alert->resolved_at->format('M d, Y') }}</p>
+                                @endif
                             </div>
-                            <span class="text-xs px-3 py-1 rounded-full font-semibold whitespace-nowrap {{ $alert['status'] === 'Reviewed' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700' }}">
-                                {{ $alert['status'] }}
-                            </span>
+
+                            @if(in_array(auth()->user()->role, ['admin','manager']) && $alert->status !== 'resolved')
+                                <div class="flex flex-col gap-1 flex-shrink-0">
+                                    @if($alert->status === 'unreviewed')
+                                        <form method="POST" action="{{ route('alerts.reviewed', $alert) }}">
+                                            @csrf @method('PATCH')
+                                            <button class="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-2 py-1 rounded font-medium">Mark Reviewed</button>
+                                        </form>
+                                    @endif
+                                    <form method="POST" action="{{ route('alerts.resolved', $alert) }}">
+                                        @csrf @method('PATCH')
+                                        <button class="text-xs bg-green-100 text-green-700 hover:bg-green-200 px-2 py-1 rounded font-medium">Resolve</button>
+                                    </form>
+                                </div>
+                            @endif
                         </div>
                     </div>
                 @endforeach
             </div>
         @else
-            <p class="text-sm text-gray-400 italic">No anomalies detected in the last 7 days.</p>
+            <p class="text-sm text-gray-400 italic">No anomalies detected in the last 14 days.</p>
         @endif
     </div>
 

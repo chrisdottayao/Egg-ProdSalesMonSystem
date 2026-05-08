@@ -52,6 +52,12 @@ Route::middleware('auth')->group(function () {
     Route::patch('/livestock/cattle/{cattleRecord}', [LivestockController::class, 'updateCattle'])->name('livestock.cattle.update');
     Route::delete('/livestock/cattle/{cattleRecord}', [LivestockController::class, 'destroyCattle'])->name('livestock.cattle.destroy');
 
+    // Anomaly alert actions (admin + manager)
+    Route::middleware('role:admin,manager')->group(function () {
+        Route::patch('/alerts/{alert}/reviewed', [DashboardController::class, 'markReviewed'])->name('alerts.reviewed');
+        Route::patch('/alerts/{alert}/resolved', [DashboardController::class, 'markResolved'])->name('alerts.resolved');
+    });
+
     // Reports (admin + manager only)
     Route::middleware('role:admin,manager')->group(function () {
         Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
