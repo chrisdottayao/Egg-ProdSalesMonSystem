@@ -16,6 +16,11 @@ RUN docker-php-ext-install \
 # Enable Apache mod_rewrite
 RUN a2enmod rewrite
 
+# Install Node.js for asset compilation
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # Install Composer
 COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
 
@@ -28,12 +33,13 @@ COPY composer.json composer.lock ./
 
 # Install dependencies
 ENV COMPOSER_ALLOW_SUPERUSER=1
-RUN composer install --no-dev --optimize-autoloader \
-    --no-interaction --prefer-dist --no-scripts --verbose 2>&1 || \
-    (cat /var/www/html/composer.json && exit 1)
+RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts --verbose || { cat /var/www/html/composer.json; exit 1; }
 
 # Copy rest of project
 COPY . .
+
+# Build frontend assets
+RUN npm ci --ignore-scripts && npm run build && rm -rf node_modules
 
 # Set Apache document root to public
 RUN sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html/public|g' \
