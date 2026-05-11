@@ -25,7 +25,8 @@ COPY composer.json composer.lock ./
 # Install dependencies
 ENV COMPOSER_ALLOW_SUPERUSER=1
 RUN composer install --no-dev --optimize-autoloader \
-    --no-interaction --prefer-dist --no-scripts
+    --no-interaction --prefer-dist --no-scripts --verbose 2>&1 || \
+    (cat /var/www/html/composer.json && exit 1)
 
 # Copy rest of project
 COPY . .
