@@ -9,6 +9,7 @@ use App\Models\EggSale;
 use App\Models\HenBatch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 class DashboardController extends Controller
 {
@@ -128,7 +129,7 @@ class DashboardController extends Controller
     {
         $alert->update([
             'status'      => 'resolved',
-            'resolved_by' => auth()->id(),
+            'resolved_by' => Auth::id(),
             'resolved_at' => now(),
         ]);
         return back()->with('success', 'Alert resolved.');
