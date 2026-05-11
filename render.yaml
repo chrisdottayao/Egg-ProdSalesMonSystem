@@ -1,0 +1,56 @@
+services:
+  # ── Web Application ────────────────────────────────────────────────────────
+  - type: web
+    name: egg-monitor-web
+    runtime: docker
+    plan: free
+    healthCheckPath: /up
+    envVars:
+      - key: APP_KEY
+        sync: false           # Set manually in Render dashboard: php artisan key:generate --show
+      - key: APP_ENV
+        value: production
+      - key: APP_URL
+        fromService:
+          type: web
+          name: egg-monitor-web
+          property: url
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_HOST
+        fromService:
+          type: pserv
+          name: egg-monitor-mysql
+          property: host
+      - key: DB_PORT
+        value: 3306
+      - key: DB_DATABASE
+        value: egg_monitor
+      - key: DB_USERNAME
+        value: egg_user
+      - key: DB_PASSWORD
+        fromService:
+          type: pserv
+          name: egg-monitor-mysql
+          envVarKey: MYSQL_PASSWORD
+
+  # ── MySQL Private Service ──────────────────────────────────────────────────
+  - type: pserv
+    name: egg-monitor-mysql
+    runtime: docker
+    plan: free
+    image:
+      url: docker.io/library/mysql:8.0
+    envVars:
+      - key: MYSQL_DATABASE
+        value: egg_monitor
+      - key: MYSQL_USER
+        value: egg_user
+      - key: MYSQL_PASSWORD
+        generateValue: true
+      - key: MYSQL_ROOT_PASSWORD
+        generateValue: true
+    disk:
+      name: mysql-data
+      mountPath: /var/lib/mysql
+      sizeGB: 1
