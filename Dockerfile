@@ -17,6 +17,7 @@ COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
 
 # Set working directory
 WORKDIR /var/www/html
+RUN touch .env
 
 # Copy composer files first (layer caching)
 COPY composer.json composer.lock ./
@@ -40,7 +41,7 @@ RUN chown -R www-data:www-data /var/www/html/storage \
     /var/www/html/bootstrap/cache
 
 # Generate app key and cache config on start
-COPY .env.example .env
+RUN cp .env.example .env 2>/dev/null || true
 RUN php artisan key:generate
 
 EXPOSE 80
