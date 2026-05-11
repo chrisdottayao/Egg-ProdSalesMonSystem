@@ -3,11 +3,15 @@ FROM php:8.3-apache
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     git curl libpng-dev libonig-dev libxml2-dev \
-    libzip-dev zip unzip && \
+    libzip-dev libfreetype6-dev libjpeg62-turbo-dev \
+    zip unzip && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install PHP extensions
-RUN docker-php-ext-install pdo pdo_mysql mbstring xml bcmath zip gd
+# Configure and install PHP extensions
+RUN docker-php-ext-configure gd \
+    --with-freetype --with-jpeg
+RUN docker-php-ext-install \
+    pdo pdo_mysql mbstring xml bcmath zip gd dom fileinfo
 
 # Enable Apache mod_rewrite
 RUN a2enmod rewrite
