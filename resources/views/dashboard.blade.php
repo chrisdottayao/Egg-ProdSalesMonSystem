@@ -44,19 +44,38 @@
     {{-- Charts --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6"
          data-prod-chart="{{ $productionChartData->values()->toJson() }}"
-         data-rev-chart="{{ $revenueChartData->values()->toJson() }}">
+         data-rev-chart="{{ $revenueChartData->values()->toJson() }}"
+         data-forecast-active="{{ $forecast['active'] ? 'true' : 'false' }}"
+         @if($forecast['active'])
+         data-forecast-prod="{{ json_encode($forecast['forecast_7day']) }}"
+         data-forecast-rev="{{ json_encode($forecast['forecast_30day']) }}"
+         @endif>
+
         <div class="bg-white rounded-lg shadow-md p-6">
             <div class="mb-4">
                 <h2 class="text-lg font-bold text-gray-800">Production Trend</h2>
-                <p class="text-sm text-gray-500">Last 30 days</p>
+                <p class="text-sm text-gray-500">Last 30 days{{ $forecast['active'] ? ' + 7-day forecast' : '' }}</p>
             </div>
             <canvas id="productionChart" height="130"></canvas>
+            @if($forecast['active'])
+                <div class="mt-3 flex items-center gap-2">
+                    <span class="text-xs px-2 py-1 rounded-full font-semibold
+                        {{ $forecast['mape'] < 5 ? 'bg-green-100 text-green-700' : ($forecast['mape'] <= 15 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700') }}">
+                        PHP-ML &mdash; MAPE: {{ $forecast['mape'] }}% &mdash; retrained weekly
+                    </span>
+                </div>
+            @else
+                <div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
+                    <svg class="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <p class="text-sm text-blue-700">Predictive analytics will activate after 30 days of recorded production data.</p>
+                </div>
+            @endif
         </div>
 
         <div class="bg-white rounded-lg shadow-md p-6">
             <div class="mb-4">
                 <h2 class="text-lg font-bold text-gray-800">Revenue Trend</h2>
-                <p class="text-sm text-green-600">Last 10 days of sales</p>
+                <p class="text-sm text-green-600">{{ $forecast['active'] ? 'Last 10 days + 30-day forecast' : 'Last 10 days of sales' }}</p>
             </div>
             <canvas id="revenueChart" height="130"></canvas>
         </div>
@@ -213,34 +232,58 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script type="text/javascript">
 (function () {
-    const chartContainer = document
-    .querySelector('[data-prod-chart]');
-    const prodData = JSON.parse(chartContainer?.getAttribute('data-prod-chart') || '[]');
-    const revData = JSON.parse(chartContainer?.getAttribute('data-rev-chart') || '[]');
+    const chartContainer  = document.querySelector('[data-prod-chart]');
+    const prodData        = JSON.parse(chartContainer?.getAttribute('data-prod-chart') || '[]');
+    const revData         = JSON.parse(chartContainer?.getAttribute('data-rev-chart')  || '[]');
+    const forecastActive  = chartContainer?.getAttribute('data-forecast-active') === 'true';
+    const forecastProd    = forecastActive ? JSON.parse(chartContainer.getAttribute('data-forecast-prod') || '[]') : [];
+    const forecastRev     = forecastActive ? JSON.parse(chartContainer.getAttribute('data-forecast-rev')  || '[]') : [];
 
-    // Production Trend — Line Chart
+    // Production Trend — Line Chart (+ 7-day dashed forecast)
     const prodCtx = document.getElementById('productionChart');
     if (prodCtx && prodData.length) {
+        const fcstLabels   = forecastProd.map(d => d.day);
+        const allLabels    = [...prodData.map(d => d.date), ...fcstLabels];
+        const histEggs     = [...prodData.map(d => d.eggs), ...Array(fcstLabels.length).fill(null)];
+        const fcstEggs     = forecastActive
+            ? [...Array(prodData.length).fill(null), ...forecastProd.map(d => d.predicted)]
+            : [];
+
+        const prodDatasets = [{
+            label:           'Eggs Collected',
+            data:            histEggs,
+            borderColor:     '#4CAF50',
+            backgroundColor: 'rgba(76,175,80,0.1)',
+            borderWidth:     2,
+            pointRadius:     3,
+            tension:         0.3,
+            fill:            true,
+            spanGaps:        false,
+        }];
+
+        if (forecastActive) {
+            prodDatasets.push({
+                label:           'Forecast',
+                data:            fcstEggs,
+                borderColor:     '#EF4444',
+                backgroundColor: 'rgba(239,68,68,0.05)',
+                borderWidth:     2,
+                borderDash:      [6, 3],
+                pointRadius:     3,
+                tension:         0.3,
+                fill:            false,
+                spanGaps:        false,
+            });
+        }
+
         new Chart(prodCtx, {
             type: 'line',
-            data: {
-                labels: prodData.map(d => d.date),
-                datasets: [{
-                    label: 'Eggs Collected',
-                    data: prodData.map(d => d.eggs),
-                    borderColor: '#4CAF50',
-                    backgroundColor: 'rgba(76,175,80,0.1)',
-                    borderWidth: 2,
-                    pointRadius: 3,
-                    tension: 0.3,
-                    fill: true,
-                }]
-            },
+            data: { labels: allLabels, datasets: prodDatasets },
             options: {
                 responsive: true,
-                plugins: { legend: { display: false } },
+                plugins: { legend: { display: forecastActive } },
                 scales: {
-                    x: { ticks: { maxTicksLimit: 8, font: { size: 11 } }, grid: { display: false } },
+                    x: { ticks: { maxTicksLimit: 10, font: { size: 11 } }, grid: { display: false } },
                     y: { ticks: { font: { size: 11 } }, beginAtZero: false }
                 }
             }
@@ -249,25 +292,40 @@
         prodCtx.parentElement.innerHTML += '<p class="text-sm text-gray-400 text-center mt-8">No production data yet.</p>';
     }
 
-    // Revenue Trend — Bar Chart
+    // Revenue Trend — Bar Chart (+ 30-day light-green forecast bars)
     const revCtx = document.getElementById('revenueChart');
     if (revCtx && revData.length) {
+        const fcstRevLabels = forecastRev.map(d => d.day);
+        const allRevLabels  = [...revData.map(d => d.date), ...fcstRevLabels];
+        const histRev       = [...revData.map(d => d.revenue), ...Array(fcstRevLabels.length).fill(null)];
+        const fcstRevData   = forecastActive
+            ? [...Array(revData.length).fill(null), ...forecastRev.map(d => d.predicted_revenue)]
+            : [];
+
+        const revDatasets = [{
+            label:           'Revenue (₱)',
+            data:            histRev,
+            backgroundColor: '#4CAF50',
+            borderRadius:    4,
+        }];
+
+        if (forecastActive) {
+            revDatasets.push({
+                label:           'Forecast Revenue',
+                data:            fcstRevData,
+                backgroundColor: 'rgba(134,239,172,0.7)',
+                borderRadius:    4,
+            });
+        }
+
         new Chart(revCtx, {
             type: 'bar',
-            data: {
-                labels: revData.map(d => d.date),
-                datasets: [{
-                    label: 'Revenue (₱)',
-                    data: revData.map(d => d.revenue),
-                    backgroundColor: '#4CAF50',
-                    borderRadius: 4,
-                }]
-            },
+            data: { labels: allRevLabels, datasets: revDatasets },
             options: {
                 responsive: true,
                 plugins: {
-                    legend: { display: false },
-                    tooltip: { callbacks: { label: ctx => '₱' + ctx.parsed.y.toLocaleString() } }
+                    legend: { display: forecastActive },
+                    tooltip: { callbacks: { label: ctx => '₱' + (ctx.parsed.y ?? 0).toLocaleString() } }
                 },
                 scales: {
                     x: { ticks: { font: { size: 11 } }, grid: { display: false } },

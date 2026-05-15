@@ -7,6 +7,7 @@ use App\Models\CullRecord;
 use App\Models\EggProduction;
 use App\Models\EggSale;
 use App\Models\HenBatch;
+use App\Services\ForecastService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -112,20 +113,24 @@ class DashboardController extends Controller
         ];
         $aiInsight = $aiInsights[date('N') % count($aiInsights)];
 
+        // ── Predictive forecast ──────────────────────────────────────────────
+        $forecast = (new ForecastService)->forecast();
+
         return view('dashboard', compact(
             'stats', 'recentActivity',
             'productionChartData', 'revenueChartData',
-            'anomalyAlerts', 'farmRecommendations', 'aiInsight'
+            'anomalyAlerts', 'farmRecommendations', 'aiInsight',
+            'forecast'
         ));
     }
 
-    public function markReviewed(Request $request, AnomalyAlert $alert)
+    public function markReviewed(AnomalyAlert $alert)
     {
         $alert->update(['status' => 'reviewed']);
         return back()->with('success', 'Alert marked as reviewed.');
     }
 
-    public function markResolved(Request $request, AnomalyAlert $alert)
+    public function markResolved(AnomalyAlert $alert)
     {
         $alert->update([
             'status'      => 'resolved',
