@@ -5,7 +5,14 @@
       "Bash(php artisan *)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "Bash(mkdir -p app/Services app/Console/Commands && echo \"dirs ready\")",
+      "Bash(php -r ' *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8001/up)"
+    ],
+    "additionalDirectories": [
+      "C:\\xampp\\htdocs\\Egg-ProdSalesMonSystem\\app"
     ]
   }
 }
