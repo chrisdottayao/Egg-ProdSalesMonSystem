@@ -8,9 +8,11 @@ use App\Models\EggProduction;
 use App\Models\EggSale;
 use App\Models\HenBatch;
 use App\Services\ForecastService;
-use Illuminate\Http\Request;
+use GuzzleHttp\Client;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 
 class DashboardController extends Controller
 {
@@ -91,37 +93,87 @@ class DashboardController extends Controller
             ],
         ];
 
-        // ── AI insight (rule-based, rotates daily) ────────────────────────
-        $monthAvgDaily = Carbon::now()->day > 0
-            ? round($salesThisMonth / Carbon::now()->day, 0)
-            : 0;
-
-        $aiInsights = [
-            "Production rate is {$productionRate}%. " . ($productionRate >= 80
-                ? 'Flock is performing within optimal range.'
-                : 'Below target — review flock health and active hen count.'),
-            "Daily revenue averaging ₱" . number_format($monthAvgDaily) . " this month. " .
-                ($monthAvgDaily > 0 ? 'Sales pace is consistent with current pricing.' : 'No sales recorded yet this month.'),
-            "{$eggsToday} eggs collected today with {$activeHens} active hens. Monitor sell-through rate to minimize end-of-day unsold inventory.",
-            "Production rate: {$productionRate}%. Revenue today: ₱" . number_format($revenueToday) . ". " .
-                (count($anomalyAlerts->where('status', 'unreviewed')) > 0
-                    ? count($anomalyAlerts->where('status', 'unreviewed')) . ' unreviewed anomaly alert(s) detected — review recommended.'
-                    : 'No active anomaly alerts. Farm data appears consistent.'),
-            "Active hens: {$activeHens}. Eggs this month: " . number_format($eggsThisMonth) . ". Revenue this month: ₱" . number_format($salesThisMonth) . ".",
-            "Unsold eggs this month: " . number_format(max(0, $unsoldEggs)) . ". " .
-                ($unsoldEggs > 50 ? 'Consider reviewing sales distribution channels.' : 'Sell-through rate is healthy.'),
-        ];
-        $aiInsight = $aiInsights[date('N') % count($aiInsights)];
-
         // ── Predictive forecast ──────────────────────────────────────────────
         $forecast = (new ForecastService)->forecast();
 
         return view('dashboard', compact(
             'stats', 'recentActivity',
             'productionChartData', 'revenueChartData',
-            'anomalyAlerts', 'farmRecommendations', 'aiInsight',
+            'anomalyAlerts', 'farmRecommendations',
             'forecast'
         ));
+    }
+
+    public function aiInsight(): JsonResponse
+    {
+        $cached = Cache::get('groq_ai_insight');
+        if ($cached !== null) {
+            return response()->json(['insight' => $cached]);
+        }
+
+        $apiKey = config('services.groq.api_key');
+        if (! $apiKey) {
+            return response()->json(['insight' => 'AI insights temporarily unavailable.']);
+        }
+
+        $today      = Carbon::today();
+        $eggsToday  = EggProduction::whereDate('date', $today)->sum('eggs_collected');
+        $activeHens = HenBatch::activeHenCount();
+        $revToday   = EggSale::whereDate('date', $today)->sum('total_amount');
+        $prodRate   = $activeHens > 0 ? round(($eggsToday / $activeHens) * 100, 1) : 0;
+
+        $avg7day = round(
+            EggProduction::where('date', '>=', Carbon::today()->subDays(7))
+                ->where('date', '<', $today)
+                ->avg('eggs_collected') ?? 0
+        );
+
+        $soldToday = EggSale::whereDate('date', $today)->sum('quantity');
+        $remaining = max(0, $eggsToday - $soldToday);
+
+        $forecast = (new ForecastService)->forecast();
+        $mape     = $forecast['active'] ? $forecast['mape'] . '%' : 'N/A';
+
+        $userContent = "Farm data: Eggs today: {$eggsToday}. "
+            . "Production rate: {$prodRate}%. "
+            . "Revenue today: ₱" . number_format($revToday, 2) . ". "
+            . "7-day average production: {$avg7day}. "
+            . "MAPE forecast accuracy: {$mape}. "
+            . "Unsold eggs today: {$remaining}. "
+            . "Active hens: {$activeHens}.";
+
+        try {
+            $client   = new Client(['timeout' => 10]);
+            $response = $client->post('https://api.groq.com/openai/v1/chat/completions', [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $apiKey,
+                    'Content-Type'  => 'application/json',
+                ],
+                'json' => [
+                    'model'      => 'llama3-8b-8192',
+                    'messages'   => [
+                        [
+                            'role'    => 'system',
+                            'content' => 'You are an agricultural data analyst for a small egg farm in the Philippines. Analyze the farm data provided and give a 2-3 sentence plain-language insight about current performance, any concerns, and one actionable recommendation. Be specific with numbers.',
+                        ],
+                        [
+                            'role'    => 'user',
+                            'content' => $userContent,
+                        ],
+                    ],
+                    'max_tokens' => 150,
+                ],
+            ]);
+
+            $body    = json_decode((string) $response->getBody(), true);
+            $insight = $body['choices'][0]['message']['content'] ?? 'AI insights temporarily unavailable.';
+
+            Cache::put('groq_ai_insight', $insight, now()->addHour());
+
+            return response()->json(['insight' => $insight]);
+        } catch (\Throwable) {
+            return response()->json(['insight' => 'AI insights temporarily unavailable.']);
+        }
     }
 
     public function markReviewed(AnomalyAlert $alert)

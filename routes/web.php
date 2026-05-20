@@ -18,6 +18,10 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
+Route::get('/dashboard/ai-insight', [DashboardController::class, 'aiInsight'])
+    ->middleware(['auth', 'verified'])
+    ->name('dashboard.ai-insight');
+
 Route::middleware('auth')->group(function () {
     // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
