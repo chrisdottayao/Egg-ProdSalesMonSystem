@@ -143,14 +143,18 @@ class DashboardController extends Controller
             . "Active hens: {$activeHens}.";
 
         try {
-            $client   = new Client(['timeout' => 10]);
+            $caBundle = storage_path('app/cacert.pem');
+            $client   = new Client([
+                'timeout' => 10,
+                'verify'  => is_file($caBundle) ? $caBundle : true,
+            ]);
             $response = $client->post('https://api.groq.com/openai/v1/chat/completions', [
                 'headers' => [
                     'Authorization' => 'Bearer ' . $apiKey,
                     'Content-Type'  => 'application/json',
                 ],
                 'json' => [
-                    'model'      => 'llama3-8b-8192',
+                    'model'      => 'llama-3.1-8b-instant',
                     'messages'   => [
                         [
                             'role'    => 'system',

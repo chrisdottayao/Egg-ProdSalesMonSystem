@@ -86,7 +86,7 @@
         <div class="bg-white rounded-lg shadow-md p-6">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-bold text-gray-800">AI Insights</h2>
-                <span class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded font-medium">Groq — Llama 3</span>
+                <span class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded font-medium">Groq — Llama 3.1</span>
             </div>
             <div class="flex gap-4 items-start">
                 <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
