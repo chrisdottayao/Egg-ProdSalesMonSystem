@@ -76,11 +76,11 @@ class EggProductionController extends Controller
         ];
 
         $rows = [
-            ['2024-01-01', 185, 200, 'Large',  58.5, 0, 165, 9.00, 0, '',                 'Normal day'],
-            ['2024-01-02', 178, 200, 'Large',  57.0, 1, 160, 9.00, 0, '',                 'One mortality recorded'],
-            ['2024-01-03', 190, 199, 'Medium', 55.0, 0, 170, 9.00, 3, 'Age',              'Routine culling'],
-            ['2024-01-04', 172, 196, 'Large',  59.0, 0, 150, 9.50, 0, '',                 ''],
-            ['2024-01-05', 183, 196, 'XL',     62.0, 2, 163, 9.00, 0, 'Health Condition', 'Two mortalities noted'],
+            ['2024-01-01', 182, 200, 'Large',  58.5, 0, 165, 9.00, 0, '',                 'SPC Farm — normal laying day'],
+            ['2024-01-02', 176, 200, 'Large',  57.0, 1, 158, 9.00, 0, '',                 'SPC Farm — 1 mortality noted'],
+            ['2024-01-03', 188, 199, 'Medium', 55.5, 0, 172, 9.00, 4, 'Age',              'SPC Farm — routine culling Batch A'],
+            ['2024-01-04', 170, 195, 'Large',  59.0, 0, 150, 9.50, 0, '',                 'SPC Farm — price increase day'],
+            ['2024-01-05', 185, 195, 'XL',     62.0, 2, 163, 9.00, 0, 'Health Condition', 'SPC Farm — 2 mortalities health-related'],
         ];
 
         return response()->stream(function () use ($headers, $rows) {
