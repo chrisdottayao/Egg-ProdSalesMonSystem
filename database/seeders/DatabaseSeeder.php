@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\AnomalyAlert;
 use App\Models\CattleRecord;
 use App\Models\CullRecord;
 use App\Models\EggProduction;
@@ -38,17 +37,17 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // ── Hen Batches ────────────────────────────────────────
-        $batch1 = HenBatch::firstOrCreate(['batch_id' => 'HB-2024-001'], [
+        $batch1 = HenBatch::updateOrCreate(['batch_id' => 'HB-2024-001'], [
             'batch_size' => 200,
             'status'     => 'Active',
             'entry_date' => '2024-01-15',
             'notes'      => 'Layer hens — Batch A',
         ]);
-        HenBatch::firstOrCreate(['batch_id' => 'HB-2024-002'], [
-            'batch_size' => 150,
-            'status'     => 'Active',
+        HenBatch::updateOrCreate(['batch_id' => 'HB-2024-002'], [
+            'batch_size' => 0,
+            'status'     => 'Culled',
             'entry_date' => '2024-06-01',
-            'notes'      => 'Layer hens — Batch B',
+            'notes'      => 'Layer hens — Batch B (culled)',
         ]);
 
         // ── Cattle Records ─────────────────────────────────────
@@ -62,46 +61,39 @@ class DatabaseSeeder extends Seeder
             CattleRecord::firstOrCreate(['ear_tag' => $c['ear_tag']], $c);
         }
 
-        // ── Egg Production & Sales (60 days: 60 days ago → yesterday) ─
-        // Clear existing records so re-seeding always produces clean data
-        AnomalyAlert::truncate();
-        EggSale::truncate();
-        EggProduction::truncate();
+        // ── Egg Production & Sales (61 days: 60 days ago → today) ────
+        for ($day = 0; $day <= 60; $day++) {
+            $daysAgo    = 60 - $day; // day 0 = 60 days ago, day 60 = today
+            $date       = Carbon::today()->subDays($daysAgo)->format('Y-m-d');
+            $activeHens = 200;
 
-        $activeHens = 200;
-
-        for ($day = 1; $day <= 60; $day++) {
-            $daysAgo = 61 - $day; // day 1 = 60 days ago, day 60 = yesterday
-            $date    = Carbon::today()->subDays($daysAgo)->format('Y-m-d');
-
-            // Decrease active hens by 1 every ~10 days to simulate mortality
-            if ($day % 10 === 0) {
-                $activeHens--;
-            }
-
-            $mortality    = rand(1, 10) <= 2 ? rand(1, 2) : 0;
-            $eggSize      = rand(1, 10) <= 3 ? 'Medium' : 'Large';
+            $mortality     = rand(1, 10) <= 2 ? rand(1, 2) : 0;
+            $eggSize       = rand(1, 10) <= 3 ? 'Medium' : 'Large';
             $eggsCollected = rand(170, 190);
 
-            EggProduction::create([
-                'date'           => $date,
-                'eggs_collected' => $eggsCollected,
-                'active_hens'    => $activeHens,
-                'egg_size'       => $eggSize,
-                'egg_weight'     => round(rand(55, 70) / 10, 1),
-                'mortality'      => $mortality,
-                'notes'          => null,
-            ]);
+            EggProduction::updateOrCreate(
+                ['date' => $date],
+                [
+                    'eggs_collected' => $eggsCollected,
+                    'active_hens'    => $activeHens,
+                    'egg_size'       => $eggSize,
+                    'egg_weight'     => round(rand(55, 70) / 10, 1),
+                    'mortality'      => $mortality,
+                    'notes'          => null,
+                ]
+            );
 
             $qtySold = $eggsCollected - rand(10, 20);
-            EggSale::create([
-                'date'           => $date,
-                'egg_size'       => $eggSize,
-                'quantity'       => $qtySold,
-                'price_per_unit' => 9.00,
-                'total_amount'   => $qtySold * 9.00,
-                'notes'          => null,
-            ]);
+            EggSale::updateOrCreate(
+                ['date' => $date],
+                [
+                    'egg_size'       => $eggSize,
+                    'quantity'       => $qtySold,
+                    'price_per_unit' => 9.00,
+                    'total_amount'   => $qtySold * 9.00,
+                    'notes'          => null,
+                ]
+            );
         }
 
         // ── Cull Records ───────────────────────────────────────

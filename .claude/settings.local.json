@@ -9,10 +9,14 @@
       "Bash(git commit *)",
       "Bash(mkdir -p app/Services app/Console/Commands && echo \"dirs ready\")",
       "Bash(php -r ' *)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8001/up)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8001/up)",
+      "Bash(findstr /i \"cainfo\" \"C:\\\\Program Files\\\\PHP\\\\current\\\\php.ini\")",
+      "Read(//c/xampp/php/extras/ssl/**)",
+      "Bash(cp \"C:\\\\xampp\\\\php\\\\extras\\\\ssl\\\\cacert.pem\" \"storage/app/cacert.pem\" && echo \"copied\")"
     ],
     "additionalDirectories": [
-      "C:\\xampp\\htdocs\\Egg-ProdSalesMonSystem\\app"
+      "C:\\xampp\\htdocs\\Egg-ProdSalesMonSystem\\app",
+      "C:\\xampp\\php\\extras\\ssl"
     ]
   }
 }
