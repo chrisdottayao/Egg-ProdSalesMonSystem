@@ -214,25 +214,55 @@
         @endif
     </div>
 
-    {{-- Farm Recommendations --}}
+    {{-- Rule-Based Farm Recommendations (Admin + Manager only) --}}
+    @if(in_array(Auth::user()->role, ['admin', 'manager']))
     <div class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-4">Farm Recommendations</h2>
-        <div class="space-y-3">
-            @foreach($farmRecommendations as $rec)
-                <div class="p-4 rounded-lg border-l-4 {{ $rec['active'] ? 'bg-blue-50 border-blue-500' : 'bg-gray-50 border-gray-300' }}">
-                    <div class="flex items-start gap-3">
-                        @if($rec['active'])
-                            <svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        @endif
-                        <div class="flex-1">
-                            <p class="text-sm font-semibold text-gray-800 mb-1">Condition: {{ $rec['condition'] }}</p>
-                            <p class="text-sm text-gray-700"><span class="font-semibold">Recommendation:</span> {{ $rec['recommendation'] }}</p>
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold text-gray-800">Farm Recommendations</h2>
+            @if(count($recommendations) > 0)
+                <span class="text-xs font-semibold px-2 py-1 rounded-full
+                    {{ collect($recommendations)->where('severity','critical')->isNotEmpty() ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700' }}">
+                    {{ count($recommendations) }} active
+                </span>
+            @endif
+        </div>
+
+        @if(empty($recommendations))
+            <p class="text-sm text-gray-400 italic">No recommendations at this time.</p>
+        @else
+            <div class="space-y-3">
+                @foreach($recommendations as $rec)
+                    @php
+                        $isCritical  = $rec['severity'] === 'critical';
+                        $bgBorder    = $isCritical ? 'bg-red-50 border-red-500'    : 'bg-orange-50 border-orange-400';
+                        $badgeClass  = $isCritical ? 'bg-red-100 text-red-700'    : 'bg-orange-100 text-orange-700';
+                        $titleClass  = $isCritical ? 'text-red-900'               : 'text-orange-900';
+                        $iconClass   = $isCritical ? 'text-red-500'               : 'text-orange-500';
+                    @endphp
+                    <div class="p-4 rounded-lg border-l-4 {{ $bgBorder }}">
+                        <div class="flex items-start gap-3">
+                            <svg class="w-4 h-4 {{ $iconClass }} flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex flex-wrap items-center gap-2 mb-1">
+                                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full {{ $badgeClass }}">
+                                        {{ ucfirst($rec['severity']) }}
+                                    </span>
+                                    <span class="text-sm font-semibold {{ $titleClass }}">{{ $rec['condition'] }}</span>
+                                </div>
+                                <p class="text-sm text-gray-700 mb-1">{{ $rec['recommendation'] }}</p>
+                                <p class="text-xs text-gray-400">
+                                    Triggered since: {{ \Carbon\Carbon::parse($rec['triggered_since'])->format('M d, Y') }}
+                                </p>
+                            </div>
                         </div>
                     </div>
-                </div>
-            @endforeach
-        </div>
+                @endforeach
+            </div>
+        @endif
     </div>
+    @endif
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>

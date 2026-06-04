@@ -8,6 +8,7 @@ use App\Models\EggProduction;
 use App\Models\EggSale;
 use App\Models\HenBatch;
 use App\Services\ForecastService;
+use App\Services\RecommendationService;
 use GuzzleHttp\Client;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
@@ -77,21 +78,8 @@ class DashboardController extends Controller
             ->orderBy('alert_date', 'desc')
             ->get();
 
-        // ── Farm recommendations ─────────────────────────────────────────────
-        $unsoldEggs = $eggsThisMonth - EggSale::where('date', '>=', $thisMonth)->sum('quantity');
-
-        $farmRecommendations = [
-            [
-                'condition'      => 'Production rate below 70%',
-                'recommendation' => 'Review active hen count; check for unreported mortality or health issues.',
-                'active'         => $productionRate > 0 && $productionRate < 70,
-            ],
-            [
-                'condition'      => 'Unsold eggs accumulating',
-                'recommendation' => 'Review sales pace and adjust pricing or distribution to reduce unsold stock.',
-                'active'         => $unsoldEggs > 50,
-            ],
-        ];
+        // ── Rule-based recommendations ───────────────────────────────────────
+        $recommendations = (new RecommendationService)->getRecommendations();
 
         // ── Predictive forecast ──────────────────────────────────────────────
         $forecast = (new ForecastService)->forecast();
@@ -99,7 +87,7 @@ class DashboardController extends Controller
         return view('dashboard', compact(
             'stats', 'recentActivity',
             'productionChartData', 'revenueChartData',
-            'anomalyAlerts', 'farmRecommendations',
+            'anomalyAlerts', 'recommendations',
             'forecast'
         ));
     }
