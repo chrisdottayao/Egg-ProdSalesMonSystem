@@ -35,6 +35,11 @@ Route::middleware('auth')->group(function () {
     Route::patch('/production/{production}', [EggProductionController::class, 'update'])->name('productions.update');
     Route::delete('/production/{production}', [EggProductionController::class, 'destroy'])->name('productions.destroy');
 
+    // Historical CSV import
+    Route::get('/production/import/template', [EggProductionController::class, 'downloadTemplate'])->name('productions.import.template');
+    Route::post('/production/import/historical', [EggProductionController::class, 'importHistorical'])->name('productions.import.historical');
+    Route::get('/production/import/errors/{token}', [EggProductionController::class, 'downloadImportErrors'])->name('productions.import.errors');
+
     // Egg Sales
     Route::get('/sales', [EggSaleController::class, 'index'])->name('sales.index');
     Route::post('/sales', [EggSaleController::class, 'store'])->name('sales.store');

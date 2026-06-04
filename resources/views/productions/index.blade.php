@@ -77,35 +77,122 @@
     </div>
 
     {{-- Production History --}}
-    <div class="bg-white rounded-lg shadow-md p-6" x-data="{ showImport: false }">
-        <div class="flex items-center justify-between mb-4">
+    <div class="bg-white rounded-lg shadow-md p-6" x-data="{ showImport: false, showHistoricalImport: false, uploading: false }">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
             <h2 class="text-lg font-bold text-gray-800">Production History</h2>
-            <button @click="showImport = true"
-                class="flex items-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                Import Historical Logbooks
-            </button>
+            <div class="flex flex-wrap gap-2">
+                <button @click="showImport = true"
+                    class="flex items-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    Import Historical Logbooks
+                </button>
+                <button @click="showHistoricalImport = true"
+                    class="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    Import Full Historical Logbook
+                </button>
+            </div>
         </div>
 
-        {{-- Import Modal --}}
+        {{-- Simple Import Modal (placeholder) --}}
         <div x-show="showImport" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div class="bg-white rounded-lg p-6 max-w-md w-full">
                 <h3 class="text-lg font-bold mb-4">Import Historical Logbooks</h3>
                 <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-4">
                     <svg class="w-12 h-12 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                    <p class="text-sm text-gray-600 mb-2">Drag and drop CSV file here</p>
-                    <button type="button" class="text-[#4CAF50] text-sm hover:underline">or browse files</button>
+                    <p class="text-sm text-gray-600 mb-2">Use the <strong>Import Full Historical Logbook</strong> button for multi-table CSV import.</p>
                 </div>
-                <a href="#" class="text-sm text-[#4CAF50] hover:underline block mb-4">Download CSV Template</a>
-                <p class="text-xs text-gray-500 mb-4">Note: Imported records will be validated and used as training data for the forecasting model.</p>
                 <div class="flex gap-2">
                     <button type="button" @click="showImport = false"
-                        class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300">Cancel</button>
-                    <button type="button"
-                        class="flex-1 bg-[#4CAF50] text-white py-2 rounded-lg hover:bg-green-600">Upload</button>
+                        class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300">Close</button>
                 </div>
             </div>
         </div>
+
+        {{-- Historical Logbook Import Modal --}}
+        <div x-show="showHistoricalImport" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div class="bg-white rounded-lg p-6 max-w-lg w-full shadow-xl">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-gray-800">Import Full Historical Logbook</h3>
+                    <button @click="showHistoricalImport = false; uploading = false" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                {{-- CSV Format Reference --}}
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-xs text-blue-800">
+                    <p class="font-semibold mb-1">Expected CSV columns:</p>
+                    <p class="font-mono">date, eggs_collected, active_hens, egg_size, egg_weight, mortality_count, eggs_sold, price_per_unit, culled_count, cull_reason, notes</p>
+                </div>
+
+                <form method="POST" action="{{ route('productions.import.historical') }}"
+                      enctype="multipart/form-data"
+                      @submit="uploading = true">
+                    @csrf
+
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center mb-4 hover:border-blue-400 transition-colors">
+                        <svg class="w-10 h-10 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                        <label class="cursor-pointer">
+                            <span class="text-sm text-gray-600">Click to choose a CSV file</span>
+                            <input type="file" name="csv_file" accept=".csv,.txt" required
+                                   class="block mt-2 mx-auto text-sm text-gray-500 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                        </label>
+                    </div>
+
+                    <div class="flex items-center justify-between mb-4">
+                        <a href="{{ route('productions.import.template') }}"
+                           class="flex items-center gap-1 text-sm text-blue-600 hover:underline">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                            Download CSV Template (5 sample rows)
+                        </a>
+                    </div>
+
+                    <div class="text-xs text-gray-500 mb-4 space-y-1">
+                        <p>• Each row can insert into up to 3 tables simultaneously.</p>
+                        <p>• Rows with existing dates are skipped (no duplicates).</p>
+                        <p>• <strong>eggs_sold</strong> and <strong>culled_count</strong> are optional — leave 0 or blank.</p>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button type="button" @click="showHistoricalImport = false; uploading = false"
+                            class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 text-sm">
+                            Cancel
+                        </button>
+                        <button type="submit" :disabled="uploading"
+                            class="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-60 flex items-center justify-center gap-2">
+                            <svg x-show="uploading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            <span x-text="uploading ? 'Importing…' : 'Import Logbook'"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {{-- Import Summary (shown after redirect) --}}
+        @if(session('import_summary'))
+            @php $s = session('import_summary'); @endphp
+            <div class="mb-4 p-4 bg-green-50 border border-green-300 rounded-lg text-sm">
+                <p class="font-bold text-green-800 mb-2">Historical Import Complete</p>
+                <ul class="space-y-1 text-green-700">
+                    <li>Production records: <strong>{{ $s['prod_imported'] }} imported</strong>, {{ $s['prod_skipped'] }} skipped (duplicates)</li>
+                    <li>Sales records: <strong>{{ $s['sales_imported'] }} imported</strong>, {{ $s['sales_skipped'] }} skipped</li>
+                    <li>Cull records: <strong>{{ $s['cull_imported'] }} imported</strong>, {{ $s['cull_skipped'] }} skipped</li>
+                    @if($s['errors'] > 0)
+                        <li class="text-orange-700">Rows with errors: <strong>{{ $s['errors'] }}</strong>
+                            @if(session('import_error_token'))
+                                &mdash; <a href="{{ route('productions.import.errors', session('import_error_token')) }}"
+                                           class="underline font-semibold">Download error log</a>
+                            @endif
+                        </li>
+                    @else
+                        <li class="text-green-600">No errors detected.</li>
+                    @endif
+                </ul>
+            </div>
+        @endif
 
         <div class="overflow-x-auto">
             <table class="w-full">
