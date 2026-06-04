@@ -84,8 +84,128 @@
     </div>
 
     {{-- Sales History --}}
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-4">Sales History</h2>
+    <div class="bg-white rounded-lg shadow-md p-6"
+         x-data="{
+             showImport: false,
+             showSummary: {{ session('import_summary') ? 'true' : 'false' }},
+             uploading: false
+         }">
+
+        {{-- Import Modal --}}
+        <div x-show="showImport" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div class="bg-white rounded-lg p-6 max-w-lg w-full shadow-xl">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-gray-800">Import Sales History</h3>
+                    <button @click="showImport = false; uploading = false" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-xs text-blue-800">
+                    <p class="font-semibold mb-1">Expected CSV columns:</p>
+                    <p class="font-mono">date, egg_size, quantity_sold, price_per_unit, notes</p>
+                    <p class="mt-1">Valid egg sizes: Peewee, Small, Medium, Large, XL, Jumbo</p>
+                </div>
+
+                <form method="POST" action="{{ route('sales.import') }}"
+                      enctype="multipart/form-data"
+                      @submit="uploading = true">
+                    @csrf
+
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center mb-4 hover:border-blue-400 transition-colors">
+                        <svg class="w-10 h-10 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                        <label class="cursor-pointer">
+                            <span class="text-sm text-gray-600">Click to choose a CSV file</span>
+                            <input type="file" name="csv_file" accept=".csv,.txt" required
+                                   class="block mt-2 mx-auto text-sm text-gray-500 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                        </label>
+                    </div>
+
+                    <div class="flex items-center justify-between mb-4">
+                        <a href="{{ route('sales.import.template') }}"
+                           class="flex items-center gap-1 text-sm text-blue-600 hover:underline">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                            Download CSV Template (5 sample rows)
+                        </a>
+                    </div>
+
+                    <div class="text-xs text-gray-500 mb-4 space-y-1">
+                        <p>• Rows where date + egg_size already exists are skipped.</p>
+                        <p>• Rows where quantity_sold exceeds eggs produced that day are rejected.</p>
+                        <p>• <code class="bg-gray-100 px-1 rounded">total_amount</code> is auto-computed from quantity × price.</p>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button type="button" @click="showImport = false; uploading = false"
+                            class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 text-sm">
+                            Cancel
+                        </button>
+                        <button type="submit" :disabled="uploading"
+                            class="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-60 flex items-center justify-center gap-2">
+                            <svg x-show="uploading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            <span x-text="uploading ? 'Importing…' : 'Import CSV'"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {{-- Summary Modal (auto-opens after import redirect) --}}
+        <div x-show="showSummary" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div class="bg-white rounded-lg p-6 max-w-sm w-full shadow-xl">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-800">Import Complete</h3>
+                </div>
+
+                @if(session('import_summary'))
+                    @php $s = session('import_summary'); @endphp
+                    <ul class="space-y-2 text-sm mb-4">
+                        <li class="flex items-center gap-2">
+                            <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                            <span><strong class="text-green-700">{{ $s['imported'] }} record{{ $s['imported'] !== 1 ? 's' : '' }}</strong> imported successfully</span>
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <span class="w-2 h-2 bg-yellow-500 rounded-full"></span>
+                            <span><strong class="text-yellow-700">{{ $s['skipped'] }} record{{ $s['skipped'] !== 1 ? 's' : '' }}</strong> skipped (duplicates)</span>
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <span class="w-2 h-2 {{ $s['failed'] > 0 ? 'bg-red-500' : 'bg-gray-300' }} rounded-full"></span>
+                            <span class="{{ $s['failed'] > 0 ? 'text-red-700' : 'text-gray-500' }}">
+                                <strong>{{ $s['failed'] }} record{{ $s['failed'] !== 1 ? 's' : '' }}</strong> failed (validation errors)
+                            </span>
+                        </li>
+                    </ul>
+
+                    @if(session('import_error_token'))
+                        <a href="{{ route('sales.import.errors', session('import_error_token')) }}"
+                           class="flex items-center gap-1 text-sm text-red-600 hover:underline mb-4">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                            Download error log ({{ $s['failed'] }} row{{ $s['failed'] !== 1 ? 's' : '' }})
+                        </a>
+                    @endif
+                @endif
+
+                <button @click="showSummary = false"
+                    class="w-full bg-[#4CAF50] text-white py-2 rounded-lg hover:bg-green-600 text-sm font-medium">
+                    Done
+                </button>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold text-gray-800">Sales History</h2>
+            <button @click="showImport = true"
+                class="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                Import Sales History
+            </button>
+        </div>
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead>
@@ -133,7 +253,7 @@
             </table>
         </div>
         <div class="mt-3">{{ $sales->links() }}</div>
-    </div>
+    </div> {{-- end x-data (Sales History card) --}}
 </div>
 
 <script>

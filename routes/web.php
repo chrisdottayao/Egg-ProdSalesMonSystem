@@ -43,6 +43,9 @@ Route::middleware('auth')->group(function () {
     // Egg Sales
     Route::get('/sales', [EggSaleController::class, 'index'])->name('sales.index');
     Route::post('/sales', [EggSaleController::class, 'store'])->name('sales.store');
+    Route::get('/sales/import/template', [EggSaleController::class, 'downloadSalesTemplate'])->name('sales.import.template');
+    Route::post('/sales/import', [EggSaleController::class, 'importSales'])->name('sales.import');
+    Route::get('/sales/import/errors/{token}', [EggSaleController::class, 'downloadSalesImportErrors'])->name('sales.import.errors');
     Route::get('/sales/{sale}/edit', [EggSaleController::class, 'edit'])->name('sales.edit');
     Route::patch('/sales/{sale}', [EggSaleController::class, 'update'])->name('sales.update');
     Route::delete('/sales/{sale}', [EggSaleController::class, 'destroy'])->name('sales.destroy');
