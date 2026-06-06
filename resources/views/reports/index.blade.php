@@ -287,6 +287,66 @@
             Flagged rows indicate unresolved inconsistencies. Admin can edit flagged records directly. Manager can flag for Admin review.
         </p>
     </div>
+
+    {{-- === SECTION 4: FORECAST EVALUATION HISTORY === --}}
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h2 class="text-lg font-bold text-gray-800">Forecast Evaluation History</h2>
+                <p class="text-sm text-gray-500 mt-0.5">PHP-ML LeastSquares model — last 10 evaluation cycles</p>
+            </div>
+            <span class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded font-medium">PHP-ML</span>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b bg-gray-50">
+                        <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Date Evaluated</th>
+                        <th class="text-right py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Records Used</th>
+                        <th class="text-right py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">MAPE (%)</th>
+                        <th class="text-right py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">7-Day Forecast Total</th>
+                        <th class="text-right py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">30-Day Revenue Forecast</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($forecastEvaluations as $eval)
+                        @php
+                            $mapeVal = (float) $eval->mape;
+                            $mapeColor = $mapeVal < 5
+                                ? 'bg-green-100 text-green-700'
+                                : ($mapeVal <= 15 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700');
+                        @endphp
+                        <tr class="border-b last:border-0 hover:bg-gray-50">
+                            <td class="py-3 px-2 text-sm">{{ $eval->evaluated_at->format('M d, Y H:i') }}</td>
+                            <td class="text-right py-3 px-2 text-sm">{{ number_format($eval->trained_on) }}</td>
+                            <td class="text-right py-3 px-2 text-sm">
+                                <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $mapeColor }}">
+                                    {{ number_format($mapeVal, 2) }}%
+                                </span>
+                            </td>
+                            <td class="text-right py-3 px-2 text-sm font-semibold text-gray-700">
+                                {{ number_format($eval->forecast_7day_total) }} eggs
+                            </td>
+                            <td class="text-right py-3 px-2 text-sm font-semibold text-[#4CAF50]">
+                                ₱{{ number_format($eval->forecast_30day_total, 2) }}
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="py-8 text-center text-gray-400 text-sm">
+                                No evaluation records yet. Run <code class="bg-gray-100 px-1 rounded">php artisan forecast:retrain</code> to generate the first evaluation.
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        <p class="text-xs text-gray-400 mt-3 italic">
+            MAPE (Mean Absolute Percentage Error): &lt;5% excellent, 5–15% acceptable, &gt;15% review model data quality.
+            Evaluations are saved automatically on the weekly retrain schedule.
+        </p>
+    </div>
 </div>
 
 @if($dailyData->isNotEmpty())

@@ -13,7 +13,7 @@ class RetrainForecastModel extends Command
 
     public function handle(ForecastService $service): int
     {
-        $result = $service->forecast();
+        $result = $service->forecast(persist: true);
 
         if (! $result['active']) {
             $this->warn($result['message']);

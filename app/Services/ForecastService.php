@@ -4,12 +4,13 @@ namespace App\Services;
 
 use App\Models\EggProduction;
 use App\Models\EggSale;
+use App\Models\ForecastEvaluation;
 use Illuminate\Support\Carbon;
 use Phpml\Regression\LeastSquares;
 
 class ForecastService
 {
-    public function forecast(): array
+    public function forecast(bool $persist = false): array
     {
         $records = EggProduction::orderBy('date')->get(['date', 'eggs_collected']);
         $n       = $records->count();
@@ -71,7 +72,7 @@ class ForecastService
             ? round(array_sum($mapeValues) / count($mapeValues), 2)
             : 0.0;
 
-        return [
+        $result = [
             'active'         => true,
             'forecast_7day'  => $forecast7day,
             'forecast_30day' => $forecast30day,
@@ -79,5 +80,17 @@ class ForecastService
             'trained_on'     => $n,
             'last_trained'   => now()->format('Y-m-d H:i:s'),
         ];
+
+        if ($persist) {
+            ForecastEvaluation::create([
+                'trained_on'           => $n,
+                'mape'                 => $mape,
+                'forecast_7day_total'  => collect($forecast7day)->sum('predicted'),
+                'forecast_30day_total' => collect($forecast30day)->sum('predicted_revenue'),
+                'evaluated_at'         => now(),
+            ]);
+        }
+
+        return $result;
     }
 }

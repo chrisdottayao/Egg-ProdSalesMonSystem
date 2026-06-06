@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\EggProduction;
 use App\Models\EggSale;
+use App\Models\ForecastEvaluation;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -55,7 +56,9 @@ class ReportsController extends Controller
 
     public function index(Request $request)
     {
-        return view('reports.index', $this->getReportData($request));
+        $data = $this->getReportData($request);
+        $data['forecastEvaluations'] = ForecastEvaluation::latest('evaluated_at')->take(10)->get();
+        return view('reports.index', $data);
     }
 
     public function exportPdf(Request $request)
