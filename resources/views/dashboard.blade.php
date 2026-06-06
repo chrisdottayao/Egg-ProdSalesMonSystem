@@ -31,13 +31,19 @@
             <div class="text-sm text-gray-600 mt-1">{{ number_format($stats['active_hens']) }} active hens</div>
         </div>
 
-        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-[#4CAF50] hover:shadow-lg transition-shadow">
+        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-400 hover:shadow-lg transition-shadow">
             <div class="flex items-center justify-between mb-2">
-                <span class="text-gray-600">Sales This Month</span>
+                <span class="text-gray-600">Forecast Alert</span>
                 <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
             </div>
-            <div class="text-3xl font-bold text-gray-800">₱{{ number_format($stats['sales_this_month'], 2) }}</div>
-            <div class="text-sm text-gray-600 mt-1">{{ now()->format('F Y') }}</div>
+            @if($forecast['active'])
+                @php $total7day = collect($forecast['forecast_7day'])->sum('predicted'); @endphp
+                <div class="text-3xl font-bold text-gray-800">{{ number_format($total7day) }}</div>
+                <div class="text-sm text-gray-600 mt-1">eggs next 7 days</div>
+            @else
+                <div class="text-3xl font-bold text-gray-400">&mdash;</div>
+                <div class="text-sm text-gray-500 mt-1">Needs 30 days of data</div>
+            @endif
         </div>
     </div>
 
