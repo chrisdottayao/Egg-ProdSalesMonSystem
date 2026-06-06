@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class HenBatch extends Model
 {
     protected $fillable = [
-        'batch_id', 'batch_size', 'status', 'entry_date', 'notes',
+        'batch_id', 'batch_size', 'status', 'entry_date', 'notes', 'pen_number', 'building',
     ];
 
     protected $casts = [

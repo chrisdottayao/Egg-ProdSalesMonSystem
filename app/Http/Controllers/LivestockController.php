@@ -24,6 +24,8 @@ class LivestockController extends Controller
             'status'     => 'required|in:Active,Culled,Mortality',
             'entry_date' => 'required|date',
             'notes'      => 'nullable|string',
+            'pen_number' => 'nullable|string|max:100',
+            'building'   => 'nullable|string|max:100',
         ]);
 
         HenBatch::create($validated);
@@ -39,6 +41,8 @@ class LivestockController extends Controller
             'status'     => 'required|in:Active,Culled,Mortality',
             'entry_date' => 'required|date',
             'notes'      => 'nullable|string',
+            'pen_number' => 'nullable|string|max:100',
+            'building'   => 'nullable|string|max:100',
         ]);
 
         $henBatch->update($validated);

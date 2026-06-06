@@ -57,7 +57,17 @@
                         <input type="date" name="entry_date" value="{{ old('entry_date', date('Y-m-d')) }}"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required />
                     </div>
-                    <div class="lg:col-span-2">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Pen Number <span class="text-gray-400 font-normal">(optional)</span></label>
+                        <input type="text" name="pen_number" value="{{ old('pen_number') }}" placeholder="e.g. Pen A"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Building <span class="text-gray-400 font-normal">(optional)</span></label>
+                        <input type="text" name="building" value="{{ old('building') }}" placeholder="e.g. Building 1"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
+                    </div>
+                    <div class="lg:col-span-3">
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
                         <input type="text" name="notes" value="{{ old('notes') }}" placeholder="Optional notes"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
@@ -80,6 +90,7 @@
                             <th class="text-right py-3 text-sm font-semibold text-gray-700">Size</th>
                             <th class="text-left py-3 text-sm font-semibold text-gray-700">Status</th>
                             <th class="text-left py-3 text-sm font-semibold text-gray-700">Entry Date</th>
+                            <th class="text-left py-3 text-sm font-semibold text-gray-700">Location</th>
                             <th class="text-left py-3 text-sm font-semibold text-gray-700">Notes</th>
                             <th class="text-right py-3 text-sm font-semibold text-gray-700">Actions</th>
                         </tr>
@@ -96,6 +107,13 @@
                                     </span>
                                 </td>
                                 <td class="py-3 text-sm">{{ $batch->entry_date->format('Y-m-d') }}</td>
+                                <td class="py-3 text-sm text-gray-600">
+                                    @if($batch->pen_number || $batch->building)
+                                        {{ implode(' — ', array_filter([$batch->pen_number, $batch->building])) }}
+                                    @else
+                                        —
+                                    @endif
+                                </td>
                                 <td class="py-3 text-sm text-gray-600">{{ $batch->notes ?? '—' }}</td>
                                 <td class="text-right py-3 text-sm space-x-2">
                                     <button @click="editHen = {{ $batch->id }}" class="text-blue-600 hover:underline">Edit</button>
@@ -107,8 +125,8 @@
                             </tr>
                             {{-- Inline Edit Row --}}
                             <tr class="border-b bg-blue-50" x-show="editHen === {{ $batch->id }}" x-cloak>
-                                <td colspan="6" class="py-4 px-2">
-                                    <form method="POST" action="{{ route('livestock.hens.update', $batch) }}" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
+                                <td colspan="7" class="py-4 px-2">
+                                    <form method="POST" action="{{ route('livestock.hens.update', $batch) }}" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 items-end">
                                         @csrf @method('PATCH')
                                         <div>
                                             <label class="block text-xs font-semibold text-gray-600 mb-1">Batch ID</label>
@@ -134,6 +152,16 @@
                                                 class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" required />
                                         </div>
                                         <div>
+                                            <label class="block text-xs font-semibold text-gray-600 mb-1">Pen Number</label>
+                                            <input type="text" name="pen_number" value="{{ $batch->pen_number }}" placeholder="e.g. Pen A"
+                                                class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-semibold text-gray-600 mb-1">Building</label>
+                                            <input type="text" name="building" value="{{ $batch->building }}" placeholder="e.g. Building 1"
+                                                class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
+                                        </div>
+                                        <div>
                                             <label class="block text-xs font-semibold text-gray-600 mb-1">Notes</label>
                                             <input type="text" name="notes" value="{{ $batch->notes }}"
                                                 class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
@@ -146,7 +174,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="6" class="py-8 text-center text-gray-400 text-sm">No hen batches recorded yet.</td></tr>
+                            <tr><td colspan="7" class="py-8 text-center text-gray-400 text-sm">No hen batches recorded yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
