@@ -14,6 +14,11 @@ Route::get('/', function () {
     return redirect()->route('dashboard');
 });
 
+// Fresh CSRF token for offline background sync replay
+Route::get('/api/csrf-token', function () {
+    return response()->json(['token' => csrf_token()]);
+})->middleware(['web', 'auth']);
+
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');

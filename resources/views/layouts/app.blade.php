@@ -7,7 +7,9 @@
     <title>Egg Monitor — SPC Farm Magalang</title>
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/pwa.js'])
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#2E7D32">
 </head>
 <body class="font-sans antialiased bg-gray-50">
 
@@ -135,5 +137,31 @@
     </main>
 
 </div>
+
+{{-- ── PWA: Offline Banner ──────────────────────────────────────────────── --}}
+<div id="offline-banner" style="display:none"
+     class="fixed top-0 left-0 right-0 z-50 bg-orange-500 text-white px-4 py-2 flex items-center justify-between shadow-lg">
+    <div class="flex items-center gap-2">
+        <svg class="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z"/>
+            <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.742L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z"/>
+        </svg>
+        <span class="font-semibold text-sm">You are offline</span>
+        <span class="text-xs opacity-90 hidden sm:inline">— Production and Sales entries will be saved locally and synced when reconnected</span>
+    </div>
+    <span id="offline-pending-count"
+          class="bg-white text-orange-600 text-xs font-bold px-2 py-0.5 rounded-full min-w-[1.25rem] text-center"
+          style="display:none">0</span>
+</div>
+
+{{-- ── PWA: Sync Success Toast ──────────────────────────────────────────── --}}
+<div id="sync-toast" style="display:none"
+     class="fixed bottom-4 right-4 z-50 bg-green-600 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2">
+    <svg class="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+    </svg>
+    <span class="text-sm font-medium">Offline entries synced successfully!</span>
+</div>
+
 </body>
 </html>

@@ -257,6 +257,30 @@
 </div>
 
 <script>
+    // ── PWA offline intercept ──────────────────────────────────────────
+    const salesForm    = document.getElementById('salesForm');
+    const salesOffMsg  = document.createElement('div');
+    salesOffMsg.id     = 'sales-offline-msg';
+    salesOffMsg.className = 'hidden bg-orange-50 border-l-4 border-orange-400 px-4 py-3 rounded-lg text-sm text-orange-800 flex items-center gap-2';
+    salesOffMsg.innerHTML = '<svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg><span>Sale saved offline — will sync automatically when you reconnect.</span>';
+    salesForm?.parentNode.insertBefore(salesOffMsg, salesForm.nextSibling);
+
+    salesForm?.addEventListener('submit', async function (e) {
+        if (!navigator.onLine) {
+            e.preventDefault();
+            const fd   = new FormData(salesForm);
+            const data = {};
+            fd.forEach((v, k) => { data[k] = v; });
+            if (window.saveOfflineEntry) await window.saveOfflineEntry('sales', data);
+            salesOffMsg.classList.remove('hidden');
+            setTimeout(() => salesOffMsg.classList.add('hidden'), 6000);
+        }
+    });
+
+    window.addEventListener('online', () => {
+        if (window.syncOfflineEntries) window.syncOfflineEntries();
+    });
+
     const qtyInput     = document.getElementById('quantity');
     const priceInput   = document.getElementById('pricePerUnit');
     const totalEl      = document.getElementById('totalAmount');

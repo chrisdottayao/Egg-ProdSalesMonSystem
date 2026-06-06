@@ -10,7 +10,7 @@
 
     {{-- Entry Form --}}
     <div class="bg-white rounded-lg shadow-md p-6">
-        <form method="POST" action="{{ route('productions.store') }}" class="space-y-4">
+        <form method="POST" action="{{ route('productions.store') }}" class="space-y-4" id="productionStoreForm">
             @csrf
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -221,7 +221,7 @@
 <script>
     const eggsInput = document.querySelector('[name="eggs_collected"]');
     const hensInput = document.querySelector('[name="active_hens"]');
-    const rateEl = document.getElementById('rateValue');
+    const rateEl    = document.getElementById('rateValue');
 
     function updateRate() {
         const eggs = parseFloat(eggsInput.value) || 0;
@@ -231,5 +231,30 @@
 
     eggsInput?.addEventListener('input', updateRate);
     hensInput?.addEventListener('input', updateRate);
+
+    // ── PWA offline intercept ──────────────────────────────────────────
+    const prodForm   = document.getElementById('productionStoreForm');
+    const offlineMsg = document.createElement('div');
+    offlineMsg.id    = 'prod-offline-msg';
+    offlineMsg.className = 'hidden bg-orange-50 border-l-4 border-orange-400 px-4 py-3 rounded-lg text-sm text-orange-800 flex items-center gap-2';
+    offlineMsg.innerHTML = '<svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg><span>Entry saved offline — will sync automatically when you reconnect.</span>';
+    prodForm?.parentNode.insertBefore(offlineMsg, prodForm.nextSibling);
+
+    prodForm?.addEventListener('submit', async function (e) {
+        if (!navigator.onLine) {
+            e.preventDefault();
+            const fd   = new FormData(prodForm);
+            const data = {};
+            fd.forEach((v, k) => { data[k] = v; });
+            if (window.saveOfflineEntry) await window.saveOfflineEntry('production', data);
+            offlineMsg.classList.remove('hidden');
+            setTimeout(() => offlineMsg.classList.add('hidden'), 6000);
+        }
+    });
+
+    // Client-side sync when back online
+    window.addEventListener('online', () => {
+        if (window.syncOfflineEntries) window.syncOfflineEntries();
+    });
 </script>
 </x-app-layout>
