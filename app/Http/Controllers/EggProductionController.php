@@ -23,14 +23,18 @@ class EggProductionController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'date'           => 'required|date',
-            'eggs_collected' => 'required|integer|min:0|max:10000',
-            'active_hens'    => 'required|integer|min:1',
-            'egg_size'       => 'required|string',
-            'egg_weight'     => 'nullable|numeric|min:0',
-            'mortality'      => 'required|integer|min:0',
-            'notes'          => 'nullable|string',
+            'date'             => 'required|date',
+            'eggs_collected'   => 'required|integer|min:0|max:10000',
+            'active_hens'      => 'required|integer|min:1',
+            'egg_size'         => 'required|string',
+            'egg_weight'       => 'nullable|numeric|min:0',
+            'mortality'        => 'required|integer|min:0',
+            'spoilage_count'   => 'nullable|integer|min:0',
+            'spoilage_reason'  => 'nullable|string',
+            'notes'            => 'nullable|string',
         ]);
+
+        $validated['spoilage_count'] = $validated['spoilage_count'] ?? 0;
 
         EggProduction::create($validated);
 
@@ -45,14 +49,18 @@ class EggProductionController extends Controller
     public function update(Request $request, EggProduction $production)
     {
         $validated = $request->validate([
-            'date'           => 'required|date',
-            'eggs_collected' => 'required|integer|min:0|max:10000',
-            'active_hens'    => 'required|integer|min:1',
-            'egg_size'       => 'required|string',
-            'egg_weight'     => 'nullable|numeric|min:0',
-            'mortality'      => 'required|integer|min:0',
-            'notes'          => 'nullable|string',
+            'date'             => 'required|date',
+            'eggs_collected'   => 'required|integer|min:0|max:10000',
+            'active_hens'      => 'required|integer|min:1',
+            'egg_size'         => 'required|string',
+            'egg_weight'       => 'nullable|numeric|min:0',
+            'mortality'        => 'required|integer|min:0',
+            'spoilage_count'   => 'nullable|integer|min:0',
+            'spoilage_reason'  => 'nullable|string',
+            'notes'            => 'nullable|string',
         ]);
+
+        $validated['spoilage_count'] = $validated['spoilage_count'] ?? 0;
 
         $production->update($validated);
 

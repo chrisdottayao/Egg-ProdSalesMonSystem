@@ -147,16 +147,16 @@
                 <p class="text-sm text-gray-500 mt-0.5">Track eggs from collection through sale or disposal</p>
             </div>
             <div class="flex gap-2">
-                <button type="button" onclick="alert('PDF export — coming soon.')"
+                <a href="{{ route('reports.export.batch.pdf') . '?' . $exportParams }}"
                     class="flex items-center gap-1 bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 text-sm">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     PDF
-                </button>
-                <button type="button" onclick="alert('Excel export — coming soon.')"
+                </a>
+                <a href="{{ route('reports.export.batch.csv') . '?' . $exportParams }}"
                     class="flex items-center gap-1 bg-green-700 text-white px-3 py-2 rounded-lg hover:bg-green-800 text-sm">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     Excel
-                </button>
+                </a>
             </div>
         </div>
 
@@ -174,30 +174,28 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($dailyData as $row)
+                    @forelse($batches as $b)
                         @php
-                            $remaining  = $row['eggs'] - $row['sold'];
-                            $sellThrough = $row['eggs'] > 0 ? round(($row['sold'] / $row['eggs']) * 100, 1) : 0;
-                            $status = $remaining <= 0 ? 'Fully Sold' : ($row['sold'] > 0 ? 'Partially Sold' : 'Active');
-                            $statusColor = match($status) {
+                            $statusColor = match($b->batch_status) {
                                 'Fully Sold'     => 'bg-green-100 text-green-700',
                                 'Partially Sold' => 'bg-blue-100 text-blue-700',
+                                'Spoiled'        => 'bg-red-100 text-red-700',
                                 default          => 'bg-yellow-100 text-yellow-700',
                             };
                         @endphp
                         <tr class="border-b last:border-0 hover:bg-gray-50">
-                            <td class="py-3 px-2 text-sm">{{ $row['date'] }}</td>
-                            <td class="py-3 px-2 text-sm text-gray-600">—</td>
-                            <td class="text-right py-3 px-2 text-sm">{{ number_format($row['eggs']) }}</td>
-                            <td class="text-right py-3 px-2 text-sm">{{ number_format($row['sold']) }}</td>
-                            <td class="text-right py-3 px-2 text-sm font-semibold">{{ number_format($remaining) }}</td>
-                            <td class="text-right py-3 px-2 text-sm text-[#4CAF50] font-semibold">{{ $sellThrough }}%</td>
+                            <td class="py-3 px-2 text-sm">{{ $b->date->format('M d, Y') }}</td>
+                            <td class="py-3 px-2 text-sm text-gray-600">{{ $b->egg_size }}</td>
+                            <td class="text-right py-3 px-2 text-sm">{{ number_format($b->eggs_collected) }}</td>
+                            <td class="text-right py-3 px-2 text-sm">{{ number_format($b->quantity_sold) }}</td>
+                            <td class="text-right py-3 px-2 text-sm font-semibold">{{ number_format($b->remaining_stock) }}</td>
+                            <td class="text-right py-3 px-2 text-sm text-[#4CAF50] font-semibold">{{ $b->sell_through_rate }}%</td>
                             <td class="py-3 px-2 text-sm">
-                                <span class="px-2 py-1 rounded text-xs font-semibold {{ $statusColor }}">{{ $status }}</span>
+                                <span class="px-2 py-1 rounded text-xs font-semibold {{ $statusColor }}">{{ $b->batch_status }}</span>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="py-8 text-center text-gray-400 text-sm">No data for selected date range.</td></tr>
+                        <tr><td colspan="7" class="py-8 text-center text-gray-400 text-sm">No batches traced for selected range.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -215,16 +213,16 @@
                 <p class="text-sm text-gray-500 mt-0.5">All flagged data integrity violations across production and sales records</p>
             </div>
             <div class="flex gap-2">
-                <button type="button" onclick="alert('PDF export — coming soon.')"
+                <a href="{{ route('reports.export.audit.pdf') . '?' . $exportParams }}"
                     class="flex items-center gap-1 bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 text-sm">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     PDF
-                </button>
-                <button type="button" onclick="alert('Excel export — coming soon.')"
+                </a>
+                <a href="{{ route('reports.export.audit.csv') . '?' . $exportParams }}"
                     class="flex items-center gap-1 bg-green-700 text-white px-3 py-2 rounded-lg hover:bg-green-800 text-sm">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     Excel
-                </button>
+                </a>
             </div>
         </div>
 
@@ -233,51 +231,31 @@
                 <thead>
                     <tr class="border-b bg-gray-50">
                         <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Entry Date</th>
-                        <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Entry Type</th>
-                        <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Rule Violated / Note</th>
+                        <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">User</th>
+                        <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Rule Violated / Details</th>
                         <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Status</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {{-- Derive audit flags from actual data --}}
-                    @php
-                        $auditRows = [];
-                        foreach ($dailyData as $row) {
-                            // Check: production entry exists but no hen count (prod_rate = 0 and eggs > 0)
-                            if ($row['prod_rate'] == 0 && $row['eggs'] > 0) {
-                                $auditRows[] = [
-                                    'date'   => $row['date'],
-                                    'type'   => 'Production',
-                                    'rule'   => 'Production rate is 0% — active hen count may be missing or incorrect',
-                                    'status' => 'Flagged',
-                                ];
-                            }
-                            // Check: sold exceeds produced (should be blocked but just in case)
-                            if ($row['sold'] > $row['eggs'] && $row['eggs'] > 0) {
-                                $auditRows[] = [
-                                    'date'   => $row['date'],
-                                    'type'   => 'Sales',
-                                    'rule'   => "Eggs sold ({$row['sold']}) exceeds eggs produced ({$row['eggs']}) — audit violation",
-                                    'status' => 'Flagged',
-                                ];
-                            }
-                        }
-                    @endphp
-
-                    @forelse($auditRows as $a)
-                        <tr class="{{ $a['status'] === 'Flagged' ? 'bg-red-50' : '' }} border-b last:border-0">
-                            <td class="py-3 px-2 text-sm">{{ $a['date'] }}</td>
-                            <td class="py-3 px-2 text-sm">{{ $a['type'] }}</td>
-                            <td class="py-3 px-2 text-sm text-gray-700 max-w-xs">{{ $a['rule'] }}</td>
+                    @forelse($auditLogs as $a)
+                        <tr class="{{ $a->inconsistency_flagged ? 'bg-red-50' : '' }} border-b last:border-0">
+                            <td class="py-3 px-2 text-sm">{{ $a->created_at->format('M d, Y H:i') }}</td>
+                            <td class="py-3 px-2 text-sm">{{ $a->user ? $a->user->name : 'System' }}</td>
+                            <td class="py-3 px-2 text-sm text-gray-700 max-w-xs">
+                                @if($a->inconsistency_flagged)
+                                    <span class="font-bold text-red-600 block">[VIOLATION: {{ $a->inconsistency_rule }}]</span>
+                                @endif
+                                {{ json_encode($a->details) }}
+                            </td>
                             <td class="py-3 px-2 text-sm">
-                                <span class="px-2 py-1 rounded text-xs font-semibold {{ $a['status'] === 'Flagged' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700' }}">
-                                    {{ $a['status'] }}
+                                <span class="px-2 py-1 rounded text-xs font-semibold {{ $a->inconsistency_flagged ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700' }}">
+                                    {{ $a->inconsistency_flagged ? 'Flagged' : 'Clean' }}
                                 </span>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4" class="py-8 text-center text-gray-400 text-sm">No audit inconsistencies found for the selected period.</td>
+                            <td colspan="4" class="py-8 text-center text-gray-400 text-sm">No audit logs found for the selected period.</td>
                         </tr>
                     @endforelse
                 </tbody>

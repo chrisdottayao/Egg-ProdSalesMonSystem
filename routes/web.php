@@ -80,6 +80,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
         Route::get('/reports/export/pdf', [ReportsController::class, 'exportPdf'])->name('reports.export.pdf');
         Route::get('/reports/export/csv', [ReportsController::class, 'exportCsv'])->name('reports.export.csv');
+        Route::get('/reports/export/batch/pdf', [ReportsController::class, 'exportBatchPdf'])->name('reports.export.batch.pdf');
+        Route::get('/reports/export/batch/csv', [ReportsController::class, 'exportBatchCsv'])->name('reports.export.batch.csv');
+        Route::get('/reports/export/audit/pdf', [ReportsController::class, 'exportAuditPdf'])->name('reports.export.audit.pdf');
+        Route::get('/reports/export/audit/csv', [ReportsController::class, 'exportAuditCsv'])->name('reports.export.audit.csv');
     });
 
     // Users (admin only)

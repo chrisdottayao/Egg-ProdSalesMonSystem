@@ -56,6 +56,20 @@
                     <input type="number" name="mortality" value="{{ old('mortality', 0) }}" placeholder="0" min="0"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required />
                 </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Spoilage Count</label>
+                    <input type="number" name="spoilage_count" value="{{ old('spoilage_count', 0) }}" placeholder="0" min="0"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
+                    @error('spoilage_count')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Spoilage Reason</label>
+                    <input type="text" name="spoilage_reason" value="{{ old('spoilage_reason') }}" placeholder="e.g. Cracked, rotten"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
+                    @error('spoilage_reason')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
+                </div>
             </div>
 
             <div>
