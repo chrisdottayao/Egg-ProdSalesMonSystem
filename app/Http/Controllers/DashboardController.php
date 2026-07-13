@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 
 class DashboardController extends Controller
 {
@@ -94,21 +95,27 @@ class DashboardController extends Controller
 
     public function aiInsight(): JsonResponse
     {
-        $cached = Cache::get('groq_ai_insight');
+        $cacheKey = 'openai_ai_insight';
+        $cached   = Cache::get($cacheKey);
         if ($cached !== null) {
             return response()->json(['insight' => $cached]);
         }
 
-        $apiKey = config('services.groq.api_key');
+        $apiKey = config('services.openai.api_key');
+        $model  = config('services.openai.model', 'gpt-4o-mini');
+
         if (! $apiKey) {
             return response()->json(['insight' => 'AI insights temporarily unavailable.']);
         }
 
+        // ── Gather farm metrics ─────────────────────────────────────────────
         $today      = Carbon::today();
         $eggsToday  = EggProduction::whereDate('date', $today)->sum('eggs_collected');
         $activeHens = HenBatch::activeHenCount();
         $revToday   = EggSale::whereDate('date', $today)->sum('total_amount');
         $prodRate   = $activeHens > 0 ? round(($eggsToday / $activeHens) * 100, 1) : 0;
+        $soldToday  = EggSale::whereDate('date', $today)->sum('quantity');
+        $remaining  = max(0, $eggsToday - $soldToday);
 
         $avg7day = round(
             EggProduction::where('date', '>=', Carbon::today()->subDays(7))
@@ -116,51 +123,67 @@ class DashboardController extends Controller
                 ->avg('eggs_collected') ?? 0
         );
 
-        $soldToday = EggSale::whereDate('date', $today)->sum('quantity');
-        $remaining = max(0, $eggsToday - $soldToday);
+        $salesLast7  = round(
+            EggSale::where('date', '>=', Carbon::today()->subDays(7))
+                ->where('date', '<', $today)
+                ->sum('total_amount')
+        );
 
-        $forecast = (new ForecastService)->forecast();
-        $mape     = $forecast['active'] ? $forecast['mape'] . '%' : 'N/A';
+        // ── PHP-ML forecast data ────────────────────────────────────────────
+        $forecast         = (new ForecastService)->forecast();
+        $mape             = $forecast['active'] ? $forecast['mape'] . '%' : 'N/A';
+        $forecast7Total   = $forecast['active'] ? collect($forecast['forecast_7day'])->sum('predicted')  : 'N/A';
+        $forecast30Rev    = $forecast['active'] ? '₱' . number_format(collect($forecast['forecast_30day'])->sum('predicted_revenue'), 2) : 'N/A';
 
-        $userContent = "Farm data: Eggs today: {$eggsToday}. "
-            . "Production rate: {$prodRate}%. "
-            . "Revenue today: ₱" . number_format($revToday, 2) . ". "
-            . "7-day average production: {$avg7day}. "
-            . "MAPE forecast accuracy: {$mape}. "
-            . "Unsold eggs today: {$remaining}. "
-            . "Active hens: {$activeHens}.";
+        // ── Active anomaly alerts ───────────────────────────────────────────
+        $activeAlerts = AnomalyAlert::where('alert_date', '>=', Carbon::today()->subDays(7))
+            ->where('status', 'unreviewed')
+            ->get(['type', 'severity', 'description'])
+            ->map(fn($a) => "[{$a->severity}] {$a->type}: {$a->description}")
+            ->implode(' | ');
+
+        // ── Prompt construction ─────────────────────────────────────────────
+        $systemMessage = <<<'SYSMSG'
+You are a professional agricultural and poultry data analyst for SPC Farm Magalang, a commercial egg-laying farm in Sta. Maria, Magalang, Pampanga, Philippines.
+Analyze the farm data provided and respond with EXACTLY 3 concise, actionable bullet points (each starting with "•").
+Each bullet must cite specific numbers from the data. Do not add a preamble or closing sentence — bullets only.
+Focus on: current production health, forecast outlook, and the most critical action the farm manager should take today.
+SYSMSG;
+
+        $userMessage = "Today's farm data for SPC Farm Magalang:\n"
+            . "• Eggs collected today: {$eggsToday}\n"
+            . "• Active hens: {$activeHens}\n"
+            . "• Production rate today: {$prodRate}%\n"
+            . "• Revenue today: ₱" . number_format($revToday, 2) . "\n"
+            . "• Unsold eggs today: {$remaining}\n"
+            . "• 7-day average daily production: {$avg7day} eggs\n"
+            . "• Sales revenue last 7 days: ₱" . number_format($salesLast7, 2) . "\n"
+            . "• PHP-ML 7-day production forecast total: {$forecast7Total} eggs\n"
+            . "• PHP-ML 30-day revenue forecast: {$forecast30Rev}\n"
+            . "• Model MAPE accuracy: {$mape}\n"
+            . ($activeAlerts ? "• Active anomaly alerts: {$activeAlerts}" : '• No active anomaly alerts.');
 
         try {
-            $caBundle = storage_path('app/cacert.pem');
-            $client   = new Client([
-                'timeout' => 10,
-                'verify'  => is_file($caBundle) ? $caBundle : true,
-            ]);
-            $response = $client->post('https://api.groq.com/openai/v1/chat/completions', [
-                'headers' => [
-                    'Authorization' => 'Bearer ' . $apiKey,
-                    'Content-Type'  => 'application/json',
-                ],
-                'json' => [
-                    'model'      => 'llama-3.1-8b-instant',
-                    'messages'   => [
-                        [
-                            'role'    => 'system',
-                            'content' => 'You are an agricultural data analyst for a small egg farm in the Philippines. Analyze the farm data provided and give a 2-3 sentence plain-language insight about current performance, any concerns, and one actionable recommendation. Be specific with numbers.',
-                        ],
-                        [
-                            'role'    => 'user',
-                            'content' => $userContent,
-                        ],
+            $response = Http::withToken($apiKey)
+                ->timeout(15)
+                ->post('https://api.openai.com/v1/chat/completions', [
+                    'model'       => $model,
+                    'temperature' => 0.3,
+                    'max_tokens'  => 220,
+                    'messages'    => [
+                        ['role' => 'system', 'content' => $systemMessage],
+                        ['role' => 'user',   'content' => $userMessage],
                     ],
-                    'max_tokens' => 150,
-                ],
-            ]);
+                ]);
 
-            $body    = json_decode((string) $response->getBody(), true);
-            $insight = $body['choices'][0]['message']['content'] ?? 'AI insights temporarily unavailable.';
+            if (! $response->successful()) {
+                return response()->json(['insight' => 'AI insights temporarily unavailable.']);
+            }
 
-            Cache::put('groq_ai_insight', $insight, now()->addHour());
+            $insight = $response->json('choices.0.message.content')
+                ?? 'AI insights temporarily unavailable.';
+
+            Cache::put($cacheKey, $insight, now()->addHour());
 
             return response()->json(['insight' => $insight]);
         } catch (\Throwable) {
