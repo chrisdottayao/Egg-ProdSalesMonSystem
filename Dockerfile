@@ -1,4 +1,4 @@
-FROM php:8.3-apache
+FROM php:8.4-fpm
 
 # Install system dependencies for gd and zip
 RUN apt-get update && apt-get install -y \
@@ -58,3 +58,5 @@ EXPOSE 80
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["apache2-foreground"]
+
+ENV COMPOSER_ALLOW_SUPERUSER=1
