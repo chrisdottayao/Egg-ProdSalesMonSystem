@@ -1,58 +1,59 @@
 FROM php:8.3-apache
 
-# Install system dependencies
+# Install system dependencies for gd and zip
 RUN apt-get update && apt-get install -y \
-    git curl libpng-dev libonig-dev libxml2-dev \
-    libzip-dev libfreetype6-dev libjpeg62-turbo-dev \
-    zip unzip && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libzip-dev \
+    libxml2-dev \
+    unzip \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Configure and install PHP extensions
-RUN docker-php-ext-configure gd \
-    --with-freetype --with-jpeg
-RUN docker-php-ext-install \
-    pdo pdo_mysql mbstring xml bcmath zip gd dom fileinfo
+# Install PHP extensions from pre-compiled sources (fast, no source build)
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) \
+    bcmath \
+    gd \
+    zip \
+    dom \
+    fileinfo \
+    pdo \
+    pdo_mysql \
+    mbstring \
+    opcache
 
-# Enable Apache mod_rewrite
+# Enable Apache mod_rewrite for Laravel
 RUN a2enmod rewrite
 
-# Install Node.js for asset compilation
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-
 # Install Composer
-COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 # Set working directory
 WORKDIR /var/www/html
-RUN touch .env
 
-# Copy composer files first (layer caching)
-COPY composer.json composer.lock ./
-
-# Install dependencies
-ENV COMPOSER_ALLOW_SUPERUSER=1
-RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts --verbose || { cat /var/www/html/composer.json; exit 1; }
-
-# Copy rest of project
+# Copy project files
 COPY . .
 
-# Build frontend assets
-RUN npm ci --ignore-scripts && npm run build && rm -rf node_modules
+# Install PHP dependencies
+RUN composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
 
-# Set Apache document root to public
-RUN sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html/public|g' \
-    /etc/apache2/sites-available/000-default.conf
+# Set correct permissions
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
+    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Set permissions
-RUN chown -R www-data:www-data /var/www/html/storage \
-    /var/www/html/bootstrap/cache && \
-    chmod -R 775 /var/www/html/storage \
-    /var/www/html/bootstrap/cache
+# Configure Apache to point to Laravel's public directory
+ENV APACHE_DOCUMENT_ROOT /var/www/html/public
+RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf \
+    && sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
-# Generate app key and cache config on start
-RUN cp .env.example .env 2>/dev/null || true
-RUN php artisan key:generate
+# Copy and set entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 80
+
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["apache2-foreground"]
