@@ -27,7 +27,9 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     opcache
 
 # Enable Apache mod_rewrite for Laravel
-RUN a2enmod rewrite
+# Disable competing MPM modules to prevent AH00534
+RUN a2dismod mpm_event mpm_worker || true \
+    && a2enmod mpm_prefork rewrite
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
