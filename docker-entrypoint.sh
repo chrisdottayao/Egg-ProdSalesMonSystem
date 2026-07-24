@@ -2,7 +2,6 @@
 set -e
 
 # Generate app key if not set
-php artisan key:generate --force
 
 # Run migrations
 php artisan migrate --force
