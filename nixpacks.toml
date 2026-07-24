@@ -1,5 +1,6 @@
-[providers]
-php = "8.3"
+[providers.php]
+Tell Nixpacks to install the PHP extensions directly as system packages
+libs = ["php83Extensions.bcmath", "php83Extensions.gd", "php83Extensions.zip", "php83Extensions.dom", "php83Extensions.fileinfo"]
 
 [build]
 nixPkgs = ["php83", "php83Extensions.bcmath", "php83Extensions.pdo_mysql", "php83Extensions.gd"]
