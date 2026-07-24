@@ -1,0 +1,24 @@
+[providers]
+php = "8.3"
+
+[build]
+nixPkgs = ["php83", "php83Extensions.bcmath", "php83Extensions.pdo_mysql", "php83Extensions.gd"]
+
+[phases.setup]
+nixPkgs = ["php83", "php83Extensions.bcmath", "php83Extensions.pdo_mysql", "php83Extensions.gd", "nodejs", "npm"]
+
+[phases.build]
+cmds = [
+  "composer install --no-dev --optimize-autoloader",
+  "npm ci || npm install",
+  "npm run build"
+]
+
+[phases.deploy]
+cmds = [
+  "php artisan config:cache",
+  "php artisan route:cache",
+  "php artisan view:cache",
+  "php artisan storage:link --force",
+  "php artisan migrate --force"
+]
