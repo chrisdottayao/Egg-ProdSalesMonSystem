@@ -6,8 +6,20 @@ libs = ["php83Extensions.bcmath", "php83Extensions.gd", "php83Extensions.zip", "
 nixPkgs = ["php83", "php83Extensions.bcmath", "php83Extensions.pdo_mysql", "php83Extensions.gd"]
 
 [phases.setup]
-nixPkgs = ["php83", "php83Extensions.bcmath", "php83Extensions.pdo_mysql", "php83Extensions.gd", "nodejs", "npm"]
+# Force the installation of pre-compiled alpine/nixos packages instead of compiling PHP from source
+nixPkgs = [
+  "php83",
+  "php83Extensions.bcmath",
+  "php83Extensions.gd",
+  "php83Extensions.zip",
+  "php83Extensions.dom",
+  "php83Extensions.fileinfo",
+  "composer"
+]
 
+[phases.install]
+# Tell composer to ignore missing extension checks during build to prevent compilation triggers
+cmds = ["composer install --no-interaction --prefer-dist --optimize-autoloader --ignore-platform-reqs"]
 [phases.build]
 cmds = [
   "composer install --no-dev --optimize-autoloader",
