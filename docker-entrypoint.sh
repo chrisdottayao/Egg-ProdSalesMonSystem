@@ -1,17 +1,25 @@
 #!/bin/bash
 set -e
 
+# Disable all MPM modules to clear conflicts
+a2dismod mpm_event 2>/dev/null || true
+a2dismod mpm_worker 2>/dev/null || true
+a2dismod mpm_prefork 2>/dev/null || true
 
-# Run migrations
-php artisan migrate --force
+# Force enable only mpm_prefork for PHP
+a2enmod mpm_prefork
 
-# Clear and cache config for production
+# Clear old caches first to pick up Railway env vars
+php artisan config:clear
+php artisan cache:clear
+
+# Re-cache with latest variables loaded
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-# Start Apache
-exec "$@"
+# Run database migrations automatically
+php artisan migrate --force
 
-chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
-chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+# Start Apache in the foreground
+exec apache2-foreground
