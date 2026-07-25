@@ -40,6 +40,7 @@ WORKDIR /var/www/html
 # Copy project files
 COPY . .
 
+RUN echo "PassEnv APP_KEY APP_ENV APP_DEBUG DB_HOST DB_PORT DB_DATABASE DB_USERNAME DB_PASSWORD" >> /etc/apache2/apache2.conf
 # Install PHP dependencies
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
 
