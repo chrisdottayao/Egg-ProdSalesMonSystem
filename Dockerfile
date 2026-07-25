@@ -59,6 +59,6 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 EXPOSE 80
 
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["apache2-foreground"]
+CMD ["env | grep -E '^APP_|^DB_|^LOG_' >> /etc/apache2/envvars && apache2-foreground"]
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
