@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install PHP extensions from pre-compiled sources (fast, no source build)
+# Install PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
     bcmath \
@@ -26,10 +26,9 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     mbstring \
     opcache
 
-# Enable Apache mod_rewrite for Laravel
-# Disable competing MPM modules to prevent AH00534
+# Enable Apache modules & MPM pre-fork
 RUN a2dismod mpm_event mpm_worker || true \
-    && a2enmod mpm_prefork rewrite
+    && a2enmod mpm_prefork rewrite env
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -37,10 +36,12 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
+# Set Composer environment variable
+ENV COMPOSER_ALLOW_SUPERUSER=1
+
 # Copy project files
 COPY . .
 
-RUN echo "PassEnv APP_KEY APP_ENV APP_DEBUG DB_HOST DB_PORT DB_DATABASE DB_USERNAME DB_PASSWORD" >> /etc/apache2/apache2.conf
 # Install PHP dependencies
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
 
@@ -53,14 +54,13 @@ ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf \
     && sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
-# Copy and set entrypoint script
+# Silence Apache domain warning
+RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
+
+# Copy entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 80
 
 ENTRYPOINT ["docker-entrypoint.sh"]
-# Dump env vars at boot and start apache
-CMD ["sh", "-c", "env >> /etc/apache2/envvars && rm -f bootstrap/cache/config.php && apache2-foreground"]
-
-ENV COMPOSER_ALLOW_SUPERUSER=1
