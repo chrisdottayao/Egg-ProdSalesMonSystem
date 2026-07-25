@@ -13,6 +13,11 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Node dependencies and build assets
+RUN apt-get update && apt-get install -y nodejs npm
+RUN npm ci
+RUN npm run build
+
 # Install PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
