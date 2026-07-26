@@ -9,8 +9,8 @@ a2dismod mpm_prefork 2>/dev/null || true
 # Force enable only mpm_prefork for PHP
 a2enmod mpm_prefork
 
-# 1. Export container environment variables (like APP_KEY & DB_*) so Apache can read them
-env | grep -E '^(APP_|DB_|LOG_|SESSION_|CACHE_|MAIL_)' >> /etc/apache2/envvars || true
+# 1. Export all container environment variables so Apache can read them
+env >> /etc/apache2/envvars || true
 
 # 2. Only clear local configuration and view files (safe without DB)
 php artisan config:clear
