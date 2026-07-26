@@ -1,16 +1,23 @@
 #!/bin/bash
 set -e
 
-# Generate app key if not set
-php artisan key:generate --force
+# Disable all MPM modules to clear conflicts
+a2dismod mpm_event 2>/dev/null || true
+a2dismod mpm_worker 2>/dev/null || true
+a2dismod mpm_prefork 2>/dev/null || true
 
-# Run migrations
-php artisan migrate --force
+# Force enable only mpm_prefork for PHP
+a2enmod mpm_prefork
 
-# Clear and cache config for production
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+# 1. Export container environment variables (like APP_KEY & DB_*) so Apache can read them
+env | grep -E '^(APP_|DB_|LOG_|SESSION_|CACHE_|MAIL_)' >> /etc/apache2/envvars || true
 
-# Start Apache
-exec "$@"
+# 2. Only clear local configuration and view files (safe without DB)
+php artisan config:clear
+php artisan view:clear
+
+# 3. Ensure permissions are correct on storage and bootstrap/cache
+chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+
+# 4. Start Apache in the foreground
+exec apache2-foreground
