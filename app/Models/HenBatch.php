@@ -9,7 +9,7 @@ class HenBatch extends Model
 {
     protected $fillable = [
         'batch_id', 'batch_size', 'status', 'entry_date', 'notes', 'pen_number', 'building',
-        'placement_date', 'breed',
+        'placement_date', 'breed', 'building_no',
     ];
 
     protected $casts = [

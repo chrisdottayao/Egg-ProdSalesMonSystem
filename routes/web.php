@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\BulkImportController;
 use App\Http\Controllers\CullController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EggProductionController;
@@ -60,6 +61,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/cull', [CullController::class, 'index'])->name('cull.index');
     Route::post('/cull', [CullController::class, 'store'])->name('cull.store');
     Route::delete('/cull/{cullRecord}', [CullController::class, 'destroy'])->name('cull.destroy');
+
+    // Bulk imports (building_daily / egg_grading_daily) — import only, no data-entry UI yet
+    Route::get('/imports', [BulkImportController::class, 'index'])->name('imports.index');
+    Route::get('/imports/building-daily/template', [BulkImportController::class, 'buildingDailyTemplate'])->name('imports.building-daily.template');
+    Route::post('/imports/building-daily', [BulkImportController::class, 'importBuildingDaily'])->name('imports.building-daily.import');
+    Route::get('/imports/egg-grading/template', [BulkImportController::class, 'eggGradingTemplate'])->name('imports.egg-grading.template');
+    Route::post('/imports/egg-grading', [BulkImportController::class, 'importEggGrading'])->name('imports.egg-grading.import');
+    Route::get('/imports/errors/{token}', [BulkImportController::class, 'downloadImportErrors'])->name('imports.errors');
 
     // Livestock Records
     Route::get('/livestock', [LivestockController::class, 'index'])->name('livestock.index');
