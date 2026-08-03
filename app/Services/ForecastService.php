@@ -10,6 +10,11 @@ use Phpml\Regression\LeastSquares;
 
 class ForecastService
 {
+    // TODO: calibrate — trailing window used to compute the average price
+    // applied to revenue forecasts; 30 days avoids stale prices from years-old
+    // sales once real multi-year data accumulates.
+    private const AVG_PRICE_LOOKBACK_DAYS = 30;
+
     public function forecast(bool $persist = false): array
     {
         $records = EggProduction::orderBy('date')->get(['date', 'eggs_collected']);
@@ -29,7 +34,10 @@ class ForecastService
         $model = new LeastSquares();
         $model->train($X, $Y);
 
-        $avgPrice = (float) (EggSale::avg('price_per_unit') ?? 9.0);
+        $avgPrice = (float) (
+            EggSale::where('date', '>=', Carbon::today()->subDays(self::AVG_PRICE_LOOKBACK_DAYS))
+                ->avg('price_per_unit') ?? 9.0
+        );
         $lastDate = $records->last()->date;
 
         // 7-day production forecast
