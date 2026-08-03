@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Http;
 
 class DashboardController extends Controller
 {
+
     public function index()
     {
         $today      = Carbon::today();
@@ -214,14 +215,6 @@ SYSMSG;
         $window = Carbon::today()->subDays(7);
 
         // Rolling averages (exclude today to avoid seeding bias)
-        $rollingProduction = EggProduction::where('date', '>=', $window)
-            ->where('date', '<', Carbon::today())
-            ->avg('eggs_collected') ?? 0;
-
-        $rollingMortality = EggProduction::where('date', '>=', $window)
-            ->where('date', '<', Carbon::today())
-            ->avg('mortality') ?? 0;
-
         $rollingRevenue = EggSale::where('date', '>=', $window)
             ->where('date', '<', Carbon::today())
             ->selectRaw('SUM(total_amount) / COUNT(DISTINCT DATE(date)) as avg_rev')
@@ -231,40 +224,6 @@ SYSMSG;
             ->where('date', '<', Carbon::today())
             ->selectRaw('SUM(quantity_culled) / GREATEST(COUNT(DISTINCT DATE(date)), 1) as avg_cull')
             ->value('avg_cull') ?? 0;
-
-        // Check last 7 days of production entries
-        EggProduction::where('date', '>=', $window)->get()
-            ->each(function ($prod) use ($rollingProduction, $rollingMortality) {
-                // Production drop > 20%
-                if ($rollingProduction > 0) {
-                    $dev = (($prod->eggs_collected - $rollingProduction) / $rollingProduction) * 100;
-                    if ($dev < -20) {
-                        $this->upsertAlert([
-                            'type'           => 'Production Drop',
-                            'severity'       => $dev < -35 ? 'high' : 'medium',
-                            'alert_date'     => $prod->date->format('Y-m-d'),
-                            'expected_value' => number_format(round($rollingProduction)) . ' eggs',
-                            'actual_value'   => number_format($prod->eggs_collected) . ' eggs',
-                            'deviation_pct'  => round($dev, 2),
-                            'description'    => 'Daily egg production dropped more than 20% below the 7-day rolling average.',
-                        ]);
-                    }
-                }
-
-                // Mortality spike (> 2× rolling average and > 2 absolute)
-                if ($rollingMortality > 0 && $prod->mortality > max(2, $rollingMortality * 2)) {
-                    $dev = (($prod->mortality - $rollingMortality) / $rollingMortality) * 100;
-                    $this->upsertAlert([
-                        'type'           => 'Mortality Spike',
-                        'severity'       => 'high',
-                        'alert_date'     => $prod->date->format('Y-m-d'),
-                        'expected_value' => round($rollingMortality, 1) . ' avg/day',
-                        'actual_value'   => $prod->mortality . ' recorded',
-                        'deviation_pct'  => round($dev, 2),
-                        'description'    => 'Mortality count significantly exceeds the 7-day daily average. Inspect flock health.',
-                    ]);
-                }
-            });
 
         // Revenue anomaly (daily total > 30% below rolling average)
         EggSale::where('date', '>=', $window)
