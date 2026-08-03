@@ -50,6 +50,27 @@
                 </div>
             </div>
 
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Spent Hens Sold</label>
+                    <input type="number" name="heads_sold" value="{{ old('heads_sold') }}" placeholder="0" min="0"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
+                    @error('heads_sold')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Price per Head (₱)</label>
+                    <input type="number" name="price_per_head" value="{{ old('price_per_head') }}" placeholder="0.00" step="0.01" min="0"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
+                    @error('price_per_head')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Buyer</label>
+                    <input type="text" name="buyer" value="{{ old('buyer') }}" placeholder="e.g. spent hen buyer name"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
+                    @error('buyer')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
+                </div>
+            </div>
+
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
                 <textarea name="notes" rows="3" placeholder="Enter any notes..."
@@ -98,6 +119,9 @@
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Date</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Chickens Culled</th>
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Reason</th>
+                        <th class="text-right py-3 text-sm font-semibold text-gray-700">Heads Sold</th>
+                        <th class="text-right py-3 text-sm font-semibold text-gray-700">Spent Hen Income</th>
+                        <th class="text-left py-3 text-sm font-semibold text-gray-700">Buyer</th>
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Notes</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
@@ -108,6 +132,11 @@
                             <td class="py-3 text-sm">{{ $record->date->format('Y-m-d') }}</td>
                             <td class="text-right py-3 text-sm font-semibold text-orange-600">{{ number_format($record->quantity_culled) }}</td>
                             <td class="py-3 text-sm text-gray-700">{{ $record->reason ?? '—' }}</td>
+                            <td class="text-right py-3 text-sm">{{ $record->heads_sold ? number_format($record->heads_sold) : '—' }}</td>
+                            <td class="text-right py-3 text-sm font-semibold text-green-700">
+                                {{ $record->heads_sold && $record->price_per_head ? '₱' . number_format($record->heads_sold * $record->price_per_head, 2) : '—' }}
+                            </td>
+                            <td class="py-3 text-sm text-gray-700">{{ $record->buyer ?? '—' }}</td>
                             <td class="py-3 text-sm text-gray-600">{{ $record->notes ?? '—' }}</td>
                             <td class="text-right py-3 text-sm">
                                 <form method="POST" action="{{ route('cull.destroy', $record) }}" class="inline" onsubmit="return confirm('Delete this cull record?')">
@@ -117,7 +146,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="py-8 text-center text-gray-400 text-sm">No cull records yet.</td></tr>
+                        <tr><td colspan="8" class="py-8 text-center text-gray-400 text-sm">No cull records yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

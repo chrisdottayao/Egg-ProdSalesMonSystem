@@ -52,6 +52,9 @@ class CullController extends Controller
             'quantity_culled' => 'required|integer|min:1',
             'reason'          => 'nullable|string|max:255',
             'notes'           => 'nullable|string',
+            'heads_sold'      => 'nullable|integer|min:0',
+            'price_per_head'  => 'nullable|numeric|min:0',
+            'buyer'           => 'nullable|string|max:255',
         ]);
 
         CullRecord::create($validated);

@@ -14,46 +14,93 @@ use Illuminate\Support\Collection;
 
 class RecommendationService
 {
+    // ── Where these numbers come from ────────────────────────────────────────
+    // OBSERVED    = measured directly in the farm's July 2026 file
+    // STATED      = told to us by farm staff in interview, not independently measured
+    // PLACEHOLDER = not from the farm at all; invented pending real calibration
+    //               data — the eight explicitly called out are: the Dekalb lay
+    //               curve shape (LayCurveService), the 2 SD peer cutoff, the
+    //               8-point age-deviation trigger, the 50% mortality ratio, the
+    //               -15% revenue trend, the 5% feed drop, the 20% margin band,
+    //               and the 0.5% count-mismatch tolerance.
+    // ENGINEERING = a mechanical choice (window length, streak length, etc.),
+    //               not a farm figure and not one of the eight above, but still
+    //               not derived from real data — worth revisiting once 12
+    //               months of history exist.
+    //
+    // One caveat that applies to all of it: July 2026 is a trough, not a
+    // typical month (the production manager says they normally run ~200
+    // cases/day but were at ~190 because several cohorts were young pullets
+    // not yet laying). Any threshold fitted to this month alone will run low.
+
     // ── Suppression ──────────────────────────────────────────────────────────
-    private const RAMP_UP_AGE_WEEKS = 24; // TODO: calibrate — young flocks excluded, intake/lay still stabilizing
-    private const CULL_TARGET_AGE_WEEKS = 140; // farm's stated policy target
-    private const CULL_WINDOW_LEAD_WEEKS = 4; // window opens this many weeks before target
-    private const AUTO_RESOLVE_STREAK_DAYS = 3;
+    private const RAMP_UP_AGE_WEEKS = 24; // ENGINEERING — buffer above the STATED 20wk lay-start; not itself stated by staff
+    private const CULL_TARGET_AGE_WEEKS = 140; // STATED (farm interview) — cull policy target
+    private const CULL_WINDOW_LEAD_WEEKS = 4; // ENGINEERING — window opens this many weeks before target
+    private const AUTO_RESOLVE_STREAK_DAYS = 3; // ENGINEERING — alert lifecycle choice, not a farm figure
 
     // ── Production ───────────────────────────────────────────────────────────
-    private const PRODUCTION_DEVIATION_THRESHOLD_PTS = 8; // TODO: calibrate
-    private const PRODUCTION_DEVIATION_CONSECUTIVE_DAYS = 3;
-    private const PEER_DEVIATION_STD_DEVS = 2.0; // TODO: calibrate
-    private const NEAR_EXPECTED_TOLERANCE_PTS = 2; // "within 2 points of age-expected"
+    private const PRODUCTION_DEVIATION_THRESHOLD_PTS = 8; // PLACEHOLDER — must be refitted
+    private const PRODUCTION_DEVIATION_CONSECUTIVE_DAYS = 3; // ENGINEERING
+    private const PEER_DEVIATION_STD_DEVS = 2.0; // PLACEHOLDER — must be refitted
+    private const NEAR_EXPECTED_TOLERANCE_PTS = 2; // ENGINEERING — "within 2 points of age-expected"
 
     // ── Mortality ────────────────────────────────────────────────────────────
-    private const MORTALITY_TRAILING_DAYS = 7;
-    private const MORTALITY_BASELINE_DAYS = 30;
-    private const MORTALITY_SPIKE_PCT = 50; // 7-day mean exceeds 30-day mean by more than this %
+    // OBSERVED: farm-wide mortality in the July file ranges 35-77/day, averaging ~53.
+    // STATED: production manager gives ~45/day as typical, worse in heat.
+    private const MORTALITY_TRAILING_DAYS = 7; // ENGINEERING
+    private const MORTALITY_BASELINE_DAYS = 30; // ENGINEERING
+    private const MORTALITY_SPIKE_PCT = 50; // PLACEHOLDER — must be refitted
 
     // ── Revenue ──────────────────────────────────────────────────────────────
-    private const REVENUE_TRAILING_DAYS = 7;
-    private const REVENUE_DECLINE_PCT = -15;
+    // STATED: prices change weekly; same price for all buyers; ~₱2,500/case
+    // Medium, ~₱2,800/case Large.
+    private const REVENUE_TRAILING_DAYS = 7; // ENGINEERING
+    private const REVENUE_DECLINE_PCT = -15; // PLACEHOLDER — must be refitted
 
     // ── Culling rate ─────────────────────────────────────────────────────────
-    private const CULL_RATE_TRAILING_MONTHS = 6;
+    private const CULL_RATE_TRAILING_MONTHS = 6; // ENGINEERING
 
     // ── Feed ─────────────────────────────────────────────────────────────────
-    // Sack weight — confirmed against the farm's own figures (Phase 2), not a guess.
-    private const FEED_KG_PER_BAG = 50;
-    private const FEED_TRAILING_DAYS = 7;
-    private const FEED_MIN_NONNULL_DAYS = 4;
-    private const FEED_INTAKE_DROP_PCT = 5; // TODO: calibrate
-    private const FEED_CONVERSION_WINDOW_DAYS = 5;
+    // OBSERVED: feed 214 bags/day at 50kg farm-wide; intake 77-134 g/bird/day
+    // across buildings, clustering near 105-110g. Sack weight (50kg) is
+    // OBSERVED-confirmed (Phase 2): building 1's own recorded figures satisfy
+    // (4 bags x 50kg x 1000) / 1874 birds = 106.7g, matching the sheet's own
+    // (mislabeled-as-grams, actually kg) "grams/day" column exactly.
+    // STATED: feed roughly ₱1,600/sack — explicitly an unverified estimate.
+    // Do not hardcode the observed gram figures as thresholds — they're one
+    // month of data from a single flock-age mix, and the spread is itself
+    // age-driven, which is why the rules below are relative (% of a building's
+    // own trailing mean), not absolute gram targets.
+    private const FEED_KG_PER_BAG = 50; // OBSERVED-confirmed, not a guess
+    private const FEED_TRAILING_DAYS = 7; // ENGINEERING
+    private const FEED_MIN_NONNULL_DAYS = 4; // ENGINEERING
+    private const FEED_INTAKE_DROP_PCT = 5; // PLACEHOLDER — must be refitted
+    private const FEED_CONVERSION_WINDOW_DAYS = 5; // per spec (Phase 4 task text), not independently calibrated
 
     // ── Margin ───────────────────────────────────────────────────────────────
-    private const MARGIN_WARNING_PCT = 20; // TODO: calibrate — feed cost within this % of revenue per egg
+    // STATED: ~₱1,600/sack (explicitly unverified estimate) and ~₱2,500-2,800/case
+    // of 360 eggs are the only price inputs available — surfaced in the alert
+    // text itself so a human can judge whether to trust it.
+    private const MARGIN_WARNING_PCT = 20; // PLACEHOLDER — must be refitted
 
     // ── Count mismatch (Audit Assistant) ────────────────────────────────────
-    private const COUNT_MISMATCH_PCT = 0.5;
+    // OBSERVED: 07-01 house total (69,577) vs grading total (69,595) — an
+    // 18-egg gap, ~0.026%, well under the tolerance below, so a normal day
+    // should not fire this rule. OBSERVED also: House and Egg Room hold
+    // identical values in every row of all 27 July days — which may mean one
+    // column is copied rather than independently counted. The rule is built
+    // regardless, but don't assume real data will exercise it until the farm
+    // confirms how those two columns actually differ.
+    private const COUNT_MISMATCH_PCT = 0.5; // PLACEHOLDER — must be refitted
 
     // ── Cull readiness ───────────────────────────────────────────────────────
-    private const CULL_READINESS_AGE_WEEKS = 132;
+    // STATED: cull at 140 weeks, one month before new layers transfer in, and
+    // never cull until replacements are ready. OBSERVED: culls in the July
+    // file actually happened at 144-146 weeks — so 140 is a target with
+    // slippage, not a hard date, hence deriving the window from each
+    // building's actual recorded age rather than a fixed calendar.
+    private const CULL_READINESS_AGE_WEEKS = 132; // per spec (Phase 4 task text)
 
     // ── Clustering (Phase 5, consolidated here rather than in anomaly_alerts —
     // see Phase 4/5 duplication note) ────────────────────────────────────────

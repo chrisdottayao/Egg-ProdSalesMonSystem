@@ -9,6 +9,7 @@ class CullRecord extends Model
 {
     protected $fillable = [
         'date', 'hen_batch_id', 'quantity_culled', 'reason', 'notes',
+        'heads_sold', 'price_per_head', 'buyer',
     ];
 
     protected $casts = [

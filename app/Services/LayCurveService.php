@@ -5,14 +5,22 @@ namespace App\Services;
 class LayCurveService
 {
     /**
-     * PLACEHOLDER lay curve — Dekalb White, sketched from general breed
-     * standard (near 0% before 19wk, peak ~90-93% at 26-30wk, declining
-     * ~0.3-0.5 pts/wk to ~65% by 100wk, ~55-58% by 140wk).
+     * PLACEHOLDER — not from the farm; must be refitted (see "Where these
+     * numbers come from" in the Phase 7 spec). This shape is sketched from
+     * the general Dekalb White breed standard, not this farm's own data:
+     * near 0% before 19wk, peak ~90-93% at 26-30wk, declining ~0.3-0.5
+     * pts/wk to ~65% by 100wk, ~55-58% by 140wk.
      *
-     * TODO: calibrate — this is not fitted to this farm's real production
-     * history. Replace with a curve fitted from this flock's own age/rate
-     * data once 12+ months are available across enough hen-batches to
-     * cover the full age range.
+     * STATED (farm interview) facts this shape is at least consistent with:
+     * Dekalb White; lay starts at 20 weeks; cull at 140 weeks.
+     * OBSERVED (July 2026 file) facts it's consistent with: buildings
+     * simultaneously at 20 and 146 weeks; individual rates from 7.8% to 86%.
+     *
+     * TODO: calibrate — replace with a curve fitted from this flock's own
+     * age/rate data once 12+ months are available across enough hen-batches
+     * to cover the full age range. July 2026 alone is known to be a trough
+     * month (see ForecastService/RecommendationService header notes) and
+     * must not be used as the refit source on its own.
      *
      * [age_weeks => expected_lay_rate_pct]
      */
