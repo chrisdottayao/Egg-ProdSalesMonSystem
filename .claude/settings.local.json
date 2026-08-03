@@ -12,7 +12,9 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8001/up)",
       "Bash(findstr /i \"cainfo\" \"C:\\\\Program Files\\\\PHP\\\\current\\\\php.ini\")",
       "Read(//c/xampp/php/extras/ssl/**)",
-      "Bash(cp \"C:\\\\xampp\\\\php\\\\extras\\\\ssl\\\\cacert.pem\" \"storage/app/cacert.pem\" && echo \"copied\")"
+      "Bash(cp \"C:\\\\xampp\\\\php\\\\extras\\\\ssl\\\\cacert.pem\" \"storage/app/cacert.pem\" && echo \"copied\")",
+      "Bash(composer show *)",
+      "Read(//c/Users/Admin/Downloads/**)"
     ],
     "additionalDirectories": [
       "C:\\xampp\\htdocs\\Egg-ProdSalesMonSystem\\app",

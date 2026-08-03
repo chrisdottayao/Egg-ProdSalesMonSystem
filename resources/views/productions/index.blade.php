@@ -70,6 +70,21 @@
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
                     @error('spoilage_reason')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
                 </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Feed Sacks Used</label>
+                    <input type="number" name="feed_bags" value="{{ old('feed_bags') }}" placeholder="0" step="0.01" min="0"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
+                    <p class="text-xs text-gray-500 mt-1">Sack count, not weight — 1 sack = 50kg</p>
+                    @error('feed_bags')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Feed Cost per Sack (₱)</label>
+                    <input type="number" name="feed_cost_per_bag" value="{{ old('feed_cost_per_bag') }}" placeholder="0.00" step="0.01" min="0"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
+                    @error('feed_cost_per_bag')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
+                </div>
             </div>
 
             <div>
@@ -114,7 +129,7 @@
                 {{-- CSV Format Reference --}}
                 <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-xs text-blue-800">
                     <p class="font-semibold mb-1">Expected CSV columns:</p>
-                    <p class="font-mono">date, eggs_collected, active_hens, egg_size, egg_weight, mortality_count, eggs_sold, price_per_unit, culled_count, cull_reason, notes</p>
+                    <p class="font-mono">date, eggs_collected, active_hens, egg_size, egg_weight, mortality_count, feed_bags, feed_cost_per_bag, eggs_sold, price_per_unit, culled_count, cull_reason, notes</p>
                 </div>
 
                 <form method="POST" action="{{ route('productions.import.historical') }}"
@@ -197,6 +212,8 @@
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Active Hens</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Mortality</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Prod Rate</th>
+                        <th class="text-right py-3 text-sm font-semibold text-gray-700">Feed (sacks)</th>
+                        <th class="text-right py-3 text-sm font-semibold text-gray-700">Feed g/bird</th>
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Notes</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
@@ -211,6 +228,8 @@
                             <td class="text-right py-3 text-sm">{{ number_format($record->active_hens) }}</td>
                             <td class="text-right py-3 text-sm">{{ $record->mortality }}</td>
                             <td class="text-right py-3 text-sm font-semibold text-[#4CAF50]">{{ $record->production_rate }}%</td>
+                            <td class="text-right py-3 text-sm">{{ $record->feed_bags !== null ? number_format($record->feed_bags, 2) : '—' }}</td>
+                            <td class="text-right py-3 text-sm">{{ $record->feed_grams_per_bird !== null ? number_format($record->feed_grams_per_bird, 1) . 'g' : '—' }}</td>
                             <td class="py-3 text-sm text-gray-600">{{ $record->notes ?? '—' }}</td>
                             <td class="text-right py-3 text-sm space-x-2">
                                 <a href="{{ route('productions.edit', $record) }}" class="text-blue-600 hover:underline">Edit</a>
@@ -221,7 +240,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="py-8 text-center text-gray-400 text-sm">No production records yet.</td></tr>
+                        <tr><td colspan="11" class="py-8 text-center text-gray-400 text-sm">No production records yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

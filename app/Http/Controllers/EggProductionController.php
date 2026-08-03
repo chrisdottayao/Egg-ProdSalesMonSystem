@@ -36,6 +36,8 @@ class EggProductionController extends Controller
             'mortality'        => 'required|integer|min:0',
             'spoilage_count'   => 'nullable|integer|min:0',
             'spoilage_reason'  => 'nullable|string',
+            'feed_bags'        => 'nullable|numeric|min:0',
+            'feed_cost_per_bag' => 'nullable|numeric|min:0',
             'notes'            => 'nullable|string',
         ]);
 
@@ -62,6 +64,8 @@ class EggProductionController extends Controller
             'mortality'        => 'required|integer|min:0',
             'spoilage_count'   => 'nullable|integer|min:0',
             'spoilage_reason'  => 'nullable|string',
+            'feed_bags'        => 'nullable|numeric|min:0',
+            'feed_cost_per_bag' => 'nullable|numeric|min:0',
             'notes'            => 'nullable|string',
         ]);
 
@@ -84,16 +88,16 @@ class EggProductionController extends Controller
     {
         $headers = [
             'date', 'eggs_collected', 'active_hens', 'egg_size', 'egg_weight',
-            'mortality_count', 'eggs_sold', 'price_per_unit', 'culled_count',
-            'cull_reason', 'notes',
+            'mortality_count', 'feed_bags', 'feed_cost_per_bag', 'eggs_sold',
+            'price_per_unit', 'culled_count', 'cull_reason', 'notes',
         ];
 
         $rows = [
-            ['2024-01-01', 182, 200, 'Large',  58.5, 0, 165, 9.00, 0, '',                 'SPC Farm — normal laying day'],
-            ['2024-01-02', 176, 200, 'Large',  57.0, 1, 158, 9.00, 0, '',                 'SPC Farm — 1 mortality noted'],
-            ['2024-01-03', 188, 199, 'Medium', 55.5, 0, 172, 9.00, 4, 'Age',              'SPC Farm — routine culling Batch A'],
-            ['2024-01-04', 170, 195, 'Large',  59.0, 0, 150, 9.50, 0, '',                 'SPC Farm — price increase day'],
-            ['2024-01-05', 185, 195, 'XL',     62.0, 2, 163, 9.00, 0, 'Health Condition', 'SPC Farm — 2 mortalities health-related'],
+            ['2024-01-01', 182, 200, 'Large',  58.5, 0, 4,  95.00, 165, 9.00, 0, '',                 'SPC Farm — normal laying day'],
+            ['2024-01-02', 176, 200, 'Large',  57.0, 1, 4,  95.00, 158, 9.00, 0, '',                 'SPC Farm — 1 mortality noted'],
+            ['2024-01-03', 188, 199, 'Medium', 55.5, 0, '', '',    172, 9.00, 4, 'Age',              'SPC Farm — routine culling Batch A'],
+            ['2024-01-04', 170, 195, 'Large',  59.0, 0, 4,  95.00, 150, 9.50, 0, '',                 'SPC Farm — price increase day'],
+            ['2024-01-05', 185, 195, 'XL',     62.0, 2, 4,  95.00, 163, 9.00, 0, 'Health Condition', 'SPC Farm — 2 mortalities health-related'],
         ];
 
         return response()->stream(function () use ($headers, $rows) {
@@ -200,6 +204,10 @@ class EggProductionController extends Controller
                         'egg_weight'     => is_numeric($data['egg_weight'] ?? '') && $data['egg_weight'] !== ''
                                                 ? (float) $data['egg_weight'] : null,
                         'mortality'      => max(0, (int) ($data['mortality_count'] ?? 0)),
+                        'feed_bags'      => is_numeric($data['feed_bags'] ?? '') && $data['feed_bags'] !== ''
+                                                ? (float) $data['feed_bags'] : null,
+                        'feed_cost_per_bag' => is_numeric($data['feed_cost_per_bag'] ?? '') && $data['feed_cost_per_bag'] !== ''
+                                                ? (float) $data['feed_cost_per_bag'] : null,
                         'notes'          => ($data['notes'] ?? '') !== '' ? $data['notes'] : null,
                         'created_at'     => now(),
                         'updated_at'     => now(),

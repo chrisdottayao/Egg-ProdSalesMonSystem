@@ -17,6 +17,9 @@ class EggProduction extends Model
         'notes',
         'spoilage_count',
         'spoilage_reason',
+        'feed_bags',
+        'feed_kg_per_bag',
+        'feed_cost_per_bag',
     ];
 
     protected $casts = [
@@ -27,6 +30,15 @@ class EggProduction extends Model
     {
         if (!$this->active_hens) return 0;
         return round(($this->eggs_collected / $this->active_hens) * 100, 1);
+    }
+
+    public function getFeedGramsPerBirdAttribute(): ?float
+    {
+        if ($this->feed_bags === null || $this->feed_kg_per_bag === null || !$this->active_hens) {
+            return null;
+        }
+
+        return ($this->feed_bags * $this->feed_kg_per_bag * 1000) / $this->active_hens;
     }
 
     public function eggSales(): HasMany

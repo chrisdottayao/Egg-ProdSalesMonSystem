@@ -56,6 +56,19 @@
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
                     @error('spoilage_reason')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
                 </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Feed Sacks Used</label>
+                    <input type="number" name="feed_bags" value="{{ old('feed_bags', $production->feed_bags) }}" step="0.01" min="0"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
+                    <p class="text-xs text-gray-500 mt-1">Sack count, not weight — 1 sack = 50kg</p>
+                    @error('feed_bags')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Feed Cost per Sack (₱)</label>
+                    <input type="number" name="feed_cost_per_bag" value="{{ old('feed_cost_per_bag', $production->feed_cost_per_bag) }}" step="0.01" min="0"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
+                    @error('feed_cost_per_bag')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
+                </div>
             </div>
 
             <div>
