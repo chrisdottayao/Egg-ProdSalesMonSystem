@@ -10,6 +10,10 @@
     @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/pwa.js'])
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#2E7D32">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Egg Monitor">
+    <link rel="apple-touch-icon" href="/images/icon-192.png">
 </head>
 <body class="font-sans antialiased bg-gray-50">
 
