@@ -21,7 +21,7 @@
 </head>
 <body>
 
-<h1>SPC Farm Magalang — Production & Sales Report</h1>
+<h1>SPC Farm Magalang — Production &amp; Sales Report</h1>
 <p class="sub">Period: {{ $startDate }} to {{ $endDate }} &nbsp;|&nbsp; Generated: {{ now()->format('M d, Y h:i A') }}</p>
 
 <p class="section">Summary</p>

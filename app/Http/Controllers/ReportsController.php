@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\AuditReportExport;
+use App\Exports\BatchTraceabilityExport;
+use App\Exports\ReportExport;
 use App\Models\EggProduction;
 use App\Models\EggSale;
 use App\Models\ForecastEvaluation;
@@ -9,6 +12,7 @@ use App\Models\AuditLog;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ReportsController extends Controller
 {
@@ -126,6 +130,14 @@ class ReportsController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
+    public function exportExcel(Request $request)
+    {
+        $data = $this->getReportData($request);
+        $filename = 'report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.xlsx';
+
+        return Excel::download(new ReportExport($data), $filename);
+    }
+
     // ── Batch Traceability Exports ──────────────────────────────────────────
 
     public function exportBatchPdf(Request $request)
@@ -177,6 +189,14 @@ class ReportsController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
+    public function exportBatchExcel(Request $request)
+    {
+        $data = $this->getReportData($request);
+        $filename = 'batch_traceability_' . $data['startDate'] . '_to_' . $data['endDate'] . '.xlsx';
+
+        return Excel::download(new BatchTraceabilityExport($data), $filename);
+    }
+
     // ── Audit Logs Exports ────────────────────────────────────────────────
 
     public function exportAuditPdf(Request $request)
@@ -224,6 +244,14 @@ class ReportsController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    public function exportAuditExcel(Request $request)
+    {
+        $data = $this->getReportData($request);
+        $filename = 'audit_report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.xlsx';
+
+        return Excel::download(new AuditReportExport($data), $filename);
     }
 }
 

@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\AnomalyAlert;
+use App\Models\BuildingDaily;
+use App\Models\CullRecord;
 use App\Models\EggProduction;
 use App\Models\EggSale;
 use App\Models\HenBatch;
@@ -13,6 +15,12 @@ use Illuminate\Support\Facades\Http;
 class AiInsightService
 {
     private const FALLBACK_MESSAGE = 'AI insights temporarily unavailable.';
+
+    // Mirrors RecommendationService's CULL_TARGET_AGE_WEEKS (140) minus
+    // CULL_WINDOW_LEAD_WEEKS (4) — duplicated rather than imported since
+    // RecommendationService is out of scope to touch for this phase.
+    private const CULL_WINDOW_START_AGE_WEEKS = 136;
+    private const CULL_READINESS_AGE_WEEKS = 132; // mirrors RecommendationService::CULL_READINESS_AGE_WEEKS
 
     /**
      * Generate (or read from cache) today's AI insight. Cached per calendar
@@ -131,11 +139,26 @@ class AiInsightService
             ->map(fn ($a) => "[{$a->severity}] {$a->type}: {$a->description}")
             ->implode(' | ');
 
+        // ── Mortality ────────────────────────────────────────────────────────
+        $mortalityToday = (int) (EggProduction::whereDate('date', $today)->value('mortality') ?? 0);
+        $mortalityAvg7  = round(
+            EggProduction::where('date', '>=', Carbon::today()->subDays(7))
+                ->where('date', '<', $today)
+                ->avg('mortality') ?? 0,
+            1
+        );
+
+        // ── Cull events, last 7 days ────────────────────────────────────────
+        $cullSummary = $this->cullEventsSummary();
+
+        // ── Buildings approaching cull-readiness (132+ weeks) ────────────────
+        $cullReadinessSummary = $this->cullReadinessSummary();
+
         $systemMessage = <<<'SYSMSG'
 You are a professional agricultural and poultry data analyst for SPC Farm Magalang, a commercial egg-laying farm in Sta. Maria, Magalang, Pampanga, Philippines.
 Analyze the farm data provided and respond with EXACTLY 3 concise, actionable bullet points (each starting with "•").
 Each bullet must cite specific numbers from the data. Do not add a preamble or closing sentence — bullets only.
-Focus on: current production health, forecast outlook, and the most critical action the farm manager should take today.
+Focus on: current production health, forecast outlook, mortality/culling context, and the most critical action the farm manager should take today.
 SYSMSG;
 
         $userMessage = "Today's farm data for SPC Farm Magalang:\n"
@@ -149,8 +172,85 @@ SYSMSG;
             . "• PHP-ML 7-day production forecast total: {$forecast7Total} eggs\n"
             . "• PHP-ML 30-day revenue forecast: {$forecast30Rev}\n"
             . "• Model MAPE accuracy: {$mape}\n"
+            . "• Mortality today: {$mortalityToday}\n"
+            . "• 7-day average mortality: {$mortalityAvg7}\n"
+            . "• Cull events (last 7 days): {$cullSummary}\n"
+            . "• Buildings approaching cull-readiness (132+ weeks): {$cullReadinessSummary}\n"
             . ($activeAlerts ? "• Active anomaly alerts: {$activeAlerts}" : '• No active anomaly alerts.');
 
         return [$systemMessage, $userMessage];
+    }
+
+    private function cullEventsSummary(): string
+    {
+        $culls = CullRecord::where('date', '>=', Carbon::today()->subDays(7))
+            ->with('henBatch')
+            ->get();
+
+        if ($culls->isEmpty()) {
+            return 'None in the last 7 days.';
+        }
+
+        return $culls->map(function (CullRecord $cull) {
+            $building = $cull->henBatch?->building_no ?? $cull->henBatch?->building ?? 'unknown';
+            $planned  = $cull->henBatch ? $this->wasInsideCullWindow($cull->henBatch, $cull->date) : null;
+            $label    = $planned === null ? 'unknown window' : ($planned ? 'planned, in cull window' : 'unplanned');
+
+            return "Bldg {$building} — {$cull->quantity_culled} heads ({$label})";
+        })->implode(' | ');
+    }
+
+    private function cullReadinessSummary(): string
+    {
+        $batches = HenBatch::where('status', 'Active')->whereNotNull('building_no')->get()->keyBy('id');
+
+        $latestPerBatch = BuildingDaily::whereIn('hen_batch_id', $batches->keys())
+            ->orderBy('date')
+            ->get()
+            ->groupBy('hen_batch_id')
+            ->map(fn ($rows) => $rows->last());
+
+        $approaching = [];
+        foreach ($latestPerBatch as $henBatchId => $row) {
+            if ($row->age_weeks === null) {
+                continue;
+            }
+
+            $daysSince   = $row->date->diffInDays(Carbon::today());
+            $currentAge  = $row->age_weeks + (int) floor($daysSince / 7);
+
+            if ($currentAge >= self::CULL_READINESS_AGE_WEEKS) {
+                $building = $batches->get($henBatchId)?->building_no ?? '?';
+                $approaching[] = "Bldg {$building} ({$currentAge}wk)";
+            }
+        }
+
+        return empty($approaching) ? 'None.' : implode(', ', $approaching);
+    }
+
+    private function wasInsideCullWindow(HenBatch $batch, Carbon $cullDate): ?bool
+    {
+        $age = $this->ageAtDate($batch, $cullDate);
+
+        return $age === null ? null : $age >= self::CULL_WINDOW_START_AGE_WEEKS;
+    }
+
+    private function ageAtDate(HenBatch $batch, Carbon $date): ?int
+    {
+        if ($batch->placement_date) {
+            return (int) floor($batch->placement_date->diffInDays($date) / 7);
+        }
+
+        $row = BuildingDaily::where('hen_batch_id', $batch->id)
+            ->orderByRaw('ABS(DATEDIFF(date, ?)) asc', [$date->format('Y-m-d')])
+            ->first();
+
+        if (! $row || $row->age_weeks === null) {
+            return null;
+        }
+
+        $dayDiff = $row->date->diffInDays($date, false);
+
+        return (int) round($row->age_weeks + $dayDiff / 7);
     }
 }

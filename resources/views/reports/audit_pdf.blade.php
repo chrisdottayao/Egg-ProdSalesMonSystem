@@ -21,7 +21,7 @@
 <h1>SPC Farm Magalang — Audit Inconsistency Report</h1>
 <p class="sub">Period: {{ $startDate }} to {{ $endDate }} &nbsp;|&nbsp; Generated: {{ now()->format('M d, Y h:i A') }}</p>
 
-<p class="section">Flagged Data Integrity Violations & Operations Logs</p>
+<p class="section">Flagged Data Integrity Violations &amp; Operations Logs</p>
 <table>
     <thead>
         <tr>
