@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BulkImportController;
 use App\Http\Controllers\CullController;
+use App\Http\Controllers\DailyEntryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EggProductionController;
 use App\Http\Controllers\EggSaleController;
@@ -62,7 +63,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/cull', [CullController::class, 'store'])->name('cull.store');
     Route::delete('/cull/{cullRecord}', [CullController::class, 'destroy'])->name('cull.destroy');
 
-    // Bulk imports (building_daily / egg_grading_daily) — import only, no data-entry UI yet
+    // Daily data entry (building_daily / egg_grading_daily) — one form, one date, all buildings
+    Route::get('/daily-entry', [DailyEntryController::class, 'index'])->name('daily-entry.index');
+    Route::post('/daily-entry', [DailyEntryController::class, 'store'])->name('daily-entry.store');
+
+    // Bulk imports (building_daily / egg_grading_daily) — historical backfill
     Route::get('/imports', [BulkImportController::class, 'index'])->name('imports.index');
     Route::get('/imports/building-daily/template', [BulkImportController::class, 'buildingDailyTemplate'])->name('imports.building-daily.template');
     Route::post('/imports/building-daily', [BulkImportController::class, 'importBuildingDaily'])->name('imports.building-daily.import');

@@ -92,7 +92,13 @@
         <div class="bg-white rounded-lg shadow-md p-6">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-bold text-gray-800">AI Insights</h2>
-                <span class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded font-medium">OpenAI GPT-4o mini</span>
+                <div class="flex items-center gap-2">
+                    <span id="ai-model-badge" class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded font-medium">&nbsp;</span>
+                    <button type="button" id="ai-insight-refresh" title="Regenerate today's insight"
+                            class="text-gray-400 hover:text-purple-600 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    </button>
+                </div>
             </div>
             <div class="flex gap-4 items-start">
                 <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -380,25 +386,44 @@
     }
 })();
 
-// Groq AI Insight — async fetch with 1-hour server-side cache
+// AI Insight — async fetch, cached server-side per calendar day.
+// Reload never forces regeneration; only the refresh button does (?refresh=1).
 (function () {
     const container = document.getElementById('ai-insight-container');
+    const badge     = document.getElementById('ai-model-badge');
+    const refreshBtn = document.getElementById('ai-insight-refresh');
     if (!container) return;
 
-    fetch(container.dataset.url, {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-    .then(r => r.json())
-    .then(data => {
-        const p = document.createElement('p');
-        p.className = 'text-gray-700 leading-relaxed text-sm';
-        p.textContent = data.insight;
-        container.innerHTML = '';
-        container.appendChild(p);
-    })
-    .catch(() => {
-        container.innerHTML = '<p class="text-gray-400 italic text-sm">AI insights temporarily unavailable.</p>';
-    });
+    function loadInsight(forceRefresh) {
+        container.innerHTML = '<div class="flex items-center gap-2 text-gray-400 text-sm">'
+            + '<svg class="animate-spin w-4 h-4 text-purple-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">'
+            + '<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>'
+            + '<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>'
+            + '<span>Fetching AI insight&hellip;</span></div>';
+
+        const url = container.dataset.url + (forceRefresh ? '?refresh=1' : '');
+
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(r => r.json())
+            .then(data => {
+                const p = document.createElement('p');
+                p.className = 'text-gray-700 leading-relaxed text-sm';
+                p.textContent = data.insight;
+                container.innerHTML = '';
+                container.appendChild(p);
+
+                if (badge && data.model) {
+                    badge.textContent = data.model;
+                }
+            })
+            .catch(() => {
+                container.innerHTML = '<p class="text-gray-400 italic text-sm">AI insights temporarily unavailable.</p>';
+            });
+    }
+
+    loadInsight(false);
+
+    refreshBtn?.addEventListener('click', () => loadInsight(true));
 })();
 </script>
 </x-app-layout>
