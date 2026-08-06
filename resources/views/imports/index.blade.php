@@ -7,6 +7,17 @@
         <div class="bg-green-50 border-l-4 border-green-500 px-4 py-3 rounded-lg text-sm text-green-800">{{ session('success') }}</div>
     @endif
 
+    @if($errors->any())
+        <div class="bg-red-50 border-l-4 border-red-500 px-4 py-3 rounded-lg text-sm text-red-800">
+            <p class="font-semibold mb-1">Upload rejected:</p>
+            <ul class="list-disc list-inside space-y-0.5">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     @if(session('building_import_summary'))
         @php $s = session('building_import_summary'); @endphp
         <div class="p-4 bg-green-50 border border-green-300 rounded-lg text-sm">
