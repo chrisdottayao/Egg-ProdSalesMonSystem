@@ -52,6 +52,7 @@
                             <th class="text-right py-2 px-1 font-semibold text-gray-700">Eggs Egg Room</th>
                             <th class="text-right py-2 px-1 font-semibold text-gray-700">Soft Shell</th>
                             <th class="text-right py-2 px-1 font-semibold text-gray-700">Prod Rate</th>
+                            <th class="text-center py-2 px-1 font-semibold text-gray-700">No Data Today</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -62,42 +63,48 @@
                                 <td class="py-1 px-1 text-gray-500 text-xs">{{ $batch->batch_id }}</td>
                                 <td class="py-1 px-1">
                                     <input type="number" min="0" name="buildings[{{ $batch->id }}][age_weeks]" value="{{ old("buildings.{$batch->id}.age_weeks", $row['age_weeks']) }}"
-                                           class="w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
+                                           class="row-field w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
                                     <input type="number" min="0" required name="buildings[{{ $batch->id }}][population]" value="{{ old("buildings.{$batch->id}.population", $row['population']) }}"
-                                           class="population-input w-20 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
+                                           class="row-field population-input w-20 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
                                     <input type="number" min="0" name="buildings[{{ $batch->id }}][mortality]" value="{{ old("buildings.{$batch->id}.mortality", $row['mortality']) }}"
-                                           class="w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
+                                           class="row-field w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
                                     <input type="number" min="0" step="0.01" name="buildings[{{ $batch->id }}][feed_bags]" value="{{ old("buildings.{$batch->id}.feed_bags", $row['feed_bags']) }}"
-                                           class="w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
+                                           class="row-field w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
                                     <input type="number" min="0" required name="buildings[{{ $batch->id }}][eggs_house]" value="{{ old("buildings.{$batch->id}.eggs_house", $row['eggs_house']) }}"
-                                           class="eggs-house-input w-20 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
+                                           class="row-field eggs-house-input w-20 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
                                     <input type="number" min="0" name="buildings[{{ $batch->id }}][eggs_eggroom]" value="{{ old("buildings.{$batch->id}.eggs_eggroom", $row['eggs_eggroom']) }}"
                                            placeholder="= house"
-                                           class="w-20 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
+                                           class="row-field w-20 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
                                     <input type="number" min="0" name="buildings[{{ $batch->id }}][soft_shell]" value="{{ old("buildings.{$batch->id}.soft_shell", $row['soft_shell']) }}"
-                                           class="w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
+                                           class="row-field w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1 text-right">
                                     <span class="prod-rate-display font-semibold text-gray-700">—</span>
+                                </td>
+                                <td class="py-1 px-1 text-center">
+                                    <input type="hidden" name="buildings[{{ $batch->id }}][skip]" value="0" />
+                                    <input type="checkbox" name="buildings[{{ $batch->id }}][skip]" value="1"
+                                           {{ old("buildings.{$batch->id}.skip") ? 'checked' : '' }}
+                                           class="skip-checkbox w-4 h-4" title="No data today — this building will not get a row for this date" />
                                 </td>
                             </tr>
                         @endforeach
                     </tbody>
                 </table>
             </div>
-            <p class="text-xs text-gray-500 mt-3">* Required. Feed bags and soft shell may be left blank. A row highlighted orange means eggs house exceeds population — not blocked, just worth a second look before you submit.</p>
+            <p class="text-xs text-gray-500 mt-3">* Required unless "No Data Today" is checked. Feed bags and soft shell may be left blank. A row highlighted orange means eggs house exceeds population — not blocked, just worth a second look before you submit. "No Data Today" skips this building entirely for this date — it will not appear as a zero, matching how a building between flocks or simply not checked is handled everywhere else in the system.</p>
         </div>
 
         {{-- Egg Grading Daily table --}}
@@ -161,9 +168,18 @@
     const buildingRows = document.querySelectorAll('.building-row');
 
     function recomputeBuildingRow(row) {
+        const display = row.querySelector('.prod-rate-display');
+        const skipBox = row.querySelector('.skip-checkbox');
+
+        if (skipBox && skipBox.checked) {
+            display.textContent = 'Skipped';
+            display.classList.remove('text-orange-600');
+            row.classList.remove('bg-orange-50');
+            return;
+        }
+
         const pop   = parseFloat(row.querySelector('.population-input').value) || 0;
         const eggs  = parseFloat(row.querySelector('.eggs-house-input').value) || 0;
-        const display = row.querySelector('.prod-rate-display');
 
         if (pop > 0) {
             const rate = (eggs / pop) * 100;
@@ -183,19 +199,40 @@
 
     function recomputeBuildingTotal() {
         let total = 0;
-        document.querySelectorAll('.eggs-house-input').forEach(el => { total += parseFloat(el.value) || 0; });
+        document.querySelectorAll('.building-row').forEach(row => {
+            const skipBox = row.querySelector('.skip-checkbox');
+            if (skipBox && skipBox.checked) return; // skipped rows don't count toward the total
+            const el = row.querySelector('.eggs-house-input');
+            total += parseFloat(el.value) || 0;
+        });
         document.getElementById('buildingEggsTotal').textContent = total.toLocaleString();
         document.getElementById('buildingEggsTotalEcho').textContent = total.toLocaleString();
     }
 
-    buildingRows.forEach(row => {
+    function setRowSkipped(row, skipped) {
+        row.querySelectorAll('.row-field').forEach(input => {
+            input.disabled = skipped;
+        });
+        row.classList.toggle('opacity-50', skipped);
+        row.classList.toggle('bg-gray-50', skipped);
         recomputeBuildingRow(row);
+        recomputeBuildingTotal();
+    }
+
+    buildingRows.forEach(row => {
         row.querySelectorAll('.population-input, .eggs-house-input').forEach(input => {
             input.addEventListener('input', () => {
                 recomputeBuildingRow(row);
                 recomputeBuildingTotal();
             });
         });
+
+        const skipBox = row.querySelector('.skip-checkbox');
+        skipBox?.addEventListener('change', () => setRowSkipped(row, skipBox.checked));
+
+        // Restore disabled/greyed state on redisplay after a validation error
+        // elsewhere on the form — old() already restores the checkbox itself.
+        setRowSkipped(row, !!skipBox?.checked);
     });
     recomputeBuildingTotal();
 

@@ -73,13 +73,12 @@ class DailyEntryController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $baseRules = [
             'date'                        => 'required|date',
             'buildings'                   => 'required|array',
-            'buildings.*.population'      => 'required|integer|min:0',
+            'buildings.*.skip'            => 'nullable|boolean',
             'buildings.*.mortality'       => 'nullable|integer|min:0',
             'buildings.*.feed_bags'       => 'nullable|numeric|min:0',
-            'buildings.*.eggs_house'      => 'required|integer|min:0',
             'buildings.*.eggs_eggroom'    => 'nullable|integer|min:0',
             'buildings.*.soft_shell'      => 'nullable|integer|min:0',
             'buildings.*.age_weeks'       => 'nullable|integer|min:0',
@@ -87,7 +86,19 @@ class DailyEntryController extends Controller
             'grading.*.cases'             => 'nullable|integer|min:0',
             'grading.*.trays'             => 'nullable|integer|min:0',
             'grading.*.pieces'            => 'nullable|integer|min:0',
-        ]);
+        ];
+
+        // population/eggs_house are required per row UNLESS that row is marked
+        // "no data today" — built per submitted key rather than a wildcard rule,
+        // since whether a row is required depends on that same row's own skip
+        // flag, not a fixed pattern.
+        foreach ($request->input('buildings', []) as $henBatchId => $row) {
+            $skipped = filter_var($row['skip'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $baseRules["buildings.{$henBatchId}.population"]  = $skipped ? 'nullable|integer|min:0' : 'required|integer|min:0';
+            $baseRules["buildings.{$henBatchId}.eggs_house"]  = $skipped ? 'nullable|integer|min:0' : 'required|integer|min:0';
+        }
+
+        $validated = $request->validate($baseRules);
 
         $date = Carbon::parse($validated['date'])->format('Y-m-d');
 
@@ -98,16 +109,32 @@ class DailyEntryController extends Controller
         DB::beginTransaction();
 
         try {
-            $buildingsSaved = 0;
+            $buildingsSaved  = 0;
+            $buildingsSkipped = 0;
 
             // Suppress BuildingDaily's own saving/saved hooks for this per-row loop —
             // otherwise the model's saved-event rollup fires once per building (41-45
             // times) instead of once for the whole submission. prod_rate is computed
             // here with the exact same formula the model uses, so nothing is lost by
             // suppressing the saving hook that would otherwise compute it.
-            BuildingDaily::withoutEvents(function () use ($validated, $date, $validBatchIds, &$buildingsSaved) {
+            BuildingDaily::withoutEvents(function () use ($validated, $date, $validBatchIds, &$buildingsSaved, &$buildingsSkipped) {
                 foreach ($validated['buildings'] as $henBatchId => $row) {
                     if (! $validBatchIds->has($henBatchId)) {
+                        continue;
+                    }
+
+                    $skipped = filter_var($row['skip'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+                    if ($skipped) {
+                        // "No data today" means absence, not a zero row — a zero would
+                        // tell the peer-comparison and age-relative rules in
+                        // RecommendationService that this building existed and produced
+                        // nothing, a different (false) signal from not being tracked
+                        // that day. Delete rather than upsert zeros — also handles the
+                        // edit case: a previously-filled row that's now marked skipped
+                        // must not leave stale data behind.
+                        BuildingDaily::where('date', $date)->where('hen_batch_id', $henBatchId)->delete();
+                        $buildingsSkipped++;
                         continue;
                     }
 
@@ -162,7 +189,10 @@ class DailyEntryController extends Controller
                 $gradingSaved++;
             }
 
-            if ($buildingsSaved > 0) {
+            // Recompute whenever this submission changed the day's building set at
+            // all — including a pure skip that deleted a previously-saved row, which
+            // must also shrink the rollup, not just a fresh save growing it.
+            if ($buildingsSaved > 0 || $buildingsSkipped > 0) {
                 (new ProductionRollupService)->rollupDate($date);
             }
 
@@ -172,9 +202,10 @@ class DailyEntryController extends Controller
                 'model_type' => 'BuildingDailyManualEntry',
                 'model_id'   => null,
                 'details'    => [
-                    'date'             => $date,
-                    'buildings_saved'  => $buildingsSaved,
-                    'grading_saved'    => $gradingSaved,
+                    'date'               => $date,
+                    'buildings_saved'    => $buildingsSaved,
+                    'buildings_skipped'  => $buildingsSkipped,
+                    'grading_saved'      => $gradingSaved,
                 ],
             ]);
 
@@ -185,6 +216,6 @@ class DailyEntryController extends Controller
         }
 
         return redirect()->route('daily-entry.index', ['date' => $date])
-            ->with('success', "Saved {$buildingsSaved} building rows and {$gradingSaved} grading rows for {$date}.");
+            ->with('success', "Saved {$buildingsSaved} building rows ({$buildingsSkipped} marked no data today) and {$gradingSaved} grading rows for {$date}.");
     }
 }
