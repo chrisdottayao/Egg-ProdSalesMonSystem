@@ -62,8 +62,13 @@ class ReportsController extends Controller
             ->orderBy('date', 'desc')
             ->get();
 
-        // Real audit log query
+        // Audit Inconsistency Report: flagged violations only. audit_logs holds
+        // every action (including clean import summaries) — this query backs
+        // only this specific report (page table + its PDF/CSV/Excel exports),
+        // not a general activity log, so filtering here doesn't affect anything
+        // else that reads audit_logs.
         $auditLogs = AuditLog::with('user')
+            ->where('inconsistency_flagged', true)
             ->whereBetween('created_at', [Carbon::parse($startDate)->startOfDay(), Carbon::parse($endDate)->endOfDay()])
             ->orderBy('created_at', 'desc')
             ->get();

@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
+use App\Models\BuildingDaily;
 use App\Models\CullRecord;
 use App\Models\EggProduction;
 use App\Models\EggSale;
 use App\Models\HenBatch;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -42,6 +44,7 @@ class EggProductionController extends Controller
         ]);
 
         $validated['spoilage_count'] = $validated['spoilage_count'] ?? 0;
+        $validated['user_id'] = auth()->id();
 
         EggProduction::create($validated);
 
@@ -70,6 +73,7 @@ class EggProductionController extends Controller
         ]);
 
         $validated['spoilage_count'] = $validated['spoilage_count'] ?? 0;
+        $validated['user_id'] = auth()->id();
 
         $production->update($validated);
 
@@ -80,6 +84,64 @@ class EggProductionController extends Controller
     {
         $production->delete();
         return redirect()->route('productions.index')->with('success', 'Production record deleted.');
+    }
+
+    // ── Search: date range / size / contributor ─────────────────────────────
+
+    public function search(Request $request)
+    {
+        $startDate    = $request->input('start_date');
+        $endDate      = $request->input('end_date');
+        $eggSize      = $request->input('egg_size');
+        $contributor  = $request->input('contributor'); // 'none' = unattributed, numeric = user id, else free-text name
+
+        $productionsQuery = EggProduction::query()->with('user')->orderByDesc('date');
+        $buildingsQuery   = BuildingDaily::query()->with(['user', 'henBatch'])->orderByDesc('date');
+
+        if ($startDate) {
+            $productionsQuery->whereDate('date', '>=', $startDate);
+            $buildingsQuery->whereDate('date', '>=', $startDate);
+        }
+        if ($endDate) {
+            $productionsQuery->whereDate('date', '<=', $endDate);
+            $buildingsQuery->whereDate('date', '<=', $endDate);
+        }
+        if ($eggSize) {
+            // building_daily has no egg_size column — it's a production-level
+            // classification, not tracked per building — so this filter only
+            // narrows the egg_productions results.
+            $productionsQuery->where('egg_size', $eggSize);
+        }
+
+        if ($contributor === 'none') {
+            $productionsQuery->whereNull('user_id');
+            $buildingsQuery->whereNull('user_id');
+        } elseif (is_numeric($contributor)) {
+            $productionsQuery->where('user_id', $contributor);
+            $buildingsQuery->where('user_id', $contributor);
+        } elseif (filled($contributor)) {
+            $productionsQuery->whereHas('user', fn ($q) => $q->where('name', 'like', "%{$contributor}%"));
+            $buildingsQuery->whereHas('user', fn ($q) => $q->where('name', 'like', "%{$contributor}%"));
+        }
+
+        $hasFilters = $startDate || $endDate || $eggSize || filled($contributor);
+
+        $productions = $hasFilters ? $productionsQuery->paginate(25, ['*'], 'productions_page') : collect();
+        $buildings   = $hasFilters ? $buildingsQuery->paginate(25, ['*'], 'buildings_page') : collect();
+
+        // Dropdown source: only users who actually have at least one attributed
+        // entry in either table, so the list stays meaningful as data grows.
+        $contributorIds = EggProduction::whereNotNull('user_id')->distinct()->pluck('user_id')
+            ->merge(BuildingDaily::whereNotNull('user_id')->distinct()->pluck('user_id'))
+            ->unique();
+        $contributors = User::whereIn('id', $contributorIds)->orderBy('name')->get(['id', 'name']);
+
+        $eggSizes = ['Peewee', 'Small', 'Medium', 'Large', 'XL', 'Jumbo'];
+
+        return view('productions.search', compact(
+            'productions', 'buildings', 'contributors', 'eggSizes',
+            'startDate', 'endDate', 'eggSize', 'contributor', 'hasFilters'
+        ));
     }
 
     // ── Historical CSV Import ─────────────────────────────────────────────

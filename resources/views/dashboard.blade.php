@@ -226,11 +226,11 @@
         @endif
     </div>
 
-    {{-- Rule-Based Farm Recommendations (Admin + Manager only) --}}
+    {{-- Alerts & Recommendations — per-building flock_alerts (Admin + Manager only) --}}
     @if(in_array(Auth::user()->role, ['admin', 'manager']))
     <div class="bg-white rounded-lg shadow-md p-6">
         <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-bold text-gray-800">Farm Recommendations</h2>
+            <h2 class="text-lg font-bold text-gray-800">Alerts &amp; Recommendations</h2>
             @if(count($recommendations) > 0)
                 <span class="text-xs font-semibold px-2 py-1 rounded-full
                     {{ collect($recommendations)->where('severity','critical')->isNotEmpty() ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700' }}">

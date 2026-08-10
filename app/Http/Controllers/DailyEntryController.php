@@ -155,6 +155,7 @@ class DailyEntryController extends Controller
                     BuildingDaily::updateOrCreate(
                         ['date' => $date, 'hen_batch_id' => $henBatchId],
                         [
+                            'user_id'      => auth()->id(),
                             'population'   => $population,
                             'mortality'    => $mortality,
                             'net_birds'    => max(0, $population - $mortality),

@@ -11,6 +11,7 @@ class BuildingDaily extends Model
     protected $table = 'building_daily';
 
     protected $fillable = [
+        'user_id',
         'date',
         'hen_batch_id',
         'population',
@@ -31,6 +32,11 @@ class BuildingDaily extends Model
     public function henBatch(): BelongsTo
     {
         return $this->belongsTo(HenBatch::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     protected static function booted()
