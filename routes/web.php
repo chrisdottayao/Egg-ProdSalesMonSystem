@@ -69,7 +69,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/daily-entry', [DailyEntryController::class, 'store'])->name('daily-entry.store');
 
     // Bulk imports (building_daily / egg_grading_daily) — historical backfill
-    Route::get('/imports', [BulkImportController::class, 'index'])->name('imports.index');
+    // The standalone page was retired; the buttons now live on Daily Entry.
+    Route::redirect('/imports', '/daily-entry')->name('imports.index');
     Route::get('/imports/building-daily/template', [BulkImportController::class, 'buildingDailyTemplate'])->name('imports.building-daily.template');
     Route::post('/imports/building-daily', [BulkImportController::class, 'importBuildingDaily'])->name('imports.building-daily.import');
     Route::get('/imports/egg-grading/template', [BulkImportController::class, 'eggGradingTemplate'])->name('imports.egg-grading.template');

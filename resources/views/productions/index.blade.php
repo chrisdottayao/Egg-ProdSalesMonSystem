@@ -134,6 +134,7 @@
                 <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-xs text-blue-800">
                     <p class="font-semibold mb-1">Expected CSV columns:</p>
                     <p class="font-mono">date, eggs_collected, active_hens, egg_size, egg_weight, mortality_count, feed_bags, feed_cost_per_bag, eggs_sold, price_per_unit, culled_count, cull_reason, notes</p>
+                    <p class="mt-1"><strong>eggs_sold</strong> / <strong>price_per_unit</strong> here are a legacy, simplified path — a single blended quantity and price for the whole day. For detailed per-size sales (e.g. Large vs Medium vs discount grades), use the dedicated importer on the <a href="{{ route('sales.index') }}" class="underline font-semibold">Sales page</a> instead.</p>
                 </div>
 
                 <form method="POST" action="{{ route('productions.import.historical') }}"
@@ -162,6 +163,7 @@
                         <p>• Each row can insert into up to 3 tables simultaneously.</p>
                         <p>• Rows with existing dates are skipped (no duplicates).</p>
                         <p>• <strong>eggs_sold</strong> and <strong>culled_count</strong> are optional — leave 0 or blank.</p>
+                        <p>• <strong>eggs_sold</strong>/<strong>price_per_unit</strong> are a legacy, single-total-per-day path — prefer the <a href="{{ route('sales.index') }}" class="underline text-blue-600">Sales page's importer</a> when you need size-level detail.</p>
                     </div>
 
                     <div class="flex gap-2">

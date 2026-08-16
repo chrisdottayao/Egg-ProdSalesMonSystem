@@ -85,11 +85,16 @@ class EggSaleController extends Controller
         $headers = ['date', 'egg_size', 'quantity_sold', 'price_per_unit', 'notes'];
 
         $rows = [
-            ['2024-01-01', 'Large',  160, 9.00, 'Regular customer'],
-            ['2024-01-02', 'Large',  175, 9.00, ''],
-            ['2024-01-03', 'Medium', 165, 9.00, 'Bulk order'],
-            ['2024-01-04', 'Large',  180, 9.50, ''],
-            ['2024-01-05', 'XL',     120, 10.00, 'Premium buyer'],
+            ['2024-01-01', 'Large',     160, 9.00, 'Regular customer'],
+            ['2024-01-02', 'Large',     175, 9.00, ''],
+            ['2024-01-03', 'Medium',    165, 9.00, 'Bulk order'],
+            ['2024-01-04', 'Large',     180, 9.50, ''],
+            ['2024-01-05', 'XL',        120, 10.00, 'Premium buyer'],
+            ['2024-01-06', 'No Value',  20,  3.00, 'Sold at discount'],
+            ['2024-01-06', 'No Weight', 15,  3.00, 'Sold at discount'],
+            ['2024-01-06', 'Dirty',     10,  2.50, 'Sold at discount'],
+            ['2024-01-06', 'Broken',    8,   2.00, 'Sold at discount'],
+            ['2024-01-06', 'Waste',     5,   1.50, 'Sold at discount'],
         ];
 
         return response()->stream(function () use ($headers, $rows) {
@@ -146,7 +151,7 @@ class EggSaleController extends Controller
             // Validate egg_size
             $eggSize = $this->resolveEggSize($data['egg_size'] ?? '');
             if ($eggSize === null) {
-                $errors[] = "Row {$rowNumber} ({$date}): Invalid egg_size '{$data['egg_size']}'. Must be Peewee, Small, Medium, Large, XL, or Jumbo.";
+                $errors[] = "Row {$rowNumber} ({$date}): Invalid egg_size '{$data['egg_size']}'. Must be Peewee, Small, Medium, Large, XL, Jumbo, No Value, No Weight, Dirty, Broken, or Waste.";
                 $failed++;
                 continue;
             }
@@ -237,6 +242,11 @@ class EggSaleController extends Controller
             'large'                     => 'Large',
             'xl', 'extra large', 'x-l' => 'XL',
             'jumbo'                     => 'Jumbo',
+            'no value'                  => 'No Value',
+            'no weight'                 => 'No Weight',
+            'dirty'                     => 'Dirty',
+            'broken'                    => 'Broken',
+            'waste'                     => 'Waste',
             default                     => null,
         };
     }

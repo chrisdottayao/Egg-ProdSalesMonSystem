@@ -278,7 +278,7 @@ class BulkImportController extends Controller
             Cache::put("bulk_import_errors_{$errorToken}", $errors, now()->addHour());
         }
 
-        return redirect()->route('imports.index')->with([
+        return redirect()->route('daily-entry.index')->with([
             'building_import_summary' => $stats,
             'import_error_token'      => $errorToken,
         ]);
@@ -403,7 +403,7 @@ class BulkImportController extends Controller
             Cache::put("bulk_import_errors_{$errorToken}", $errors, now()->addHour());
         }
 
-        return redirect()->route('imports.index')->with([
+        return redirect()->route('daily-entry.index')->with([
             'grading_import_summary' => $stats,
             'import_error_token'     => $errorToken,
         ]);
@@ -414,7 +414,7 @@ class BulkImportController extends Controller
         $errors = Cache::get("bulk_import_errors_{$token}");
 
         if (! $errors) {
-            return redirect()->route('imports.index')
+            return redirect()->route('daily-entry.index')
                 ->with('error', 'Error log not found or has expired (1-hour limit).');
         }
 
@@ -429,10 +429,5 @@ class BulkImportController extends Controller
             'Content-Type'        => 'text/csv',
             'Content-Disposition' => 'attachment; filename="bulk_import_errors.csv"',
         ]);
-    }
-
-    public function index()
-    {
-        return view('imports.index');
     }
 }
