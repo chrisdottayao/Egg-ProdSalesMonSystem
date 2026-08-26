@@ -2,15 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\EggProduction;
 use App\Models\EggSale;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class EggSaleController extends Controller
 {
+    private const IMPORT_CHUNK_SIZE = 500;
+
     public function index()
     {
         $sales = EggSale::latest('date')->paginate(20);
@@ -122,6 +126,12 @@ class EggSaleController extends Controller
         $failed    = 0;
         $errors    = [];
 
+        // ── Pass 1: parse every row into memory, collecting distinct dates ──────
+        // Needed so the "quantity_sold > eggs_produced" check can be backed by a
+        // single preloaded lookup instead of one query per row.
+        $parsedRows    = [];
+        $distinctDates = [];
+
         while (($line = fgetcsv($handle)) !== false) {
             if ($headers === null) {
                 $headers    = array_map(fn($h) => strtolower(trim($h)), $line);
@@ -172,32 +182,108 @@ class EggSaleController extends Controller
                 continue;
             }
 
-            // Skip duplicate: same date + egg_size already exists
-            if (EggSale::whereDate('date', $date)->where('egg_size', $eggSize)->exists()) {
-                $skipped++;
-                continue;
-            }
-
-            // Skip if quantity_sold > eggs_produced on that date
-            $produced = EggProduction::whereDate('date', $date)->sum('eggs_collected');
-            if ($produced > 0 && $quantity > $produced) {
-                $errors[] = "Row {$rowNumber} ({$date}): quantity_sold ({$quantity}) exceeds eggs produced ({$produced}).";
-                $failed++;
-                continue;
-            }
-
-            EggSale::create([
-                'date'           => $date,
-                'egg_size'       => $eggSize,
-                'quantity'       => $quantity,
-                'price_per_unit' => $price,
-                'total_amount'   => $quantity * $price,
-                'notes'          => ($data['notes'] ?? '') !== '' ? $data['notes'] : null,
-            ]);
-            $imported++;
+            $parsedRows[] = [
+                'row_number' => $rowNumber,
+                'date'       => $date,
+                'egg_size'   => $eggSize,
+                'quantity'   => $quantity,
+                'price'      => $price,
+                'notes'      => ($data['notes'] ?? '') !== '' ? $data['notes'] : null,
+            ];
+            $distinctDates[$date] = true;
         }
-
         fclose($handle);
+
+        // ── Preload existing (date, egg_size) keys — no per-row exists() query ──
+        $existingKeys = EggSale::get(['date', 'egg_size'])
+            ->map(fn($s) => $s->date->format('Y-m-d') . '|' . $s->egg_size)
+            ->flip()->all();
+
+        // ── Preload eggs_collected totals for every date touched by this file ───
+        $producedByDate = EggProduction::whereIn(DB::raw('DATE(date)'), array_keys($distinctDates))
+            ->selectRaw('DATE(date) as date_key, SUM(eggs_collected) as total')
+            ->groupBy('date_key')
+            ->pluck('total', 'date_key');
+
+        $insertRows  = [];
+        $saleDates   = [];
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($parsedRows as $row) {
+                $key = $row['date'] . '|' . $row['egg_size'];
+
+                // Skip duplicate: same date + egg_size already exists
+                if (isset($existingKeys[$key])) {
+                    $skipped++;
+                    continue;
+                }
+
+                // Skip if quantity_sold > eggs_produced on that date
+                $produced = (int) ($producedByDate[$row['date']] ?? 0);
+                if ($produced > 0 && $row['quantity'] > $produced) {
+                    $errors[] = "Row {$row['row_number']} ({$row['date']}): quantity_sold ({$row['quantity']}) exceeds eggs produced ({$produced}).";
+                    $failed++;
+                    continue;
+                }
+
+                $insertRows[] = [
+                    'date'           => $row['date'],
+                    'egg_size'       => $row['egg_size'],
+                    'quantity'       => $row['quantity'],
+                    'price_per_unit' => $row['price'],
+                    'total_amount'   => $row['quantity'] * $row['price'],
+                    'production_id'  => null, // backfilled after import via a single join query
+                    'notes'          => $row['notes'],
+                    'created_at'     => now(),
+                    'updated_at'     => now(),
+                ];
+                $existingKeys[$key]    = true;
+                $saleDates[$row['date']] = true;
+                $imported++;
+
+                if (count($insertRows) >= self::IMPORT_CHUNK_SIZE) {
+                    // insertOrIgnore, not insert: a real DB-level unique
+                    // constraint on (date, egg_size) means a second overlapping
+                    // run of this same import can't land duplicate rows even if
+                    // it raced past the in-memory check above.
+                    EggSale::insertOrIgnore($insertRows);
+                    $insertRows = [];
+                }
+            }
+
+            if (! empty($insertRows)) {
+                EggSale::insertOrIgnore($insertRows);
+            }
+
+            // ── Backfill egg_sales.production_id for the dates touched by this import ──
+            if (! empty($saleDates)) {
+                DB::table('egg_sales')
+                    ->join('egg_productions', function ($join) {
+                        $join->on('egg_productions.date', '=', 'egg_sales.date')
+                             ->on('egg_productions.egg_size', '=', 'egg_sales.egg_size');
+                    })
+                    ->whereNull('egg_sales.production_id')
+                    ->whereIn('egg_sales.date', array_keys($saleDates))
+                    ->update(['egg_sales.production_id' => DB::raw('egg_productions.id')]);
+            }
+
+            // Bulk insert bypasses EggSale's creating/created model events, so
+            // record one summary audit entry instead of thousands of per-row ones.
+            AuditLog::create([
+                'user_id'    => auth()->id(),
+                'action'     => 'import',
+                'model_type' => 'SalesCsvImport',
+                'model_id'   => null,
+                'details'    => compact('imported', 'skipped', 'failed'),
+            ]);
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            throw $e;
+        }
 
         $errorToken = null;
         if (! empty($errors)) {
