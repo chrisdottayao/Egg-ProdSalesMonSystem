@@ -53,15 +53,23 @@ class EggProduction extends Model
         return $this->hasMany(EggSale::class, 'production_id');
     }
 
-    public function getRemainingStockAttribute(): int
-    {
-        $sold = $this->eggSales()->sum('quantity');
-        return max(0, $this->eggs_collected - $sold - $this->spoilage_count);
-    }
-
+    /**
+     * Sold quantity for this production row's date — summed across ALL
+     * egg_sales rows for that date (all 11 categories), not via the
+     * eggSales() relation above. production_id only ever links a sale to
+     * ONE production row when their egg_size happens to match, but a day's
+     * production is a single total spanning every size — the relation would
+     * silently undercount to whichever one size happened to link, which is
+     * exactly the Batch Traceability bug this fixes.
+     */
     public function getQuantitySoldAttribute(): int
     {
-        return $this->eggSales()->sum('quantity');
+        return (int) EggSale::whereDate('date', $this->date)->sum('quantity');
+    }
+
+    public function getRemainingStockAttribute(): int
+    {
+        return max(0, $this->eggs_collected - $this->quantity_sold - ($this->spoilage_count ?? 0));
     }
 
     public function getSellThroughRateAttribute(): float

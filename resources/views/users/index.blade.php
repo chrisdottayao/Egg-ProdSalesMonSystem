@@ -67,7 +67,7 @@
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Name</th>
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Email</th>
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Role</th>
-                        <th class="text-left py-3 text-sm font-semibold text-gray-700">Status</th>
+                        <th class="text-left py-3 text-sm font-semibold text-gray-700">Login Method</th>
                         <th class="text-center py-3 text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                 </thead>
@@ -88,7 +88,14 @@
                                 </span>
                             </td>
                             <td class="py-3 text-sm">
-                                <span class="px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-700">Active</span>
+                                @php
+                                    $loginMethod = $user->google_id
+                                        ? ($user->password ? 'Google + Manual' : 'Google only')
+                                        : 'Manual';
+                                @endphp
+                                <span class="px-2 py-1 rounded text-xs font-semibold {{ $loginMethod === 'Google only' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700' }}">
+                                    {{ $loginMethod }}
+                                </span>
                             </td>
                             <td class="py-3 text-sm">
                                 <div class="flex items-center justify-center gap-1">
@@ -111,7 +118,7 @@
                         {{-- Inline Edit Row --}}
                         <tr class="border-b bg-blue-50" x-show="editUser === {{ $user->id }}" x-cloak>
                             <td colspan="5" class="py-4 px-2">
-                                <form method="POST" action="{{ route('users.update', $user) }}" class="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
+                                <form method="POST" action="{{ route('users.update', $user) }}" class="grid grid-cols-2 md:grid-cols-5 gap-3 items-end">
                                     @csrf @method('PATCH')
                                     <div>
                                         <label class="block text-xs font-semibold text-gray-600 mb-1">Name</label>
@@ -131,6 +138,13 @@
                                             @endforeach
                                         </select>
                                     </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-gray-600 mb-1">
+                                            {{ $user->password ? 'Reset Password' : 'Set Password' }}
+                                        </label>
+                                        <input type="password" name="password" placeholder="Leave blank to keep unchanged" minlength="8"
+                                            class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
+                                    </div>
                                     <div class="flex gap-2">
                                         <button type="submit" class="bg-[#4CAF50] text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-green-600">Save</button>
                                         <button type="button" @click="editUser = null" class="text-gray-600 px-3 py-1.5 rounded text-sm border border-gray-300 hover:bg-gray-100">Cancel</button>
@@ -146,7 +160,7 @@
         </div>
 
         <p class="text-sm text-gray-600 mt-4 italic">
-            Note: Staff and Manager accounts can also log in via Google or Facebook.
+            "Google only" accounts can't log in manually yet — use Reset Password on that row to also enable the email/password form for them. Google sign-in keeps working either way.
         </p>
 
         <div class="mt-3">{{ $users->links() }}</div>

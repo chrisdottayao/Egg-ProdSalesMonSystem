@@ -29,12 +29,15 @@ class EggProductionController extends Controller
 
     public function store(Request $request)
     {
+        // egg_size/egg_weight are no longer asked for on this form — a day's
+        // production spans all sellable sizes plus loss grades, so a single
+        // modal size/weight was misleading. Not in the rules below, so a new
+        // row just takes the egg_size column's DB default and a null weight;
+        // size-level detail belongs to Egg Grading Daily.
         $validated = $request->validate([
             'date'             => 'required|date',
             'eggs_collected'   => 'required|integer|min:0|max:10000',
             'active_hens'      => 'required|integer|min:1',
-            'egg_size'         => 'required|string',
-            'egg_weight'       => 'nullable|numeric|min:0',
             'mortality'        => 'required|integer|min:0',
             'spoilage_count'   => 'nullable|integer|min:0',
             'spoilage_reason'  => 'nullable|string',
@@ -58,12 +61,13 @@ class EggProductionController extends Controller
 
     public function update(Request $request, EggProduction $production)
     {
+        // Same as store(): egg_size/egg_weight are no longer part of this form,
+        // so editing a record never touches those two columns (existing values,
+        // if any, are left exactly as they were).
         $validated = $request->validate([
             'date'             => 'required|date',
             'eggs_collected'   => 'required|integer|min:0|max:10000',
             'active_hens'      => 'required|integer|min:1',
-            'egg_size'         => 'required|string',
-            'egg_weight'       => 'nullable|numeric|min:0',
             'mortality'        => 'required|integer|min:0',
             'spoilage_count'   => 'nullable|integer|min:0',
             'spoilage_reason'  => 'nullable|string',
@@ -148,18 +152,24 @@ class EggProductionController extends Controller
 
     public function downloadTemplate()
     {
+        // egg_size/egg_weight are intentionally absent here going forward — a
+        // day's production spans all sellable sizes plus loss grades, so a
+        // single modal size/weight per day is misleading. Size-level detail
+        // belongs to Egg Grading Daily. The import logic still tolerates these
+        // two columns if an older CSV includes them (untouched, per scope),
+        // this template just no longer asks for them.
         $headers = [
-            'date', 'eggs_collected', 'active_hens', 'egg_size', 'egg_weight',
+            'date', 'eggs_collected', 'active_hens',
             'mortality_count', 'feed_bags', 'feed_cost_per_bag', 'eggs_sold',
             'price_per_unit', 'culled_count', 'cull_reason', 'notes',
         ];
 
         $rows = [
-            ['2024-01-01', 182, 200, 'Large',  58.5, 0, 4,  95.00, 165, 9.00, 0, '',                 'SPC Farm — normal laying day'],
-            ['2024-01-02', 176, 200, 'Large',  57.0, 1, 4,  95.00, 158, 9.00, 0, '',                 'SPC Farm — 1 mortality noted'],
-            ['2024-01-03', 188, 199, 'Medium', 55.5, 0, '', '',    172, 9.00, 4, 'Age',              'SPC Farm — routine culling Batch A'],
-            ['2024-01-04', 170, 195, 'Large',  59.0, 0, 4,  95.00, 150, 9.50, 0, '',                 'SPC Farm — price increase day'],
-            ['2024-01-05', 185, 195, 'XL',     62.0, 2, 4,  95.00, 163, 9.00, 0, 'Health Condition', 'SPC Farm — 2 mortalities health-related'],
+            ['2024-01-01', 182, 200, 0, 4,  95.00, 165, 9.00, 0, '',                 'SPC Farm — normal laying day'],
+            ['2024-01-02', 176, 200, 1, 4,  95.00, 158, 9.00, 0, '',                 'SPC Farm — 1 mortality noted'],
+            ['2024-01-03', 188, 199, 0, '', '',    172, 9.00, 4, 'Age',              'SPC Farm — routine culling Batch A'],
+            ['2024-01-04', 170, 195, 0, 4,  95.00, 150, 9.50, 0, '',                 'SPC Farm — price increase day'],
+            ['2024-01-05', 185, 195, 2, 4,  95.00, 163, 9.00, 0, 'Health Condition', 'SPC Farm — 2 mortalities health-related'],
         ];
 
         return response()->stream(function () use ($headers, $rows) {

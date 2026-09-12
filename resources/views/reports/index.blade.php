@@ -118,8 +118,8 @@
                             <td class="text-right py-3 text-sm">{{ number_format($row['sold']) }}</td>
                             <td class="text-right py-3 text-sm font-semibold text-[#4CAF50]">₱{{ number_format($row['revenue'], 2) }}</td>
                             <td class="text-right py-3 text-sm">{{ $row['prod_rate'] }}%</td>
-                            <td class="text-right py-3 text-sm {{ ($row['eggs'] - $row['sold']) < 0 ? 'text-red-600 font-semibold' : 'text-gray-700' }}">
-                                {{ number_format($row['eggs'] - $row['sold']) }}
+                            <td class="text-right py-3 text-sm {{ ($row['eggs'] - $row['sold'] - $row['spoiled']) < 0 ? 'text-red-600 font-semibold' : 'text-gray-700' }}">
+                                {{ number_format($row['eggs'] - $row['sold'] - $row['spoiled']) }}
                             </td>
                         </tr>
                     @empty
@@ -211,7 +211,7 @@
             </table>
         </div>
         <p class="text-xs text-gray-400 mt-3 italic">
-            Sell-Through Rate = (Qty Sold ÷ Qty Collected) × 100. Remaining Stock = Qty Collected − Qty Sold.
+            Sell-Through Rate = (Qty Sold ÷ Qty Collected) × 100. Remaining Stock = Qty Collected − Qty Sold − Spoiled.
         </p>
     </div>
 

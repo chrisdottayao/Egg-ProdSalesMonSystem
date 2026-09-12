@@ -27,6 +27,7 @@ class ReportsController extends Controller
 
         $totalProduced = $productions->sum('eggs_collected');
         $totalSold     = $sales->sum('quantity');
+        $totalSpoiled  = $productions->sum(fn ($p) => $p->spoilage_count ?? 0);
 
         $summary = [
             'total_eggs_produced' => $totalProduced,
@@ -38,7 +39,11 @@ class ReportsController extends Controller
             'avg_sales_rate'      => $totalProduced > 0
                 ? round(($totalSold / $totalProduced) * 100, 1)
                 : 0,
-            'remaining_eggs'      => $totalProduced - $totalSold,
+            // Remaining = Total Collected - Total Sold - Spoiled. spoilage_count
+            // defaults to 0 in the schema and is rarely populated historically —
+            // that's expected, not an error, so it's coalesced above rather than
+            // left to blow up on a null.
+            'remaining_eggs'      => $totalProduced - $totalSold - $totalSpoiled,
         ];
 
         $dailyData = EggProduction::whereBetween('date', [$startDate, $endDate])
@@ -53,6 +58,7 @@ class ReportsController extends Controller
                     'sold'      => $sold,
                     'revenue'   => $revenue,
                     'prod_rate' => $prod->production_rate,
+                    'spoiled'   => $prod->spoilage_count ?? 0,
                 ];
             });
 
@@ -108,7 +114,7 @@ class ReportsController extends Controller
                 $row['sold'],
                 number_format($row['revenue'], 2),
                 $row['prod_rate'],
-                $row['eggs'] - $row['sold'],
+                $row['eggs'] - $row['sold'] - $row['spoiled'],
             ];
         }
 

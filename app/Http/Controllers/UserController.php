@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
@@ -23,7 +22,8 @@ class UserController extends Controller
             'role'     => 'required|in:admin,manager,staff',
         ]);
 
-        $validated['password'] = Hash::make($validated['password']);
+        // No manual Hash::make() needed — the model casts 'password' as
+        // 'hashed', which hashes plain text on assignment automatically.
         User::create($validated);
 
         return redirect()->route('users.index')->with('success', 'User created successfully.');
@@ -32,10 +32,19 @@ class UserController extends Controller
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
-            'name'  => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $user->id,
-            'role'  => 'required|in:admin,manager,staff',
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|email|unique:users,email,' . $user->id,
+            'role'     => 'required|in:admin,manager,staff',
+            // Optional: the inline edit row's password field. Left blank,
+            // nothing about the account's login method changes — a Google-only
+            // account stays Google-only. Filled in, this is exactly the
+            // "admin sets/resets a password" action from the same row.
+            'password' => 'nullable|string|min:8',
         ]);
+
+        if (empty($validated['password'])) {
+            unset($validated['password']);
+        }
 
         $user->update($validated);
 

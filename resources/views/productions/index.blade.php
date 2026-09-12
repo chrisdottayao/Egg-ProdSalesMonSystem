@@ -41,21 +41,6 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Egg Size</label>
-                    <select name="egg_size" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]">
-                        @foreach(['Peewee','Small','Medium','Large','XL','Jumbo'] as $size)
-                            <option value="{{ $size }}" {{ old('egg_size', 'Large') === $size ? 'selected' : '' }}>{{ $size }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Egg Weight (avg in grams)</label>
-                    <input type="number" name="egg_weight" value="{{ old('egg_weight') }}" placeholder="0" step="0.1" min="0"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
-                </div>
-
-                <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Mortality Count</label>
                     <input type="number" name="mortality" value="{{ old('mortality', 0) }}" placeholder="0" min="0"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required />
@@ -133,8 +118,9 @@
                 {{-- CSV Format Reference --}}
                 <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-xs text-blue-800">
                     <p class="font-semibold mb-1">Expected CSV columns:</p>
-                    <p class="font-mono">date, eggs_collected, active_hens, egg_size, egg_weight, mortality_count, feed_bags, feed_cost_per_bag, eggs_sold, price_per_unit, culled_count, cull_reason, notes</p>
+                    <p class="font-mono">date, eggs_collected, active_hens, mortality_count, feed_bags, feed_cost_per_bag, eggs_sold, price_per_unit, culled_count, cull_reason, notes</p>
                     <p class="mt-1"><strong>eggs_sold</strong> / <strong>price_per_unit</strong> here are a legacy, simplified path — a single blended quantity and price for the whole day. For detailed per-size sales (e.g. Large vs Medium vs discount grades), use the dedicated importer on the <a href="{{ route('sales.index') }}" class="underline font-semibold">Sales page</a> instead.</p>
+                    <p class="mt-1">A daily total spans every sellable size plus loss grades — it was never really one size. Size-level detail belongs to <a href="{{ route('daily-entry.index') }}" class="underline font-semibold">Egg Grading Daily</a>, so this template no longer asks for egg_size/egg_weight.</p>
                 </div>
 
                 <form method="POST" action="{{ route('productions.import.historical') }}"
@@ -213,8 +199,6 @@
                     <tr class="border-b">
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Date</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Eggs</th>
-                        <th class="text-left py-3 text-sm font-semibold text-gray-700">Size</th>
-                        <th class="text-right py-3 text-sm font-semibold text-gray-700">Weight</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Active Hens</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Mortality</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Prod Rate</th>
@@ -229,8 +213,6 @@
                         <tr class="border-b last:border-0 hover:bg-gray-50">
                             <td class="py-3 text-sm">{{ $record->date->format('Y-m-d') }}</td>
                             <td class="text-right py-3 text-sm">{{ number_format($record->eggs_collected) }}</td>
-                            <td class="py-3 text-sm">{{ $record->egg_size }}</td>
-                            <td class="text-right py-3 text-sm">{{ $record->egg_weight ? $record->egg_weight . 'g' : '—' }}</td>
                             <td class="text-right py-3 text-sm">{{ number_format($record->active_hens) }}</td>
                             <td class="text-right py-3 text-sm">{{ $record->mortality }}</td>
                             <td class="text-right py-3 text-sm font-semibold text-[#4CAF50]">{{ $record->production_rate }}%</td>
@@ -246,7 +228,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="11" class="py-8 text-center text-gray-400 text-sm">No production records yet.</td></tr>
+                        <tr><td colspan="9" class="py-8 text-center text-gray-400 text-sm">No production records yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

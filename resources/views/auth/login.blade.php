@@ -25,7 +25,7 @@
 
             @if($errors->any())
                 <div class="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">
-                    Invalid email or password. Please try again.
+                    {{ $errors->first('email') ?: 'Invalid email or password. Please try again.' }}
                 </div>
             @endif
 
@@ -57,9 +57,10 @@
                         <input type="checkbox" name="remember" class="rounded border-gray-300 text-[#4CAF50] focus:ring-[#4CAF50]">
                         Remember me
                     </label>
-                    @if(Route::has('password.request'))
-                        <a href="{{ route('password.request') }}" class="text-sm text-[#4CAF50] hover:underline">Forgot Password?</a>
-                    @endif
+                    {{-- Self-service reset needs mail infra this app doesn't have.
+                         Password recovery is admin-driven (Users Management) instead —
+                         see LoginRequest's "uses Google Sign-In" message for accounts
+                         that still need one set. --}}
                 </div>
 
                 <button type="submit"

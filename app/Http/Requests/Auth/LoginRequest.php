@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -44,6 +45,20 @@ class LoginRequest extends FormRequest
 
         if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
+
+            // A Google-origin account an admin hasn't set a password for yet
+            // has password = null — Auth::attempt() always fails for it (no
+            // hash to compare against), which would otherwise look identical
+            // to a plain wrong-password attempt. Distinguish it so the person
+            // knows to ask an admin, rather than retyping a password that
+            // was never set in the first place.
+            $user = User::where('email', $this->string('email'))->first();
+
+            if ($user && $user->password === null) {
+                throw ValidationException::withMessages([
+                    'email' => "This account uses Google Sign-In. Ask an administrator to set a password if you'd like to log in manually.",
+                ]);
+            }
 
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),

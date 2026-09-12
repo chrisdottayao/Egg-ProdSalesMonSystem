@@ -64,7 +64,7 @@
             <td>{{ number_format($row['sold']) }}</td>
             <td class="green">&#8369;{{ number_format($row['revenue'], 2) }}</td>
             <td>{{ $row['prod_rate'] }}%</td>
-            <td>{{ number_format($row['eggs'] - $row['sold']) }}</td>
+            <td>{{ number_format($row['eggs'] - $row['sold'] - $row['spoiled']) }}</td>
         </tr>
         @empty
         <tr><td colspan="6" style="text-align:center;color:#999;">No data for selected period.</td></tr>

@@ -242,32 +242,80 @@
         @if(empty($recommendations))
             <p class="text-sm text-gray-400 italic">No recommendations at this time.</p>
         @else
-            <div class="space-y-3">
-                @foreach($recommendations as $rec)
-                    @php
-                        $isCritical  = $rec['severity'] === 'critical';
-                        $bgBorder    = $isCritical ? 'bg-red-50 border-red-500'    : 'bg-orange-50 border-orange-400';
-                        $badgeClass  = $isCritical ? 'bg-red-100 text-red-700'    : 'bg-orange-100 text-orange-700';
-                        $titleClass  = $isCritical ? 'text-red-900'               : 'text-orange-900';
-                        $iconClass   = $isCritical ? 'text-red-500'               : 'text-orange-500';
-                    @endphp
-                    <div class="p-4 rounded-lg border-l-4 {{ $bgBorder }}">
-                        <div class="flex items-start gap-3">
-                            <svg class="w-4 h-4 {{ $iconClass }} flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            @php
+                // Group into the three tiers the doc asks for. Only 'critical' and
+                // 'warning' are ever produced today (confirmed against live data) —
+                // 'info' has no current source, so it renders as a valid, empty,
+                // closed section rather than us inventing fake data to fill it.
+                // Anything with an unrecognized severity value falls into 'warning',
+                // the closest existing tier in severity, rather than being dropped.
+                $tiers = ['critical' => [], 'warning' => [], 'info' => []];
+                foreach ($recommendations as $rec) {
+                    $tier = in_array($rec['severity'], ['critical', 'warning', 'info'], true) ? $rec['severity'] : 'warning';
+                    $tiers[$tier][] = $rec;
+                }
+
+                $tierMeta = [
+                    'critical' => ['label' => 'Critical', 'badge' => 'bg-red-100 text-red-700',    'border' => 'border-red-500',    'bg' => 'bg-red-50',    'title' => 'text-red-900',    'icon' => 'text-red-500'],
+                    'warning'  => ['label' => 'Warning',  'badge' => 'bg-orange-100 text-orange-700', 'border' => 'border-orange-400', 'bg' => 'bg-orange-50', 'title' => 'text-orange-900', 'icon' => 'text-orange-500'],
+                    'info'     => ['label' => 'Info',     'badge' => 'bg-blue-100 text-blue-700',   'border' => 'border-blue-400',   'bg' => 'bg-blue-50',   'title' => 'text-blue-900',   'icon' => 'text-blue-500'],
+                ];
+            @endphp
+
+            <div class="space-y-2">
+                @foreach(['critical', 'warning', 'info'] as $tier)
+                    @php $meta = $tierMeta[$tier]; $items = $tiers[$tier]; @endphp
+                    <div x-data="{ open: false }" class="border border-gray-200 rounded-lg overflow-hidden">
+                        <button type="button" @click="open = !open"
+                            class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left">
+                            <span class="flex items-center gap-2">
+                                <span class="text-sm font-semibold text-gray-800">{{ $meta['label'] }}</span>
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded-full {{ $meta['badge'] }}">{{ count($items) }}</span>
+                            </span>
+                            <svg :class="open ? 'rotate-180' : ''" class="w-4 h-4 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                             </svg>
-                            <div class="flex-1 min-w-0">
-                                <div class="flex flex-wrap items-center gap-2 mb-1">
-                                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full {{ $badgeClass }}">
-                                        {{ ucfirst($rec['severity']) }}
-                                    </span>
-                                    <span class="text-sm font-semibold {{ $titleClass }}">{{ $rec['condition'] }}</span>
+                        </button>
+
+                        <div x-show="open" x-cloak class="p-3 space-y-3 bg-white">
+                            @forelse($items as $rec)
+                                @php
+                                    $plain = \App\Support\AlertLanguage::forCondition($rec['condition'], $rec['building'] ?? null);
+                                @endphp
+                                <div x-data="{ showDetails: false }" class="p-4 rounded-lg border-l-4 {{ $meta['bg'] }} {{ $meta['border'] }}">
+                                    <div class="flex items-start gap-3">
+                                        <svg class="w-4 h-4 {{ $meta['icon'] }} flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                        </svg>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex flex-wrap items-center gap-2 mb-1">
+                                                <span class="text-xs font-semibold px-2 py-0.5 rounded-full {{ $meta['badge'] }}">
+                                                    {{ ucfirst($rec['severity']) }}
+                                                </span>
+                                                <span class="text-sm font-semibold {{ $meta['title'] }}">{{ $rec['condition'] }}</span>
+                                            </div>
+
+                                            @if($plain)
+                                                <p class="text-sm text-gray-700 mb-1">{{ $plain }}</p>
+                                                <button type="button" @click="showDetails = !showDetails"
+                                                    class="text-xs text-gray-400 hover:text-gray-600 underline mb-1">
+                                                    <span x-text="showDetails ? 'Hide technical details' : 'Show technical details'"></span>
+                                                </button>
+                                                <p x-show="showDetails" x-cloak class="text-xs text-gray-500 mb-1">{{ $rec['recommendation'] }}</p>
+                                            @else
+                                                {{-- No plain-language translation yet for this condition type — show the technical text as-is. --}}
+                                                <p class="text-sm text-gray-700 mb-1">{{ $rec['recommendation'] }}</p>
+                                            @endif
+
+                                            <p class="text-xs text-gray-400">
+                                                Triggered since: {{ \Carbon\Carbon::parse($rec['triggered_since'])->format('M d, Y') }}
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
-                                <p class="text-sm text-gray-700 mb-1">{{ $rec['recommendation'] }}</p>
-                                <p class="text-xs text-gray-400">
-                                    Triggered since: {{ \Carbon\Carbon::parse($rec['triggered_since'])->format('M d, Y') }}
-                                </p>
-                            </div>
+                            @empty
+                                <p class="text-sm text-gray-400 italic">No {{ strtolower($meta['label']) }} alerts.</p>
+                            @endforelse
                         </div>
                     </div>
                 @endforeach
@@ -406,11 +454,34 @@
         fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
             .then(r => r.json())
             .then(data => {
-                const p = document.createElement('p');
-                p.className = 'text-gray-700 leading-relaxed text-sm';
-                p.textContent = data.insight;
+                const text = (data.insight || '').trim();
+
+                // The model returns bullets marked with "•", but they may or may not
+                // be separated by real newlines in the raw string — and even when
+                // they are, a plain <p> collapses whitespace so they'd still run
+                // together visually. Split on either signal, then render real <li>s.
+                const points = text
+                    .split(/\r?\n|(?=•)/)
+                    .map(s => s.replace(/^[•\-\*]\s*/, '').trim())
+                    .filter(s => s.length > 0);
+
                 container.innerHTML = '';
-                container.appendChild(p);
+
+                if (points.length > 1) {
+                    const ul = document.createElement('ul');
+                    ul.className = 'list-disc list-inside space-y-1.5 text-gray-700 text-sm leading-relaxed';
+                    points.forEach(point => {
+                        const li = document.createElement('li');
+                        li.textContent = point;
+                        ul.appendChild(li);
+                    });
+                    container.appendChild(ul);
+                } else {
+                    const p = document.createElement('p');
+                    p.className = 'text-gray-700 leading-relaxed text-sm';
+                    p.textContent = text;
+                    container.appendChild(p);
+                }
 
                 if (badge && data.model) {
                     badge.textContent = data.model;

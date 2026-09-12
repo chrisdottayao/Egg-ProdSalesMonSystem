@@ -5,8 +5,6 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 
 class SocialiteController extends Controller
@@ -38,12 +36,15 @@ class SocialiteController extends Controller
                     $user->update(['google_id' => $googleUser->getId()]);
                 }
             } else {
-                // Create a new user if none exists
+                // Create a new user if none exists. password is left null —
+                // this account only works via the Google button until an
+                // admin explicitly sets a password for it (Users Management
+                // page), at which point manual login also becomes available.
                 $user = User::create([
                     'name'              => $googleUser->getName(),
                     'email'             => $googleUser->getEmail(),
                     'google_id'         => $googleUser->getId(),
-                    'password'          => Hash::make(Str::random(24)),
+                    'password'          => null,
                     'email_verified_at' => now(),
                     'role'              => 'staff', // Default role for your app
                 ]);

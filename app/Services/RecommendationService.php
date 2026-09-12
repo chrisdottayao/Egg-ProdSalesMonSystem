@@ -171,6 +171,13 @@ class RecommendationService
                             . ($alert->henBatch->building ? " / Bldg {$alert->henBatch->building}" : '')
                             . "] {$recommendation}"
                         : $recommendation,
+                    // Building number, exposed separately (not just baked into the
+                    // "recommendation" string above) so the display layer can build
+                    // plain-language sentences like "Building 4 is..." without having
+                    // to regex it back out of formatted text.
+                    'building'        => $alert->henBatch
+                        ? ($alert->henBatch->building ?? $alert->henBatch->building_no)
+                        : null,
                     'severity'        => $alert->severity,
                     'triggered_since' => $alert->triggered_since->format('Y-m-d'),
                 ];
