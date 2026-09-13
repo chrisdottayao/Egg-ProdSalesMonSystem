@@ -12,6 +12,7 @@ use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\SocialiteController;
+use App\Http\Controllers\SyncConflictController;
 
 Route::get('/', function () {
     return redirect()->route('dashboard');
@@ -22,6 +23,10 @@ Route::get('/api/csrf-token', function () {
     return response()->json(['token' => csrf_token()]);
 })->middleware(['web', 'auth']);
 
+Route::post('/api/sync-conflict', [SyncConflictController::class, 'store'])
+    ->middleware(['web', 'auth'])
+    ->name('api.sync-conflict');
+    
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');

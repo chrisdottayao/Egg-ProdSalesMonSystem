@@ -73,9 +73,18 @@ async function replayQueue(type) {
                 await dbDelete(db, entry.id);
                 notifyClients({ type: 'ENTRY_SYNCED', entryType: type });
             } else if (res.status === 422 || res.status === 419) {
-                // Validation / CSRF conflict — mark as flagged
+                // Validation / CSRF conflict — mark as flagged locally
                 await dbUpdate(db, entry.id, { ...entry, status: 'conflicted' });
                 notifyClients({ type: 'SYNC_CONFLICT', entryType: type, entry });
+
+                // Also report server-side so Admin/Manager can see it from any device
+                try {
+                    await fetch('/api/sync-conflict', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token },
+                        body: JSON.stringify({ entry_type: type, status: res.status, payload: entry.body }),
+                    });
+                } catch { /* best-effort — local flag still stands even if this fails */ }
             }
         } catch {
             break; // Still offline — leave in queue

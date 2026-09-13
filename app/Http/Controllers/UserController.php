@@ -18,7 +18,7 @@ class UserController extends Controller
         $validated = $request->validate([
             'name'     => 'required|string|max:255',
             'email'    => 'required|email|unique:users',
-            'password' => 'required|string|min:8',
+            'password' => 'required|string|min:10',
             'role'     => 'required|in:admin,manager,staff',
         ]);
 
@@ -39,7 +39,7 @@ class UserController extends Controller
             // nothing about the account's login method changes — a Google-only
             // account stays Google-only. Filled in, this is exactly the
             // "admin sets/resets a password" action from the same row.
-            'password' => 'nullable|string|min:8',
+            'password' => 'nullable|string|min:10',
         ]);
 
         if (empty($validated['password'])) {
