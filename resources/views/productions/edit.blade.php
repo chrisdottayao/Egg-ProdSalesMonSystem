@@ -17,7 +17,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Eggs Collected</label>
-                    <input type="number" name="eggs_collected" value="{{ old('eggs_collected', $production->eggs_collected) }}" min="0" max="10000"
+                    <input type="number" name="eggs_collected" value="{{ old('eggs_collected', $production->eggs_collected) }}" min="0" max="200000"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required />
                     @error('eggs_collected')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
                 </div>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
+use App\Models\EggGradingDaily;
 use App\Models\EggProduction;
 use App\Models\EggSale;
 use Illuminate\Http\Request;
@@ -19,14 +20,28 @@ class EggSaleController extends Controller
     {
         $sales = EggSale::latest('date')->paginate(20);
 
-        // Build produced-by-date lookup for Sales Rate + Remaining columns
+        // Sales Rate / Remaining must compare each row against THAT SIZE's own
+        // daily production (egg_grading_daily), not the whole farm's total —
+        // otherwise a low-volume size like Jumbo reads as near-0% against the
+        // ~69k farm-wide figure even at full sell-through.
         $dates = $sales->pluck('date')->map(fn($d) => $d->format('Y-m-d'))->unique()->values();
-        $producedByDate = EggProduction::whereIn(\DB::raw('DATE(date)'), $dates)
-            ->selectRaw('DATE(date) as date_key, SUM(eggs_collected) as total')
-            ->groupBy('date_key')
-            ->pluck('total', 'date_key');
+        $gradingBySizeAndDate = EggGradingDaily::whereIn('date', $dates)
+            ->get()
+            ->groupBy(fn($row) => $row->date->format('Y-m-d'))
+            ->map(fn($rows) => $rows->pluck('total_pcs', 'category'));
 
-        return view('sales.index', compact('sales', 'producedByDate'));
+        // Keyed by "date|egg_size" using egg_sales' OWN size vocabulary (so the
+        // view never has to know that grading calls XL "XLarge" instead) —
+        // the only category name that differs between the two tables.
+        $producedBySizeAndDate = [];
+        foreach ($sales as $sale) {
+            $dateKey = $sale->date->format('Y-m-d');
+            $category = $sale->egg_size === 'XL' ? 'XLarge' : $sale->egg_size;
+            $key = "{$dateKey}|{$sale->egg_size}";
+            $producedBySizeAndDate[$key] = $gradingBySizeAndDate[$dateKey][$category] ?? null;
+        }
+
+        return view('sales.index', compact('sales', 'producedBySizeAndDate'));
     }
 
     public function store(Request $request)

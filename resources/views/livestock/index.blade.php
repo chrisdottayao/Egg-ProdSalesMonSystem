@@ -1,7 +1,7 @@
 <x-app-layout>
-<div class="space-y-6" x-data="{ tab: 'hens', editHen: null, editCattle: null }">
+<div class="space-y-6" x-data="{ editHen: null }">
     <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-gray-800">Livestock Records</h1>
+        <h1 class="text-2xl font-bold text-gray-800">Flock Records</h1>
         <div class="bg-green-50 border border-green-200 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
             <div class="w-2 h-2 bg-green-500 rounded-full"></div>
             <span class="text-gray-600">Active Laying Hens:</span>
@@ -14,22 +14,11 @@
         <div class="bg-green-50 border-l-4 border-green-500 px-4 py-3 rounded-lg text-sm text-green-800">{{ session('success') }}</div>
     @endif
 
-    {{-- Tabs --}}
-    <div class="border-b border-gray-200">
-        <nav class="-mb-px flex gap-6">
-            <button @click="tab = 'hens'" :class="tab === 'hens' ? 'border-[#4CAF50] text-[#4CAF50]' : 'border-transparent text-gray-500 hover:text-gray-700'"
-                class="border-b-2 pb-3 text-sm font-semibold transition-colors">Hen Batches</button>
-            <button @click="tab = 'cattle'" :class="tab === 'cattle' ? 'border-[#4CAF50] text-[#4CAF50]' : 'border-transparent text-gray-500 hover:text-gray-700'"
-                class="border-b-2 pb-3 text-sm font-semibold transition-colors">Cattle Records</button>
-        </nav>
-    </div>
-
-    {{-- HEN BATCHES TAB --}}
-    <div x-show="tab === 'hens'" class="space-y-6">
+    <div class="space-y-6">
         {{-- Add Hen Batch Form --}}
         <div class="bg-white rounded-lg shadow-md p-6">
             <h2 class="text-base font-bold text-gray-800 mb-4">Add Hen Batch</h2>
-            <form method="POST" action="{{ route('livestock.hens.store') }}" class="space-y-4">
+            <form method="POST" action="{{ route('flock-records.hens.store') }}" class="space-y-4">
                 @csrf
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
@@ -117,7 +106,7 @@
                                 <td class="py-3 text-sm text-gray-600">{{ $batch->notes ?? '—' }}</td>
                                 <td class="text-right py-3 text-sm space-x-2">
                                     <button @click="editHen = {{ $batch->id }}" class="text-blue-600 hover:underline">Edit</button>
-                                    <form method="POST" action="{{ route('livestock.hens.destroy', $batch) }}" class="inline" onsubmit="return confirm('Delete this batch?')">
+                                    <form method="POST" action="{{ route('flock-records.hens.destroy', $batch) }}" class="inline" onsubmit="return confirm('Delete this batch?')">
                                         @csrf @method('DELETE')
                                         <button type="submit" class="text-red-600 hover:underline">Delete</button>
                                     </form>
@@ -126,7 +115,7 @@
                             {{-- Inline Edit Row --}}
                             <tr class="border-b bg-blue-50" x-show="editHen === {{ $batch->id }}" x-cloak>
                                 <td colspan="7" class="py-4 px-2">
-                                    <form method="POST" action="{{ route('livestock.hens.update', $batch) }}" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 items-end">
+                                    <form method="POST" action="{{ route('flock-records.hens.update', $batch) }}" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 items-end">
                                         @csrf @method('PATCH')
                                         <div>
                                             <label class="block text-xs font-semibold text-gray-600 mb-1">Batch ID</label>
@@ -175,123 +164,6 @@
                             </tr>
                         @empty
                             <tr><td colspan="7" class="py-8 text-center text-gray-400 text-sm">No hen batches recorded yet.</td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    {{-- CATTLE RECORDS TAB --}}
-    <div x-show="tab === 'cattle'" class="space-y-6">
-        {{-- Add Cattle Form --}}
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-base font-bold text-gray-800 mb-4">Add Cattle Record</h2>
-            <form method="POST" action="{{ route('livestock.cattle.store') }}" class="space-y-4">
-                @csrf
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Ear Tag</label>
-                        <input type="text" name="ear_tag" value="{{ old('ear_tag') }}" placeholder="e.g. CT-001"
-                            class="w-full px-3 py-2 border {{ $errors->has('ear_tag') ? 'border-red-400' : 'border-gray-300' }} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required />
-                        @error('ear_tag')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Status</label>
-                        <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]">
-                            @foreach(['Active','Sold','Deceased'] as $s)
-                                <option value="{{ $s }}" {{ old('status', 'Active') === $s ? 'selected' : '' }}>{{ $s }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Entry Date</label>
-                        <input type="date" name="entry_date" value="{{ old('entry_date', date('Y-m-d')) }}"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required />
-                    </div>
-                    <div class="lg:col-span-3">
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
-                        <input type="text" name="notes" value="{{ old('notes') }}" placeholder="Optional notes"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
-                    </div>
-                </div>
-                <div class="flex justify-end">
-                    <button type="submit" class="bg-[#4CAF50] text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors font-medium">Add Cattle</button>
-                </div>
-            </form>
-        </div>
-
-        {{-- Cattle Records Table --}}
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-base font-bold text-gray-800 mb-4">Cattle Records</h2>
-            <div class="overflow-x-auto">
-                <table class="w-full">
-                    <thead>
-                        <tr class="border-b">
-                            <th class="text-left py-3 text-sm font-semibold text-gray-700">Ear Tag</th>
-                            <th class="text-left py-3 text-sm font-semibold text-gray-700">Status</th>
-                            <th class="text-left py-3 text-sm font-semibold text-gray-700">Entry Date</th>
-                            <th class="text-left py-3 text-sm font-semibold text-gray-700">Notes</th>
-                            <th class="text-right py-3 text-sm font-semibold text-gray-700">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($cattleRecords as $cattle)
-                            <tr class="border-b last:border-0 hover:bg-gray-50" x-show="editCattle !== {{ $cattle->id }}">
-                                <td class="py-3 text-sm font-medium">{{ $cattle->ear_tag }}</td>
-                                <td class="py-3 text-sm">
-                                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold
-                                        {{ $cattle->status === 'Active' ? 'bg-green-100 text-green-800' : ($cattle->status === 'Sold' ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800') }}">
-                                        {{ $cattle->status }}
-                                    </span>
-                                </td>
-                                <td class="py-3 text-sm">{{ $cattle->entry_date->format('Y-m-d') }}</td>
-                                <td class="py-3 text-sm text-gray-600">{{ $cattle->notes ?? '—' }}</td>
-                                <td class="text-right py-3 text-sm space-x-2">
-                                    <button @click="editCattle = {{ $cattle->id }}" class="text-blue-600 hover:underline">Edit</button>
-                                    <form method="POST" action="{{ route('livestock.cattle.destroy', $cattle) }}" class="inline" onsubmit="return confirm('Delete this cattle record?')">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="text-red-600 hover:underline">Delete</button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {{-- Inline Edit Row --}}
-                            <tr class="border-b bg-blue-50" x-show="editCattle === {{ $cattle->id }}" x-cloak>
-                                <td colspan="5" class="py-4 px-2">
-                                    <form method="POST" action="{{ route('livestock.cattle.update', $cattle) }}" class="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
-                                        @csrf @method('PATCH')
-                                        <div>
-                                            <label class="block text-xs font-semibold text-gray-600 mb-1">Ear Tag</label>
-                                            <input type="text" name="ear_tag" value="{{ $cattle->ear_tag }}"
-                                                class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" required />
-                                        </div>
-                                        <div>
-                                            <label class="block text-xs font-semibold text-gray-600 mb-1">Status</label>
-                                            <select name="status" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#4CAF50]">
-                                                @foreach(['Active','Sold','Deceased'] as $s)
-                                                    <option value="{{ $s }}" {{ $cattle->status === $s ? 'selected' : '' }}>{{ $s }}</option>
-                                                @endforeach
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label class="block text-xs font-semibold text-gray-600 mb-1">Entry Date</label>
-                                            <input type="date" name="entry_date" value="{{ $cattle->entry_date->format('Y-m-d') }}"
-                                                class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" required />
-                                        </div>
-                                        <div>
-                                            <label class="block text-xs font-semibold text-gray-600 mb-1">Notes</label>
-                                            <input type="text" name="notes" value="{{ $cattle->notes }}"
-                                                class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
-                                        </div>
-                                        <div class="col-span-2 md:col-span-4 flex gap-2 justify-end">
-                                            <button type="submit" class="bg-[#4CAF50] text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-green-600">Save</button>
-                                            <button type="button" @click="editCattle = null" class="text-gray-600 px-3 py-1.5 rounded text-sm border border-gray-300 hover:bg-gray-100">Cancel</button>
-                                        </div>
-                                    </form>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="5" class="py-8 text-center text-gray-400 text-sm">No cattle records yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

@@ -166,13 +166,12 @@ class ReportsController extends Controller
         $batches = $data['batches'];
 
         $rows   = [];
-        $rows[] = ['Batch ID', 'Collection Date', 'Egg Size', 'Qty Collected', 'Qty Sold', 'Remaining Stock', 'Spoilage', 'Sell-Through (%)', 'Status'];
+        $rows[] = ['Batch ID', 'Collection Date', 'Qty Collected', 'Qty Sold', 'Remaining Stock', 'Spoilage', 'Sell-Through (%)', 'Status'];
 
         foreach ($batches as $b) {
             $rows[] = [
                 'HB-' . $b->id,
                 $b->date->format('Y-m-d'),
-                $b->egg_size,
                 $b->eggs_collected,
                 $b->quantity_sold,
                 $b->remaining_stock,

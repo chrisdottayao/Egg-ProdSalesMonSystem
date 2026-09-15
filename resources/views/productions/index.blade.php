@@ -27,7 +27,7 @@
 
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Eggs Collected</label>
-                    <input type="number" name="eggs_collected" value="{{ old('eggs_collected') }}" placeholder="0" min="0" max="10000"
+                    <input type="number" name="eggs_collected" value="{{ old('eggs_collected') }}" placeholder="0" min="0" max="200000"
                         class="w-full px-3 py-2 border {{ $errors->has('eggs_collected') ? 'border-red-400' : 'border-gray-300' }} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required />
                     @error('eggs_collected')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
                 </div>
@@ -234,7 +234,7 @@
             </table>
         </div>
 
-        <p class="text-sm italic text-gray-500 mt-4">Active hen count syncs automatically with the Livestock Records module.</p>
+        <p class="text-sm italic text-gray-500 mt-4">Active hen count syncs automatically with the Flock Records module.</p>
         <div class="mt-3">{{ $productions->links() }}</div>
     </div> {{-- end x-data="{ showImport }" --}}
 </div>

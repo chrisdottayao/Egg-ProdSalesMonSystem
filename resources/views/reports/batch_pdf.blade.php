@@ -30,7 +30,6 @@
         <tr>
             <th>Batch ID</th>
             <th>Collection Date</th>
-            <th>Egg Size</th>
             <th style="text-align:right;">Qty Collected</th>
             <th style="text-align:right;">Qty Sold</th>
             <th style="text-align:right;">Remaining</th>
@@ -52,7 +51,6 @@
         <tr>
             <td>HB-{{ $b->id }}</td>
             <td>{{ $b->date->format('Y-m-d') }}</td>
-            <td>{{ $b->egg_size }}</td>
             <td style="text-align:right;">{{ number_format($b->eggs_collected) }}</td>
             <td style="text-align:right;">{{ number_format($b->quantity_sold) }}</td>
             <td style="text-align:right;">{{ number_format($b->remaining_stock) }}</td>
@@ -63,7 +61,7 @@
             </td>
         </tr>
         @empty
-        <tr><td colspan="9" style="text-align:center;color:#999;">No batches for selected period.</td></tr>
+        <tr><td colspan="8" style="text-align:center;color:#999;">No batches for selected period.</td></tr>
         @endforelse
     </tbody>
 </table>

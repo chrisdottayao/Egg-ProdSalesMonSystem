@@ -231,7 +231,7 @@
                             <td class="text-right py-3 text-sm font-semibold text-[#4CAF50]">₱{{ number_format($sale->total_amount, 2) }}</td>
                             @php
                                 $dateKey = $sale->date->format('Y-m-d');
-                                $produced = $producedByDate[$dateKey] ?? null;
+                                $produced = $producedBySizeAndDate["{$dateKey}|{$sale->egg_size}"] ?? null;
                                 $salesRate = $produced > 0 ? round(($sale->quantity / $produced) * 100, 1) : null;
                                 $remaining = $produced !== null ? $produced - $sale->quantity : null;
                             @endphp

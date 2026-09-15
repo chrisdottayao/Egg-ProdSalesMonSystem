@@ -82,14 +82,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/imports/egg-grading', [BulkImportController::class, 'importEggGrading'])->name('imports.egg-grading.import');
     Route::get('/imports/errors/{token}', [BulkImportController::class, 'downloadImportErrors'])->name('imports.errors');
 
-    // Livestock Records
-    Route::get('/livestock', [LivestockController::class, 'index'])->name('livestock.index');
-    Route::post('/livestock/hens', [LivestockController::class, 'storeHen'])->name('livestock.hens.store');
-    Route::patch('/livestock/hens/{henBatch}', [LivestockController::class, 'updateHen'])->name('livestock.hens.update');
-    Route::delete('/livestock/hens/{henBatch}', [LivestockController::class, 'destroyHen'])->name('livestock.hens.destroy');
-    Route::post('/livestock/cattle', [LivestockController::class, 'storeCattle'])->name('livestock.cattle.store');
-    Route::patch('/livestock/cattle/{cattleRecord}', [LivestockController::class, 'updateCattle'])->name('livestock.cattle.update');
-    Route::delete('/livestock/cattle/{cattleRecord}', [LivestockController::class, 'destroyCattle'])->name('livestock.cattle.destroy');
+    // Flock Records (hen batches only — cattle tracking removed, out of this system's scope)
+    Route::get('/flock-records', [LivestockController::class, 'index'])->name('flock-records.index');
+    Route::post('/flock-records/hens', [LivestockController::class, 'storeHen'])->name('flock-records.hens.store');
+    Route::patch('/flock-records/hens/{henBatch}', [LivestockController::class, 'updateHen'])->name('flock-records.hens.update');
+    Route::delete('/flock-records/hens/{henBatch}', [LivestockController::class, 'destroyHen'])->name('flock-records.hens.destroy');
 
     // Anomaly alert actions (admin + manager)
     Route::middleware('role:admin,manager')->group(function () {

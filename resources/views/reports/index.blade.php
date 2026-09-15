@@ -175,7 +175,6 @@
                 <thead>
                     <tr class="border-b bg-gray-50">
                         <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Date</th>
-                        <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Size</th>
                         <th class="text-right py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Qty Collected</th>
                         <th class="text-right py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Qty Sold</th>
                         <th class="text-right py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Remaining</th>
@@ -195,7 +194,6 @@
                         @endphp
                         <tr class="border-b last:border-0 hover:bg-gray-50">
                             <td class="py-3 px-2 text-sm">{{ $b->date->format('M d, Y') }}</td>
-                            <td class="py-3 px-2 text-sm text-gray-600">{{ $b->egg_size }}</td>
                             <td class="text-right py-3 px-2 text-sm">{{ number_format($b->eggs_collected) }}</td>
                             <td class="text-right py-3 px-2 text-sm">{{ number_format($b->quantity_sold) }}</td>
                             <td class="text-right py-3 px-2 text-sm font-semibold">{{ number_format($b->remaining_stock) }}</td>
@@ -205,7 +203,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="py-8 text-center text-gray-400 text-sm">No batches traced for selected range.</td></tr>
+                        <tr><td colspan="6" class="py-8 text-center text-gray-400 text-sm">No batches traced for selected range.</td></tr>
                     @endforelse
                 </tbody>
             </table>

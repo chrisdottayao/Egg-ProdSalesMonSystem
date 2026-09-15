@@ -36,7 +36,7 @@ class EggProductionController extends Controller
         // size-level detail belongs to Egg Grading Daily.
         $validated = $request->validate([
             'date'             => 'required|date',
-            'eggs_collected'   => 'required|integer|min:0|max:10000',
+            'eggs_collected'   => 'required|integer|min:0|max:200000',
             'active_hens'      => 'required|integer|min:1',
             'mortality'        => 'required|integer|min:0',
             'spoilage_count'   => 'nullable|integer|min:0',
@@ -66,7 +66,7 @@ class EggProductionController extends Controller
         // if any, are left exactly as they were).
         $validated = $request->validate([
             'date'             => 'required|date',
-            'eggs_collected'   => 'required|integer|min:0|max:10000',
+            'eggs_collected'   => 'required|integer|min:0|max:200000',
             'active_hens'      => 'required|integer|min:1',
             'mortality'        => 'required|integer|min:0',
             'spoilage_count'   => 'nullable|integer|min:0',
