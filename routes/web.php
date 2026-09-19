@@ -5,6 +5,7 @@ use App\Http\Controllers\CullController;
 use App\Http\Controllers\DailyEntryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EggProductionController;
+use App\Http\Controllers\BuildingDashboardController;
 use App\Http\Controllers\EggSaleController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\LivestockController;
@@ -102,6 +103,11 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:admin,manager')->group(function () {
         Route::patch('/alerts/{alert}/reviewed', [DashboardController::class, 'markReviewed'])->name('alerts.reviewed');
         Route::patch('/alerts/{alert}/resolved', [DashboardController::class, 'markResolved'])->name('alerts.resolved');
+    });
+
+    // Per-Building Investment Dashboard (descriptive — admin + manager only)
+    Route::middleware('role:admin,manager')->group(function () {
+        Route::get('/investment', [BuildingDashboardController::class, 'index'])->name('investment.index');
     });
 
     // Reports (admin + manager only)
