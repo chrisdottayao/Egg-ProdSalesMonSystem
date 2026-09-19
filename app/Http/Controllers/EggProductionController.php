@@ -9,6 +9,7 @@ use App\Models\EggProduction;
 use App\Models\EggSale;
 use App\Models\HenBatch;
 use App\Models\User;
+use App\Models\WeatherDaily;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -24,7 +25,14 @@ class EggProductionController extends Controller
     {
         $productions = EggProduction::latest('date')->paginate(20);
         $activeHens  = HenBatch::activeHenCount();
-        return view('productions.index', compact('productions', 'activeHens'));
+
+        // THI context alongside each row's date — read-only, no prediction here.
+        $dates = $productions->pluck('date')->map(fn ($d) => $d->format('Y-m-d'));
+        $weatherByDate = WeatherDaily::whereIn('date', $dates)
+            ->get(['date', 'thi'])
+            ->keyBy(fn ($w) => $w->date->format('Y-m-d'));
+
+        return view('productions.index', compact('productions', 'activeHens', 'weatherByDate'));
     }
 
     public function store(Request $request)

@@ -204,12 +204,25 @@
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Prod Rate</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Feed (sacks)</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Feed g/bird</th>
+                        <th class="text-center py-3 text-sm font-semibold text-gray-700">THI</th>
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Notes</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
+                    @php
+                        $thiBadgeColors = [
+                            'green'  => 'bg-green-100 text-green-700',
+                            'yellow' => 'bg-yellow-100 text-yellow-700',
+                            'orange' => 'bg-orange-100 text-orange-700',
+                            'red'    => 'bg-red-100 text-red-700',
+                        ];
+                    @endphp
                     @forelse($productions as $record)
+                        @php
+                            $weatherRow = $weatherByDate->get($record->date->format('Y-m-d'));
+                            $thiBand    = $weatherRow ? \App\Models\WeatherDaily::band($weatherRow->thi) : null;
+                        @endphp
                         <tr class="border-b last:border-0 hover:bg-gray-50">
                             <td class="py-3 text-sm">{{ $record->date->format('Y-m-d') }}</td>
                             <td class="text-right py-3 text-sm">{{ number_format($record->eggs_collected) }}</td>
@@ -218,6 +231,15 @@
                             <td class="text-right py-3 text-sm font-semibold text-[#4CAF50]">{{ $record->production_rate }}%</td>
                             <td class="text-right py-3 text-sm">{{ $record->feed_bags !== null ? number_format($record->feed_bags, 2) : '—' }}</td>
                             <td class="text-right py-3 text-sm">{{ $record->feed_grams_per_bird !== null ? number_format($record->feed_grams_per_bird, 1) . 'g' : '—' }}</td>
+                            <td class="text-center py-3 text-sm">
+                                @if($thiBand)
+                                    <span class="text-xs px-2 py-1 rounded-full font-semibold {{ $thiBadgeColors[$thiBand['color']] }}" title="{{ $thiBand['label'] }}">
+                                        {{ number_format($weatherRow->thi, 1) }}
+                                    </span>
+                                @else
+                                    <span class="text-xs text-gray-300">—</span>
+                                @endif
+                            </td>
                             <td class="py-3 text-sm text-gray-600">{{ $record->notes ?? '—' }}</td>
                             <td class="text-right py-3 text-sm space-x-2">
                                 <a href="{{ route('productions.edit', $record) }}" class="text-blue-600 hover:underline">Edit</a>
@@ -228,7 +250,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="py-8 text-center text-gray-400 text-sm">No production records yet.</td></tr>
+                        <tr><td colspan="10" class="py-8 text-center text-gray-400 text-sm">No production records yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

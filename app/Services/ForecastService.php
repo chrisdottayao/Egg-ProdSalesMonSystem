@@ -8,6 +8,7 @@ use App\Models\EggProduction;
 use App\Models\EggSale;
 use App\Models\ForecastEvaluation;
 use App\Models\HenBatch;
+use App\Models\WeatherDaily;
 use Illuminate\Support\Carbon;
 use Phpml\Regression\LeastSquares;
 
@@ -27,6 +28,17 @@ class ForecastService
     // ENGINEERING — minimum overlapping days (egg_productions x building_daily)
     // required before the age-aware model is trusted over the day-index-only one.
     private const MIN_AGE_FEATURE_DAYS = 30;
+
+    // ENGINEERING — minimum overlapping days (egg_productions x weather_daily)
+    // required before weather features are trusted, same reasoning as the age
+    // feature above: a handful of days isn't enough to fit a stable coefficient.
+    private const MIN_WEATHER_FEATURE_DAYS = 30;
+
+    // ENGINEERING — how far past the last recorded day this service ever
+    // predicts (7-day production forecast + 30-day revenue forecast), used to
+    // size the weather_daily lookup window so both forecasts can pull real
+    // near-term weather instead of falling back to climatology unnecessarily.
+    private const MAX_FORECAST_HORIZON_DAYS = 30;
 
     // STATED (farm interview) — cull policy target; used to project when an
     // active batch will likely be depopulated for the spent-hen revenue event
@@ -87,6 +99,45 @@ class ForecastService
             $futureAges = $this->projectFutureWeightedAges($lastDate, 30);
         }
 
+        // ── Weather features (temp_mean, THI, precipitation) — additive on top
+        // of whichever model above is currently best ───────────────────────────
+        $weatherByDate = WeatherDaily::whereBetween('date', [
+                $records->first()->date,
+                $lastDate->copy()->addDays(self::MAX_FORECAST_HORIZON_DAYS),
+            ])
+            ->get(['date', 'temp_mean', 'thi', 'precipitation'])
+            ->keyBy(fn ($w) => $w->date->format('Y-m-d'));
+
+        $climatology = $this->monthlyClimatology();
+
+        $weatherOverlapDays = count(array_intersect_key(
+            $weatherByDate->all(),
+            array_flip($records->pluck('date')->map(fn ($d) => $d->format('Y-m-d'))->all())
+        ));
+
+        $weatherFeatureOn = config('weather.use_in_forecast', true)
+            && $weatherOverlapDays >= self::MIN_WEATHER_FEATURE_DAYS
+            && ! empty($climatology);
+
+        $mapeBeforeWeather = null;
+        $mapeAfterWeather  = null;
+
+        if ($weatherFeatureOn) {
+            $baseX          = $ageFeatureOn ? $twoFeatureX : $dayIndexX;
+            $weatherFeatureX = [];
+            foreach ($records as $i => $record) {
+                $dateKey           = $record->date->format('Y-m-d');
+                $weatherFeatureX[] = array_merge($baseX[$i], $this->weatherFeaturesForDate($dateKey, $weatherByDate, $climatology));
+            }
+
+            $weatherModel = new LeastSquares();
+            $weatherModel->train($weatherFeatureX, $Y);
+            $model = $weatherModel;
+
+            $mapeBeforeWeather = $mapeAfter ?? $mapeBefore;
+            $mapeAfterWeather  = $this->holdoutMape($weatherFeatureX, $Y, fn () => new LeastSquares());
+        }
+
         $avgPrice = (float) (
             EggSale::where('date', '>=', Carbon::today()->subDays(self::AVG_PRICE_LOOKBACK_DAYS))
                 ->avg('price_per_unit') ?? 9.0
@@ -94,10 +145,22 @@ class ForecastService
 
         $cullIncomeByDayOffset = $this->projectSpentHenIncome($lastDate, 30);
 
-        $predictFor = function (int $dayOffset) use ($model, $n, $ageFeatureOn, $futureAges) {
-            $sample = $ageFeatureOn
-                ? [$n + $dayOffset, $futureAges[$dayOffset] ?? end($futureAges)]
-                : [$n + $dayOffset];
+        $predictFor = function (int $dayOffset) use ($model, $n, $ageFeatureOn, $futureAges, $weatherFeatureOn, $weatherByDate, $climatology, $lastDate) {
+            $sample = [$n + $dayOffset];
+
+            if ($ageFeatureOn) {
+                $sample[] = $futureAges[$dayOffset] ?? end($futureAges);
+            }
+
+            if ($weatherFeatureOn) {
+                // Within Open-Meteo's ~16-day forecast window weather_daily has a
+                // real (source='forecast') row for this date; beyond that horizon
+                // there is no daily weather to look up, so this call transparently
+                // falls back to the calendar-month climatology instead of
+                // fabricating a future day's weather.
+                $futureDateKey = $lastDate->copy()->addDays($dayOffset)->format('Y-m-d');
+                $sample = array_merge($sample, $this->weatherFeaturesForDate($futureDateKey, $weatherByDate, $climatology));
+            }
 
             return max(0, (int) round($model->predict($sample)));
         };
@@ -129,22 +192,27 @@ class ForecastService
             'active'            => true,
             'forecast_7day'     => $forecast7day,
             'forecast_30day'    => $forecast30day,
-            'mape'              => $mapeAfter ?? $mapeBefore,
-            'mape_before_age_feature' => $mapeBefore,
-            'mape_after_age_feature'  => $mapeAfter,
-            'age_feature_active'      => $ageFeatureOn,
+            'mape'              => $mapeAfterWeather ?? $mapeAfter ?? $mapeBefore,
+            'mape_before_age_feature'     => $mapeBefore,
+            'mape_after_age_feature'      => $mapeAfter,
+            'age_feature_active'          => $ageFeatureOn,
+            'mape_before_weather_feature' => $mapeBeforeWeather,
+            'mape_after_weather_feature'  => $mapeAfterWeather,
+            'weather_feature_active'      => $weatherFeatureOn,
             'trained_on'        => $n,
             'last_trained'      => now()->format('Y-m-d H:i:s'),
         ];
 
         if ($persist) {
             ForecastEvaluation::create([
-                'trained_on'              => $n,
-                'mape'                    => $result['mape'],
-                'mape_before_age_feature' => $mapeBefore,
-                'forecast_7day_total'     => collect($forecast7day)->sum('predicted'),
-                'forecast_30day_total'    => collect($forecast30day)->sum('predicted_revenue'),
-                'evaluated_at'            => now(),
+                'trained_on'                  => $n,
+                'mape'                        => $result['mape'],
+                'mape_before_age_feature'     => $mapeBefore,
+                'mape_before_weather_feature' => $mapeBeforeWeather,
+                'weather_feature_active'      => $weatherFeatureOn,
+                'forecast_7day_total'         => collect($forecast7day)->sum('predicted'),
+                'forecast_30day_total'        => collect($forecast30day)->sum('predicted_revenue'),
+                'evaluated_at'                => now(),
             ]);
         }
 
@@ -316,5 +384,63 @@ class ForecastService
         }
 
         return $income;
+    }
+
+    /**
+     * Calendar-month (1-12, all years pooled) averages of temp_mean/thi/
+     * precipitation from every weather_daily row on record, used to fill in
+     * for any date — past or future — that has no real weather row. Beyond
+     * Open-Meteo's ~16-day forecast horizon this is the only "weather" a
+     * long-range projection can honestly use; see weatherFeaturesForDate().
+     *
+     * @return array{months: array<int,array{temp_mean:float,thi:float,precipitation:float}>, overall: array{temp_mean:float,thi:float,precipitation:float}}|array{}
+     */
+    private function monthlyClimatology(): array
+    {
+        $rows = WeatherDaily::all(['date', 'temp_mean', 'thi', 'precipitation']);
+
+        if ($rows->isEmpty()) {
+            return [];
+        }
+
+        $avg = fn ($values) => $values->filter(fn ($v) => $v !== null)->avg() ?? 0.0;
+
+        $months = $rows->groupBy(fn ($r) => (int) $r->date->format('n'))
+            ->map(fn ($group) => [
+                'temp_mean'     => $avg($group->pluck('temp_mean')),
+                'thi'           => $avg($group->pluck('thi')),
+                'precipitation' => $avg($group->pluck('precipitation')),
+            ])
+            ->all();
+
+        $overall = [
+            'temp_mean'     => $avg($rows->pluck('temp_mean')),
+            'thi'           => $avg($rows->pluck('thi')),
+            'precipitation' => $avg($rows->pluck('precipitation')),
+        ];
+
+        return ['months' => $months, 'overall' => $overall];
+    }
+
+    /**
+     * [temp_mean, thi, precipitation] for one date — a real weather_daily row
+     * when one exists for that date, otherwise that calendar month's
+     * historical average (or the all-time average if even the month itself
+     * has no data).
+     *
+     * @param \Illuminate\Support\Collection $weatherByDate keyed by 'Y-m-d'
+     * @return array{0:float,1:float,2:float}
+     */
+    private function weatherFeaturesForDate(string $dateKey, $weatherByDate, array $climatology): array
+    {
+        $row      = $weatherByDate->get($dateKey);
+        $month    = (int) Carbon::parse($dateKey)->format('n');
+        $fallback = $climatology['months'][$month] ?? $climatology['overall'];
+
+        return [
+            $row?->temp_mean ?? $fallback['temp_mean'],
+            $row?->thi ?? $fallback['thi'],
+            $row?->precipitation ?? $fallback['precipitation'],
+        ];
     }
 }

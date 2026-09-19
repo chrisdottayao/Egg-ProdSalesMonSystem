@@ -87,6 +87,45 @@
         </div>
     </div>
 
+    {{-- Weather / Environmental Conditions (read-only — never calls Open-Meteo live) --}}
+    @php
+        $thiBandColors = [
+            'green'  => ['border' => 'border-[#4CAF50]', 'badge' => 'bg-green-100 text-green-700'],
+            'yellow' => ['border' => 'border-yellow-400', 'badge' => 'bg-yellow-100 text-yellow-700'],
+            'orange' => ['border' => 'border-orange-400', 'badge' => 'bg-orange-100 text-orange-700'],
+            'red'    => ['border' => 'border-red-500',    'badge' => 'bg-red-100 text-red-700'],
+        ];
+        $latestBand = $latestWeather ? \App\Models\WeatherDaily::band($latestWeather->thi) : null;
+        $bandColors = $thiBandColors[$latestBand['color'] ?? 'green'] ?? $thiBandColors['green'];
+    @endphp
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6" data-thi-chart="{{ $weatherTrend->values()->toJson() }}">
+        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 {{ $bandColors['border'] }}">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-gray-600">Latest THI</span>
+                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 001.75-2.97l-6.93-12a2 2 0 00-3.5 0l-6.93 12A2 2 0 005.07 19z"/></svg>
+            </div>
+            @if($latestWeather && $latestWeather->thi !== null)
+                <div class="text-3xl font-bold text-gray-800">{{ number_format($latestWeather->thi, 1) }}</div>
+                <div class="mt-1 flex items-center gap-2">
+                    <span class="text-xs px-2 py-1 rounded-full font-semibold {{ $bandColors['badge'] }}">{{ $latestBand['label'] }}</span>
+                    <span class="text-xs text-gray-500">{{ $latestWeather->date->format('M d, Y') }}</span>
+                </div>
+                <p class="text-xs text-gray-400 mt-2">Temperature-Humidity Index &mdash; SPC Farm Magalang</p>
+            @else
+                <div class="text-lg font-medium text-gray-400 mt-1">No weather data yet</div>
+                <p class="text-xs text-gray-400 mt-1">Run <code class="bg-gray-100 px-1 rounded">php artisan weather:backfill</code> to populate history.</p>
+            @endif
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6 lg:col-span-2">
+            <div class="mb-4">
+                <h2 class="text-lg font-bold text-gray-800">THI Trend</h2>
+                <p class="text-sm text-gray-500">Last 14 days &mdash; heat-stress context, not a prediction</p>
+            </div>
+            <canvas id="thiChart" height="90"></canvas>
+        </div>
+    </div>
+
     {{-- AI Insights & Recent Activity --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="bg-white rounded-lg shadow-md p-6">
@@ -431,6 +470,39 @@
         });
     } else if (revCtx) {
         revCtx.parentElement.innerHTML += '<p class="text-sm text-gray-400 text-center mt-8">No sales data yet.</p>';
+    }
+
+    // THI Trend — small line chart, context only (no prediction)
+    const thiContainer = document.querySelector('[data-thi-chart]');
+    const thiData       = JSON.parse(thiContainer?.getAttribute('data-thi-chart') || '[]').filter(d => d.thi !== null);
+    const thiCtx        = document.getElementById('thiChart');
+    if (thiCtx && thiData.length) {
+        new Chart(thiCtx, {
+            type: 'line',
+            data: {
+                labels: thiData.map(d => d.date),
+                datasets: [{
+                    label:           'THI',
+                    data:            thiData.map(d => d.thi),
+                    borderColor:     '#F59E0B',
+                    backgroundColor: 'rgba(245,158,11,0.1)',
+                    borderWidth:     2,
+                    pointRadius:     3,
+                    tension:         0.3,
+                    fill:            true,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { maxTicksLimit: 10, font: { size: 11 } }, grid: { display: false } },
+                    y: { ticks: { font: { size: 11 } }, beginAtZero: false }
+                }
+            }
+        });
+    } else if (thiCtx) {
+        thiCtx.parentElement.innerHTML += '<p class="text-sm text-gray-400 text-center mt-8">No weather data yet &mdash; run <code class="bg-gray-100 px-1 rounded">php artisan weather:backfill</code>.</p>';
     }
 })();
 

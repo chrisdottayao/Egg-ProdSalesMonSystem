@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Retrain the PHP-ML forecast model every week
 Schedule::command('forecast:retrain')->weekly();
+
+// Refresh weather (recent + short forecast) once a day, ahead of the forecast retrain
+Schedule::command('weather:sync')->dailyAt('05:00')->timezone('Asia/Manila');

@@ -7,6 +7,7 @@ use App\Models\CullRecord;
 use App\Models\EggProduction;
 use App\Models\EggSale;
 use App\Models\HenBatch;
+use App\Models\WeatherDaily;
 use App\Services\AiInsightService;
 use App\Services\ForecastService;
 use App\Services\RecommendationService;
@@ -85,11 +86,19 @@ class DashboardController extends Controller
         // ── Predictive forecast ──────────────────────────────────────────────
         $forecast = (new ForecastService)->forecast();
 
+        // ── Weather context (read-only — dashboard never calls Open-Meteo live) ──
+        $latestWeather = WeatherDaily::whereNotNull('thi')->orderByDesc('date')->first();
+        $weatherTrend  = WeatherDaily::where('date', '>=', Carbon::today()->subDays(13))
+            ->where('date', '<=', $today)
+            ->orderBy('date')
+            ->get(['date', 'thi'])
+            ->map(fn ($w) => ['date' => $w->date->format('M d'), 'thi' => $w->thi]);
+
         return view('dashboard', compact(
             'stats', 'recentActivity',
             'productionChartData', 'revenueChartData',
             'anomalyAlerts', 'recommendations',
-            'forecast'
+            'forecast', 'latestWeather', 'weatherTrend'
         ));
     }
 
