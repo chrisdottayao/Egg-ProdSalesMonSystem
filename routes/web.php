@@ -6,9 +6,11 @@ use App\Http\Controllers\DailyEntryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EggProductionController;
 use App\Http\Controllers\EggSaleController;
+use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\LivestockController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportsController;
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\SocialiteController;
@@ -82,6 +84,14 @@ Route::middleware('auth')->group(function () {
     Route::post('/imports/egg-grading', [BulkImportController::class, 'importEggGrading'])->name('imports.egg-grading.import');
     Route::get('/imports/errors/{token}', [BulkImportController::class, 'downloadImportErrors'])->name('imports.errors');
 
+    // Expenses (feed kg, medicine, vaccines, restocking, electricity, manpower — farm-wide or per-building)
+    Route::get('/expenses', [ExpenseController::class, 'index'])->name('expenses.index');
+    Route::post('/expenses', [ExpenseController::class, 'store'])->name('expenses.store');
+    Route::get('/expenses/summary', [ExpenseController::class, 'summary'])->name('expenses.summary');
+    Route::get('/expenses/{expense}/edit', [ExpenseController::class, 'edit'])->name('expenses.edit');
+    Route::patch('/expenses/{expense}', [ExpenseController::class, 'update'])->name('expenses.update');
+    Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');
+
     // Flock Records (hen batches only — cattle tracking removed, out of this system's scope)
     Route::get('/flock-records', [LivestockController::class, 'index'])->name('flock-records.index');
     Route::post('/flock-records/hens', [LivestockController::class, 'storeHen'])->name('flock-records.hens.store');
@@ -114,6 +124,12 @@ Route::middleware('auth')->group(function () {
         Route::post('/users', [UserController::class, 'store'])->name('users.store');
         Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    });
+
+    // Settings — editable expense-estimate defaults (admin only)
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+        Route::patch('/settings', [SettingsController::class, 'update'])->name('settings.update');
     });
 });
 

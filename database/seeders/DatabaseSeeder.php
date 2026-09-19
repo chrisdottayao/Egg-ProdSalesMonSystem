@@ -112,5 +112,8 @@ class DatabaseSeeder extends Seeder
                 ]);
             }
         }
+
+        // ── Expense receipts (real farm receipts, farm-wide) ────────────
+        $this->call(ExpenseReceiptSeeder::class);
     }
 }
