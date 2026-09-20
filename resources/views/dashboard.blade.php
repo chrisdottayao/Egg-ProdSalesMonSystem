@@ -362,10 +362,246 @@
         @endif
     </div>
     @endif
+
+    {{-- Per-Building Performance (3J — merged from the old standalone investment
+    dashboard; admin + manager only, same access level 3H used) ──────────── --}}
+    @if(in_array(Auth::user()->role, ['admin', 'manager']))
+    @php
+        $prodBandClasses = [
+            'green' => ['badge' => 'bg-green-100 text-green-700', 'border' => 'border-green-500'],
+            'amber' => ['badge' => 'bg-amber-100 text-amber-700', 'border' => 'border-amber-500'],
+            'red'   => ['badge' => 'bg-red-100 text-red-700',     'border' => 'border-red-500'],
+        ];
+    @endphp
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <div class="flex items-center justify-between mb-1 flex-wrap gap-2">
+            <div>
+                <h2 class="text-lg font-bold text-gray-800">Per-Building Performance</h2>
+                <p class="text-sm text-gray-500">Descriptive only — what has happened, from existing data. Click a building to expand its detail.</p>
+            </div>
+            <div class="flex gap-2">
+                @foreach(['1' => '1 mo', '2' => '2 mo', '3' => '3 mo', 'this_month' => 'This month'] as $val => $label)
+                    <a href="{{ route('dashboard', ['window' => $val]) }}"
+                       class="px-3 py-1 rounded-lg text-xs font-medium {{ $window === $val ? 'bg-[#4CAF50] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">
+                        {{ $label }}
+                    </a>
+                @endforeach
+            </div>
+        </div>
+        <p class="text-xs text-gray-400 mb-4">{{ $perfStart->format('M d, Y') }} &mdash; {{ $perfEnd->format('M d, Y') }}</p>
+
+        {{-- Farm-wide summary strip --}}
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div class="p-4 rounded-lg border-l-4 {{ $farmOverview['farmBand'] ? $prodBandClasses[$farmOverview['farmBand']['color']]['border'] : 'border-gray-300' }} bg-gray-50">
+                <div class="text-gray-600 text-sm mb-1">Farm-wide Prod Rate</div>
+                <div class="text-2xl font-bold text-gray-800">{{ $farmOverview['farmProdRate'] !== null ? $farmOverview['farmProdRate'] . '%' : '—' }}</div>
+                @if($farmOverview['farmBand'])
+                    <span class="inline-block mt-1 text-xs px-2 py-1 rounded-full font-semibold {{ $prodBandClasses[$farmOverview['farmBand']['color']]['badge'] }}">{{ $farmOverview['farmBand']['label'] }}</span>
+                @endif
+                <div class="text-xs text-gray-500 mt-1">Target: &ge; {{ config('dashboard.prod_rate_healthy_min') }}%</div>
+            </div>
+            <div class="p-4 rounded-lg border-l-4 border-[#4CAF50] bg-gray-50">
+                <div class="text-gray-600 text-sm mb-1">Revenue (window)</div>
+                <div class="text-2xl font-bold text-gray-800">₱{{ number_format($farmOverview['farmRevenue'], 2) }}</div>
+            </div>
+            <div class="p-4 rounded-lg border-l-4 {{ $farmOverview['farmNet'] >= 0 ? 'border-[#4CAF50]' : 'border-red-500' }} bg-gray-50">
+                <div class="text-gray-600 text-sm mb-1">Net (Revenue &minus; Expenses)</div>
+                <div class="text-2xl font-bold {{ $farmOverview['farmNet'] >= 0 ? 'text-gray-800' : 'text-red-600' }}">₱{{ number_format($farmOverview['farmNet'], 2) }}</div>
+                <div class="text-xs text-gray-500 mt-1">Expenses: ₱{{ number_format($farmOverview['farmExpenses'], 2) }}</div>
+            </div>
+        </div>
+
+        {{-- Building list / leaderboard — click a row to expand in place --}}
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b">
+                        <th class="text-left py-2 text-sm font-semibold text-gray-700">Building</th>
+                        <th class="text-right py-2 text-sm font-semibold text-gray-700">Population</th>
+                        <th class="text-right py-2 text-sm font-semibold text-gray-700">Prod Rate</th>
+                        <th class="text-left py-2 text-sm font-semibold text-gray-700">Status</th>
+                        <th class="text-right py-2 text-sm font-semibold text-gray-700">Alerts</th>
+                        <th class="text-left py-2 text-sm font-semibold text-gray-700">As of</th>
+                        <th class="w-8"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($farmOverview['leaderboard'] as $row)
+                        @php $rowLabel = $row['building']->building_no ? 'Building ' . $row['building']->building_no : $row['building']->batch_id; @endphp
+                        <tr x-data="buildingRow({{ $row['building']->id }}, {{ \Illuminate\Support\Js::from($window) }})"
+                            @click="toggle()"
+                            class="border-b cursor-pointer hover:bg-gray-50 border-l-4 {{ $row['band'] ? $prodBandClasses[$row['band']['color']]['border'] : 'border-gray-200' }}">
+                            <td class="py-2 text-sm text-gray-700 pl-2">{{ $rowLabel }}</td>
+                            <td class="text-right py-2 text-sm">{{ $row['population'] !== null ? number_format($row['population']) : '—' }}</td>
+                            <td class="text-right py-2 text-sm font-semibold">{{ $row['prod_rate'] !== null ? number_format($row['prod_rate'], 1) . '%' : '—' }}</td>
+                            <td class="py-2 text-sm">
+                                @if($row['band'])
+                                    <span class="text-xs px-2 py-1 rounded-full font-semibold {{ $prodBandClasses[$row['band']['color']]['badge'] }}">{{ $row['band']['label'] }}</span>
+                                @else
+                                    <span class="text-xs text-gray-400">No data</span>
+                                @endif
+                            </td>
+                            <td class="text-right py-2 text-sm">
+                                @if($row['open_alerts_count'] > 0)
+                                    <span class="text-xs bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded-full">{{ $row['open_alerts_count'] }}</span>
+                                @else
+                                    <span class="text-gray-300 text-xs">0</span>
+                                @endif
+                            </td>
+                            <td class="py-2 text-sm text-gray-500">{{ $row['as_of']?->format('M d, Y') ?? '—' }}</td>
+                            <td class="text-right py-2">
+                                <svg :class="expanded ? 'rotate-180' : ''" class="w-4 h-4 text-gray-400 transition-transform inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </td>
+                        </tr>
+                        <tr x-show="expanded" x-cloak style="display:none" @click.stop>
+                            <td colspan="7" class="bg-gray-50 border-b p-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <h3 class="text-sm font-bold text-gray-800">{{ $rowLabel }}</h3>
+                                    <button type="button" @click.stop="toggle()" class="text-xs text-gray-400 hover:text-gray-600">Collapse</button>
+                                </div>
+                                <div x-show="loading" class="text-sm text-gray-400 py-6 text-center">Loading&hellip;</div>
+                                <div x-show="error" x-text="error" class="text-sm text-red-600 py-4"></div>
+                                <div x-ref="content"></div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="7" class="py-8 text-center text-gray-400 text-sm">No active buildings yet.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @endif
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script type="text/javascript">
+// Per-building accordion — one fetch per building per window, cached in the
+// row's own Alpine state so re-collapsing/re-expanding within the same page
+// session never re-fetches (changing the window navigates the page, which
+// naturally resets every row's cache).
+function buildingRow(buildingId, windowParam) {
+    return {
+        expanded: false,
+        loading: false,
+        loaded: false,
+        error: null,
+        toggle() {
+            this.expanded = !this.expanded;
+            if (this.expanded && !this.loaded) this.load();
+        },
+        async load() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const res = await fetch(`/dashboard/buildings/${buildingId}/detail?window=${encodeURIComponent(windowParam)}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                if (!res.ok) throw new Error('request failed');
+                const html = await res.text();
+                this.$refs.content.innerHTML = html;
+                this.loaded = true;
+                if (window.initBuildingChart) window.initBuildingChart(this.$refs.content, buildingId);
+            } catch (e) {
+                this.error = "Could not load this building's details.";
+            } finally {
+                this.loading = false;
+            }
+        },
+    };
+}
+
+// Builds the Prod-Rate Trend chart inside an injected building-detail
+// fragment. Separate from the IIFE below because it must run on-demand
+// (after AJAX injection), not just once on page load — injecting HTML via
+// innerHTML does not execute embedded <script> tags, so this lives here
+// instead of inside the fetched partial.
+window.initBuildingChart = function (container, buildingId) {
+    const chartContainer = container.querySelector('[data-trend-chart]');
+    if (!chartContainer) return;
+
+    const data = JSON.parse(chartContainer.getAttribute('data-trend-chart') || '[]');
+    const ctx  = container.querySelector('#prodRateTrendChart-' + buildingId);
+    if (!ctx) return;
+
+    if (!data.length) {
+        ctx.parentElement.insertAdjacentHTML('beforeend', '<p class="text-sm text-gray-400 text-center mt-4">No production data for this building in the selected window.</p>');
+        return;
+    }
+
+    const labels     = data.map(d => d.date);
+    const healthyMin = parseFloat(chartContainer.dataset.healthyMin);
+    const cullMax    = parseFloat(chartContainer.dataset.cullMax);
+
+    const thiDataset = {
+        label: 'THI',
+        data: data.map(d => d.thi),
+        borderColor: '#F59E0B',
+        backgroundColor: 'rgba(245,158,11,0.05)',
+        borderWidth: 2,
+        pointRadius: 2,
+        tension: 0.3,
+        yAxisID: 'y1',
+        hidden: true,
+        spanGaps: true,
+    };
+
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Prod Rate (%)',
+                    data: data.map(d => d.prod_rate),
+                    borderColor: '#4CAF50',
+                    backgroundColor: 'rgba(76,175,80,0.1)',
+                    borderWidth: 2,
+                    pointRadius: 2,
+                    tension: 0.3,
+                    fill: true,
+                    yAxisID: 'y',
+                },
+                {
+                    label: 'Healthy (' + healthyMin + '%)',
+                    data: labels.map(() => healthyMin),
+                    borderColor: '#16A34A',
+                    borderDash: [6, 4],
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    yAxisID: 'y',
+                },
+                {
+                    label: 'Cull-consideration (' + cullMax + '%)',
+                    data: labels.map(() => cullMax),
+                    borderColor: '#DC2626',
+                    borderDash: [6, 4],
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    yAxisID: 'y',
+                },
+                thiDataset,
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: true, labels: { font: { size: 10 } } } },
+            scales: {
+                x: { ticks: { maxTicksLimit: 10, font: { size: 11 } }, grid: { display: false } },
+                y:  { position: 'left', min: 0, max: 100, ticks: { font: { size: 11 }, callback: v => v + '%' } },
+                y1: { position: 'right', min: 60, max: 95, grid: { drawOnChartArea: false }, ticks: { font: { size: 11 } } },
+            }
+        }
+    });
+
+    container.querySelector('#thiToggle-' + buildingId)?.addEventListener('change', function (e) {
+        chart.setDatasetVisibility(3, e.target.checked);
+        chart.update();
+    });
+};
+
 (function () {
     const chartContainer  = document.querySelector('[data-prod-chart]');
     const prodData        = JSON.parse(chartContainer?.getAttribute('data-prod-chart') || '[]');

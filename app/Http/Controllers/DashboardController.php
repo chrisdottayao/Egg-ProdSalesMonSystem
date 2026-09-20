@@ -9,6 +9,7 @@ use App\Models\EggSale;
 use App\Models\HenBatch;
 use App\Models\WeatherDaily;
 use App\Services\AiInsightService;
+use App\Services\BuildingPerformanceService;
 use App\Services\ForecastService;
 use App\Services\RecommendationService;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +20,7 @@ use Illuminate\Support\Facades\Auth;
 class DashboardController extends Controller
 {
 
-    public function index()
+    public function index(Request $request)
     {
         $today      = Carbon::today();
         $thisMonth  = Carbon::now()->startOfMonth();
@@ -94,11 +95,22 @@ class DashboardController extends Controller
             ->get(['date', 'thi'])
             ->map(fn ($w) => ['date' => $w->date->format('M d'), 'thi' => $w->thi]);
 
+        // ── Per-building performance (3J — merged from the old standalone
+        // investment dashboard). Financial figures here are gated to
+        // admin/manager in the view, same access level 3H used, but computed
+        // unconditionally so the controller doesn't need role branching. ──
+        $performanceService = new BuildingPerformanceService;
+        $window             = $request->input('window', '1');
+        [$perfStart, $perfEnd] = $performanceService->resolveWindow($request);
+        $buildings          = HenBatch::where('status', 'Active')->orderBy('batch_id')->get();
+        $farmOverview       = $performanceService->farmOverview($buildings, $perfStart, $perfEnd);
+
         return view('dashboard', compact(
             'stats', 'recentActivity',
             'productionChartData', 'revenueChartData',
             'anomalyAlerts', 'recommendations',
-            'forecast', 'latestWeather', 'weatherTrend'
+            'forecast', 'latestWeather', 'weatherTrend',
+            'window', 'perfStart', 'perfEnd', 'buildings', 'farmOverview'
         ));
     }
 

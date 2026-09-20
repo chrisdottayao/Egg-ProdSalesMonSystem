@@ -110,9 +110,11 @@ Route::middleware('auth')->group(function () {
         Route::patch('/alerts/{alert}/resolved', [DashboardController::class, 'markResolved'])->name('alerts.resolved');
     });
 
-    // Per-Building Investment Dashboard (descriptive — admin + manager only)
+    // Per-Building performance — merged into the main dashboard (3J). This
+    // route is a compat redirect for old bookmarks/links, not a page anymore.
     Route::middleware('role:admin,manager')->group(function () {
         Route::get('/investment', [BuildingDashboardController::class, 'index'])->name('investment.index');
+        Route::get('/dashboard/buildings/{building}/detail', [BuildingDashboardController::class, 'detail'])->name('dashboard.buildings.detail');
     });
 
     // Reports (admin + manager only)
