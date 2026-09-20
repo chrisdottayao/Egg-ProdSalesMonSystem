@@ -9,6 +9,17 @@ use Illuminate\Http\JsonResponse;
 class SyncConflictController extends Controller
 {
     /**
+     * Fresh CSRF token for offline background sync replay (public/sw.js's
+     * replayQueue() fetches this before resubmitting a queued entry, since
+     * the token captured at queue time may have since expired). A plain
+     * Closure route here would break route:cache (Fix 1, 3K).
+     */
+    public function csrfToken(): JsonResponse
+    {
+        return response()->json(['token' => csrf_token()]);
+    }
+
+    /**
      * Record an offline-sync conflict server-side so Admin/Manager can
      * review it via the Audit Assistant, regardless of which device
      * originally queued the entry.

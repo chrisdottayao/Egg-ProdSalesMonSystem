@@ -9,9 +9,15 @@ a2dismod mpm_prefork 2>/dev/null || true
 # Force enable only mpm_prefork for PHP
 a2enmod mpm_prefork
 
-# Only clear local configuration and view files (safe without DB)
-php artisan config:clear
-php artisan view:clear
+# Bake config/route/view/event caches now, once per container start — this
+# is the earliest point Railway's runtime env vars (APP_KEY, DB credentials,
+# etc.) are actually available, so it can't happen at Docker build time.
+# Without this, Laravel re-parses config and recompiles Blade on every
+# request in production, which was the primary cause of slow login/nav.
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+php artisan event:cache
 
 # Ensure permissions are correct on storage and bootstrap/cache
 chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache

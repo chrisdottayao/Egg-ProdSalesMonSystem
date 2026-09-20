@@ -14,7 +14,9 @@
       "Read(//c/xampp/php/extras/ssl/**)",
       "Bash(cp \"C:\\\\xampp\\\\php\\\\extras\\\\ssl\\\\cacert.pem\" \"storage/app/cacert.pem\" && echo \"copied\")",
       "Bash(composer show *)",
-      "Read(//c/Users/Admin/Downloads/**)"
+      "Read(//c/Users/Admin/Downloads/**)",
+      "Bash(cp /c/xampp/apache/bin/cacert-new.pem \"/c/Users/Justin B. Villarin/.config/herd-lite/bin/cacert.pem\")",
+      "Read(//c/Users/Justin B. Villarin/.config/herd-lite/bin/**)"
     ],
     "additionalDirectories": [
       "C:\\xampp\\htdocs\\Egg-ProdSalesMonSystem\\app",

@@ -25,10 +25,13 @@ class SocialiteController extends Controller
         try {
             $googleUser = Socialite::driver('google')->user();
 
-            // Find existing user by google_id OR email
-            $user = User::where('google_id', $googleUser->getId())
-                ->orWhere('email', $googleUser->getEmail())
-                ->first();
+            // Find existing user by google_id, else by email. Two indexed
+            // lookups (short-circuiting on the first hit) instead of one
+            // orWhere() mixing an indexed column (email) with an unindexed
+            // one (google_id) — that combination typically stops MySQL from
+            // using either index well.
+            $user = User::where('google_id', $googleUser->getId())->first()
+                ?? User::where('email', $googleUser->getEmail())->first();
 
             if ($user) {
                 // Attach google_id if missing

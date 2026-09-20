@@ -9,6 +9,7 @@ use App\Http\Controllers\BuildingDashboardController;
 use App\Http\Controllers\EggSaleController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\LivestockController;
+use App\Http\Controllers\OfflineController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\SettingsController;
@@ -17,19 +18,17 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\SocialiteController;
 use App\Http\Controllers\SyncConflictController;
 
-Route::get('/', function () {
-    return redirect()->route('dashboard');
-});
+// Route::redirect (not a Closure) so this stays route:cache-safe (Fix 1, 3K).
+Route::redirect('/', '/dashboard');
 
 // PWA offline fallback — must render with zero DB access and zero auth
 // dependency, since it may be the only page a client can reach with no
 // network and no live session (see public/sw.js's navigation handler).
-Route::get('/offline', fn () => view('offline'))->name('offline');
+Route::get('/offline', [OfflineController::class, 'index'])->name('offline');
 
 // Fresh CSRF token for offline background sync replay
-Route::get('/api/csrf-token', function () {
-    return response()->json(['token' => csrf_token()]);
-})->middleware(['web', 'auth']);
+Route::get('/api/csrf-token', [SyncConflictController::class, 'csrfToken'])
+    ->middleware(['web', 'auth']);
 
 Route::post('/api/sync-conflict', [SyncConflictController::class, 'store'])
     ->middleware(['web', 'auth'])

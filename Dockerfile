@@ -38,6 +38,18 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # 5. Set working directory
 WORKDIR /var/www/html
 
+# 5a. Apply custom PHP settings (upload size, execution time, memory — see
+# php.ini's own comments for why each value was chosen) plus basic opcache
+# production tuning. Copied into conf.d at build time since php.ini at the
+# repo root stopped being picked up once deployment moved from Nixpacks to
+# this Dockerfile — conf.d/*.ini files are auto-loaded by the official php
+# images, and the 99- prefix ensures it loads last and wins on conflicts.
+COPY php.ini /usr/local/etc/php/conf.d/99-egg-monitor.ini
+RUN echo "opcache.enable=1" >> /usr/local/etc/php/conf.d/99-egg-monitor.ini \
+    && echo "opcache.validate_timestamps=0" >> /usr/local/etc/php/conf.d/99-egg-monitor.ini \
+    && echo "opcache.memory_consumption=192" >> /usr/local/etc/php/conf.d/99-egg-monitor.ini \
+    && echo "opcache.max_accelerated_files=20000" >> /usr/local/etc/php/conf.d/99-egg-monitor.ini
+
 # 6. Set Composer environment variable
 ENV COMPOSER_ALLOW_SUPERUSER=1
 
