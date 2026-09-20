@@ -102,7 +102,11 @@ class DashboardController extends Controller
         $performanceService = new BuildingPerformanceService;
         $window             = $request->input('window', '1');
         [$perfStart, $perfEnd] = $performanceService->resolveWindow($request);
-        $buildings          = HenBatch::where('status', 'Active')->orderBy('batch_id')->get();
+        // Numeric building order (1 -> 45), not alphabetical batch_id; any
+        // building without a building_no sorts to the end rather than the top.
+        $buildings          = HenBatch::where('status', 'Active')
+            ->orderByRaw('building_no IS NULL, building_no ASC')
+            ->get();
         $farmOverview       = $performanceService->farmOverview($buildings, $perfStart, $perfEnd);
 
         return view('dashboard', compact(

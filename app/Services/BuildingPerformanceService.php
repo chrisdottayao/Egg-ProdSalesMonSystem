@@ -68,7 +68,9 @@ class BuildingPerformanceService
 
         // Leaderboard — each building's latest prod rate (within the window if
         // it reported any, otherwise its most recent reading overall so a
-        // building doesn't just vanish from the list).
+        // building doesn't just vanish from the list). Kept in the numeric
+        // building order $buildings was already fetched in — not re-ranked
+        // by performance, so the list reads top-to-bottom as Building 1..45.
         $leaderboard = $buildings->map(function (HenBatch $b) use ($start, $end, $openAlertCounts) {
             $row = BuildingDaily::where('hen_batch_id', $b->id)
                 ->whereBetween('date', [$start, $end])
@@ -86,7 +88,7 @@ class BuildingPerformanceService
                 'population'        => $row->population ?? null,
                 'open_alerts_count' => (int) ($openAlertCounts[$b->id] ?? 0),
             ];
-        })->sortByDesc('prod_rate')->values();
+        })->values();
 
         $farmRevenue  = (float) EggSale::whereBetween('date', [$start, $end])->sum('total_amount');
         $farmExpenses = (float) Expense::whereBetween('date', [$start, $end])->sum('amount');
