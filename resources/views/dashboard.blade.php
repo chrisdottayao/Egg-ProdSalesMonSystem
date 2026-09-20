@@ -126,124 +126,106 @@
         </div>
     </div>
 
-    {{-- AI Insights & Recent Activity --}}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold text-gray-800">AI Insights</h2>
-                <div class="flex items-center gap-2">
-                    <span id="ai-model-badge" class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded font-medium">&nbsp;</span>
-                    <button type="button" id="ai-insight-refresh" title="Regenerate today's insight"
-                            class="text-gray-400 hover:text-purple-600 transition-colors">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                    </button>
-                </div>
-            </div>
-            <div class="flex gap-4 items-start">
-                <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-                </div>
-                <div id="ai-insight-container" data-url="{{ route('dashboard.ai-insight') }}" class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 text-gray-400 text-sm">
-                        <svg class="animate-spin w-4 h-4 text-purple-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                        </svg>
-                        <span>Fetching AI insight&hellip;</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold text-gray-800">Recent Activity</h2>
-                <a href="{{ route('productions.index') }}" class="text-xs text-[#4CAF50] hover:underline">View all</a>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full">
-                    <thead>
-                        <tr class="border-b">
-                            <th class="text-left py-2 text-sm font-semibold text-gray-700">Date</th>
-                            <th class="text-right py-2 text-sm font-semibold text-gray-700">Eggs Prod</th>
-                            <th class="text-right py-2 text-sm font-semibold text-gray-700">Sold</th>
-                            <th class="text-right py-2 text-sm font-semibold text-gray-700">Revenue</th>
-                            <th class="text-right py-2 text-sm font-semibold text-gray-700">Remaining</th>
-                            <th class="text-left py-2 text-sm font-semibold text-gray-700">Notes</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($recentActivity as $item)
-                            <tr class="border-b last:border-0">
-                                <td class="py-2 text-sm">{{ $item['date'] }}</td>
-                                <td class="text-right py-2 text-sm">{{ number_format($item['eggsProd']) }}</td>
-                                <td class="text-right py-2 text-sm">{{ number_format($item['sold']) }}</td>
-                                <td class="text-right py-2 text-sm font-semibold text-[#4CAF50]">{{ $item['revenue'] }}</td>
-                                <td class="text-right py-2 text-sm text-gray-600">{{ $item['remaining'] }}</td>
-                                <td class="py-2 text-sm text-gray-500">{{ $item['notes'] }}</td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="6" class="py-8 text-center text-gray-400 text-sm">No activity yet. Start by logging production.</td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    {{-- Anomaly Alerts --}}
+    {{-- Per-Building Performance (3J — merged from the old standalone investment
+    dashboard; farm-wide summary/leaderboard admin+manager only, same access
+    level 3H used. The Anomaly Alerts banner below is farm-wide data with no
+    role restriction of its own — kept visible to every role exactly as
+    before 3L, just repositioned and compacted; see 3L constraints.) ─────── --}}
+    @php
+        $prodBandClasses = [
+            'green' => ['badge' => 'bg-green-100 text-green-700', 'border' => 'border-green-500'],
+            'amber' => ['badge' => 'bg-amber-100 text-amber-700', 'border' => 'border-amber-500'],
+            'red'   => ['badge' => 'bg-red-100 text-red-700',     'border' => 'border-red-500'],
+        ];
+    @endphp
     <div class="bg-white rounded-lg shadow-md p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-bold text-gray-800">Anomaly Alerts</h2>
-            @if($anomalyAlerts->where('status','unreviewed')->count() > 0)
-                <span class="text-xs bg-red-100 text-red-700 font-semibold px-2 py-1 rounded-full">
-                    {{ $anomalyAlerts->where('status','unreviewed')->count() }} unreviewed
-                </span>
-            @endif
-        </div>
+        @if(in_array(Auth::user()->role, ['admin', 'manager']))
+            <div class="flex items-center justify-between mb-1 flex-wrap gap-2">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-800">Per-Building Performance</h2>
+                    <p class="text-sm text-gray-500">Descriptive only — what has happened, from existing data. Click a building to expand its detail.</p>
+                </div>
+                <div class="flex gap-2">
+                    @foreach(['1' => '1 mo', '2' => '2 mo', '3' => '3 mo', 'this_month' => 'This month'] as $val => $label)
+                        <a href="{{ route('dashboard', ['window' => $val]) }}"
+                           class="px-3 py-1 rounded-lg text-xs font-medium {{ $window === $val ? 'bg-[#4CAF50] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">
+                            {{ $label }}
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+            <p class="text-xs text-gray-400 mb-4">{{ $perfStart->format('M d, Y') }} &mdash; {{ $perfEnd->format('M d, Y') }}</p>
 
-        @if(session('success'))
-            <div class="mb-3 text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">{{ session('success') }}</div>
+            {{-- Farm-wide summary strip --}}
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                <div class="p-4 rounded-lg border-l-4 {{ $farmOverview['farmBand'] ? $prodBandClasses[$farmOverview['farmBand']['color']]['border'] : 'border-gray-300' }} bg-gray-50">
+                    <div class="text-gray-600 text-sm mb-1">Farm-wide Prod Rate</div>
+                    <div class="text-2xl font-bold text-gray-800">{{ $farmOverview['farmProdRate'] !== null ? $farmOverview['farmProdRate'] . '%' : '—' }}</div>
+                    @if($farmOverview['farmBand'])
+                        <span class="inline-block mt-1 text-xs px-2 py-1 rounded-full font-semibold {{ $prodBandClasses[$farmOverview['farmBand']['color']]['badge'] }}">{{ $farmOverview['farmBand']['label'] }}</span>
+                    @endif
+                    <div class="text-xs text-gray-500 mt-1">Target: &ge; {{ config('dashboard.prod_rate_healthy_min') }}%</div>
+                </div>
+                <div class="p-4 rounded-lg border-l-4 border-[#4CAF50] bg-gray-50">
+                    <div class="text-gray-600 text-sm mb-1">Revenue (window)</div>
+                    <div class="text-2xl font-bold text-gray-800">₱{{ number_format($farmOverview['farmRevenue'], 2) }}</div>
+                </div>
+                <div class="p-4 rounded-lg border-l-4 {{ $farmOverview['farmNet'] >= 0 ? 'border-[#4CAF50]' : 'border-red-500' }} bg-gray-50">
+                    <div class="text-gray-600 text-sm mb-1">Net (Revenue &minus; Expenses)</div>
+                    <div class="text-2xl font-bold {{ $farmOverview['farmNet'] >= 0 ? 'text-gray-800' : 'text-red-600' }}">₱{{ number_format($farmOverview['farmNet'], 2) }}</div>
+                    <div class="text-xs text-gray-500 mt-1">Expenses: ₱{{ number_format($farmOverview['farmExpenses'], 2) }}</div>
+                </div>
+            </div>
         @endif
 
-        @if($anomalyAlerts->count() > 0)
-            <div class="space-y-3">
-                @foreach($anomalyAlerts as $alert)
-                    @php
-                        $isHigh     = $alert->severity === 'high';
-                        $isResolved = $alert->status   === 'resolved';
-                        $bgClass    = $isResolved ? 'bg-gray-50 border-gray-300' : ($isHigh ? 'bg-red-50 border-red-500' : 'bg-orange-50 border-orange-400');
-                        $textClass  = $isHigh ? 'text-red-900' : 'text-orange-900';
-                        $iconClass  = $isHigh ? 'text-red-600' : 'text-orange-500';
-                        $devClass   = $isHigh ? 'text-red-700' : 'text-orange-700';
-                    @endphp
-                    <div class="p-4 rounded-lg border-l-4 {{ $bgClass }} {{ $isResolved ? 'opacity-60' : '' }}">
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="flex-1 min-w-0">
-                                <div class="flex flex-wrap items-center gap-2 mb-1">
-                                    <svg class="w-4 h-4 {{ $iconClass }} flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                                    <span class="font-semibold text-sm {{ $textClass }}">{{ $alert->type }}</span>
-                                    <span class="text-xs text-gray-500">{{ $alert->alert_date->format('M d, Y') }}</span>
-                                    <span class="text-xs px-2 py-0.5 rounded-full font-semibold
-                                        {{ $alert->status === 'resolved'   ? 'bg-green-100 text-green-700' :
-                                           ($alert->status === 'reviewed'  ? 'bg-blue-100 text-blue-700'  :
-                                                                             'bg-red-100 text-red-700') }}">
-                                        {{ ucfirst($alert->status) }}
-                                    </span>
-                                </div>
-                                <p class="text-xs text-gray-600 mb-2">{{ $alert->description }}</p>
-                                <div class="flex flex-wrap gap-4 text-xs">
-                                    <span class="text-gray-500">Expected: <span class="font-semibold text-gray-700">{{ $alert->expected_value }}</span></span>
-                                    <span class="text-gray-500">Actual: <span class="font-semibold text-gray-700">{{ $alert->actual_value }}</span></span>
-                                    <span class="font-semibold {{ $devClass }}">{{ $alert->deviation_pct }}%</span>
-                                </div>
-                                @if($alert->status === 'resolved' && $alert->resolver)
-                                    <p class="text-xs text-gray-400 mt-1">Resolved by {{ $alert->resolver->name }} on {{ $alert->resolved_at->format('M d, Y') }}</p>
+        {{-- Anomaly Alerts — farm-wide (AnomalyAlert has no per-building
+        attribution; computed from farm-wide totals, see DashboardController's
+        detection methods). Visible to every role, unchanged from before 3L. --}}
+        <div class="mb-6">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-bold text-gray-800">Anomaly Alerts</h3>
+                @if($anomalyAlerts->where('status','unreviewed')->count() > 0)
+                    <span class="text-xs bg-red-100 text-red-700 font-semibold px-2 py-1 rounded-full">
+                        {{ $anomalyAlerts->where('status','unreviewed')->count() }} unreviewed
+                    </span>
+                @endif
+            </div>
+
+            @if(session('success'))
+                <div class="mb-3 text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">{{ session('success') }}</div>
+            @endif
+
+            @if($anomalyAlerts->count() > 0)
+                <div class="space-y-2">
+                    @foreach($anomalyAlerts as $alert)
+                        @php
+                            $isHigh     = $alert->severity === 'high';
+                            $isResolved = $alert->status   === 'resolved';
+                            $bgClass    = $isResolved ? 'bg-gray-50 border-gray-300' : ($isHigh ? 'bg-red-50 border-red-500' : 'bg-orange-50 border-orange-400');
+                            $textClass  = $isHigh ? 'text-red-900' : 'text-orange-900';
+                            $iconClass  = $isHigh ? 'text-red-600' : 'text-orange-500';
+                            $devClass   = $isHigh ? 'text-red-700' : 'text-orange-700';
+                        @endphp
+                        <div class="flex items-center gap-3 px-3 py-2 rounded-lg border-l-4 {{ $bgClass }} {{ $isResolved ? 'opacity-60' : '' }}">
+                            <svg class="w-4 h-4 {{ $iconClass }} flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                            <div class="flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                                <span class="font-semibold {{ $textClass }}">{{ $alert->type }}</span>
+                                <span class="text-gray-400">{{ $alert->alert_date->format('M d, Y') }}</span>
+                                <span class="text-gray-600">{{ $alert->description }}</span>
+                                <span class="font-semibold {{ $devClass }}">{{ $alert->deviation_pct }}%</span>
+                                <span class="px-2 py-0.5 rounded-full font-semibold
+                                    {{ $alert->status === 'resolved'   ? 'bg-green-100 text-green-700' :
+                                       ($alert->status === 'reviewed'  ? 'bg-blue-100 text-blue-700'  :
+                                                                         'bg-red-100 text-red-700') }}">
+                                    {{ ucfirst($alert->status) }}
+                                </span>
+                                @if($isResolved && $alert->resolver)
+                                    <span class="text-gray-400">Resolved by {{ $alert->resolver->name }} on {{ $alert->resolved_at->format('M d, Y') }}</span>
                                 @endif
                             </div>
 
                             @if(in_array(auth()->user()->role, ['admin','manager']) && $alert->status !== 'resolved')
-                                <div class="flex flex-col gap-1 flex-shrink-0">
+                                <div class="flex gap-1 flex-shrink-0">
                                     @if($alert->status === 'unreviewed')
                                         <form method="POST" action="{{ route('alerts.reviewed', $alert) }}">
                                             @csrf @method('PATCH')
@@ -257,223 +239,110 @@
                                 </div>
                             @endif
                         </div>
-                    </div>
-                @endforeach
-            </div>
-        @else
-            <p class="text-sm text-gray-400 italic">No anomalies detected in the last 14 days.</p>
-        @endif
-    </div>
-
-    {{-- Alerts & Recommendations — per-building flock_alerts (Admin + Manager only) --}}
-    @if(in_array(Auth::user()->role, ['admin', 'manager']))
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-bold text-gray-800">Alerts &amp; Recommendations</h2>
-            @if(count($recommendations) > 0)
-                <span class="text-xs font-semibold px-2 py-1 rounded-full
-                    {{ collect($recommendations)->where('severity','critical')->isNotEmpty() ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700' }}">
-                    {{ count($recommendations) }} active
-                </span>
+                    @endforeach
+                </div>
+            @else
+                <p class="text-sm text-gray-400 italic">No anomalies detected in the last 14 days.</p>
             @endif
         </div>
 
-        @if(empty($recommendations))
-            <p class="text-sm text-gray-400 italic">No recommendations at this time.</p>
-        @else
-            @php
-                // Group into the three tiers the doc asks for. Only 'critical' and
-                // 'warning' are ever produced today (confirmed against live data) —
-                // 'info' has no current source, so it renders as a valid, empty,
-                // closed section rather than us inventing fake data to fill it.
-                // Anything with an unrecognized severity value falls into 'warning',
-                // the closest existing tier in severity, rather than being dropped.
-                $tiers = ['critical' => [], 'warning' => [], 'info' => []];
-                foreach ($recommendations as $rec) {
-                    $tier = in_array($rec['severity'], ['critical', 'warning', 'info'], true) ? $rec['severity'] : 'warning';
-                    $tiers[$tier][] = $rec;
-                }
-
-                $tierMeta = [
-                    'critical' => ['label' => 'Critical', 'badge' => 'bg-red-100 text-red-700',    'border' => 'border-red-500',    'bg' => 'bg-red-50',    'title' => 'text-red-900',    'icon' => 'text-red-500'],
-                    'warning'  => ['label' => 'Warning',  'badge' => 'bg-orange-100 text-orange-700', 'border' => 'border-orange-400', 'bg' => 'bg-orange-50', 'title' => 'text-orange-900', 'icon' => 'text-orange-500'],
-                    'info'     => ['label' => 'Info',     'badge' => 'bg-blue-100 text-blue-700',   'border' => 'border-blue-400',   'bg' => 'bg-blue-50',   'title' => 'text-blue-900',   'icon' => 'text-blue-500'],
-                ];
-            @endphp
-
-            <div class="space-y-2">
-                @foreach(['critical', 'warning', 'info'] as $tier)
-                    @php $meta = $tierMeta[$tier]; $items = $tiers[$tier]; @endphp
-                    <div x-data="{ open: false }" class="border border-gray-200 rounded-lg overflow-hidden">
-                        <button type="button" @click="open = !open"
-                            class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left">
-                            <span class="flex items-center gap-2">
-                                <span class="text-sm font-semibold text-gray-800">{{ $meta['label'] }}</span>
-                                <span class="text-xs font-semibold px-2 py-0.5 rounded-full {{ $meta['badge'] }}">{{ count($items) }}</span>
-                            </span>
-                            <svg :class="open ? 'rotate-180' : ''" class="w-4 h-4 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                            </svg>
-                        </button>
-
-                        <div x-show="open" x-cloak class="p-3 space-y-3 bg-white">
-                            @forelse($items as $rec)
-                                @php
-                                    $plain = \App\Support\AlertLanguage::forCondition($rec['condition'], $rec['building'] ?? null);
-                                @endphp
-                                <div x-data="{ showDetails: false }" class="p-4 rounded-lg border-l-4 {{ $meta['bg'] }} {{ $meta['border'] }}">
-                                    <div class="flex items-start gap-3">
-                                        <svg class="w-4 h-4 {{ $meta['icon'] }} flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                                        </svg>
-                                        <div class="flex-1 min-w-0">
-                                            <div class="flex flex-wrap items-center gap-2 mb-1">
-                                                <span class="text-xs font-semibold px-2 py-0.5 rounded-full {{ $meta['badge'] }}">
-                                                    {{ ucfirst($rec['severity']) }}
-                                                </span>
-                                                <span class="text-sm font-semibold {{ $meta['title'] }}">{{ $rec['condition'] }}</span>
-                                            </div>
-
-                                            @if($plain)
-                                                <p class="text-sm text-gray-700 mb-1">{{ $plain }}</p>
-                                                <button type="button" @click="showDetails = !showDetails"
-                                                    class="text-xs text-gray-400 hover:text-gray-600 underline mb-1">
-                                                    <span x-text="showDetails ? 'Hide technical details' : 'Show technical details'"></span>
-                                                </button>
-                                                <p x-show="showDetails" x-cloak class="text-xs text-gray-500 mb-1">{{ $rec['recommendation'] }}</p>
-                                            @else
-                                                {{-- No plain-language translation yet for this condition type — show the technical text as-is. --}}
-                                                <p class="text-sm text-gray-700 mb-1">{{ $rec['recommendation'] }}</p>
-                                            @endif
-
-                                            <p class="text-xs text-gray-400">
-                                                Triggered since: {{ \Carbon\Carbon::parse($rec['triggered_since'])->format('M d, Y') }}
-                                            </p>
-                                        </div>
+        @if(in_array(Auth::user()->role, ['admin', 'manager']))
+            {{-- Building list / leaderboard — click a row to expand in place --}}
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="border-b">
+                            <th class="text-left py-2 text-sm font-semibold text-gray-700">Building</th>
+                            <th class="text-right py-2 text-sm font-semibold text-gray-700">Population</th>
+                            <th class="text-right py-2 text-sm font-semibold text-gray-700">Prod Rate</th>
+                            <th class="text-left py-2 text-sm font-semibold text-gray-700">Status</th>
+                            <th class="text-right py-2 text-sm font-semibold text-gray-700">Alerts</th>
+                            <th class="text-left py-2 text-sm font-semibold text-gray-700">As of</th>
+                            <th class="w-8"></th>
+                        </tr>
+                    </thead>
+                    @forelse($farmOverview['leaderboard'] as $row)
+                        @php $rowLabel = $row['building']->building_no ? 'Building ' . $row['building']->building_no : $row['building']->batch_id; @endphp
+                        {{-- x-data lives on the <tbody> (a real ancestor of both rows below)
+                        so the detail row can see `expanded`/`toggle()` — putting it on the
+                        first <tr> left the second <tr> as a sibling, out of Alpine's scope,
+                        which is why the accordion never opened (3L Fix 1). --}}
+                        <tbody x-data="buildingRow({{ $row['building']->id }}, {{ \Illuminate\Support\Js::from($window) }})">
+                            <tr @click="toggle()"
+                                class="border-b cursor-pointer hover:bg-gray-50 border-l-4 {{ $row['band'] ? $prodBandClasses[$row['band']['color']]['border'] : 'border-gray-200' }}">
+                                <td class="py-2 text-sm text-gray-700 pl-2">{{ $rowLabel }}</td>
+                                <td class="text-right py-2 text-sm">{{ $row['population'] !== null ? number_format($row['population']) : '—' }}</td>
+                                <td class="text-right py-2 text-sm font-semibold">{{ $row['prod_rate'] !== null ? number_format($row['prod_rate'], 1) . '%' : '—' }}</td>
+                                <td class="py-2 text-sm">
+                                    @if($row['band'])
+                                        <span class="text-xs px-2 py-1 rounded-full font-semibold {{ $prodBandClasses[$row['band']['color']]['badge'] }}">{{ $row['band']['label'] }}</span>
+                                    @else
+                                        <span class="text-xs text-gray-400">No data</span>
+                                    @endif
+                                </td>
+                                <td class="text-right py-2 text-sm">
+                                    @if($row['open_alerts_count'] > 0)
+                                        <span class="text-xs bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded-full">{{ $row['open_alerts_count'] }}</span>
+                                    @else
+                                        <span class="text-gray-300 text-xs">0</span>
+                                    @endif
+                                </td>
+                                <td class="py-2 text-sm text-gray-500">{{ $row['as_of']?->format('M d, Y') ?? '—' }}</td>
+                                <td class="text-right py-2">
+                                    <svg :class="expanded ? 'rotate-180' : ''" class="w-4 h-4 text-gray-400 transition-transform inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                    </svg>
+                                </td>
+                            </tr>
+                            <tr x-show="expanded" x-cloak style="display:none" @click.stop>
+                                <td colspan="7" class="bg-gray-50 border-b p-4">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <h3 class="text-sm font-bold text-gray-800">{{ $rowLabel }}</h3>
+                                        <button type="button" @click.stop="toggle()" class="text-xs text-gray-400 hover:text-gray-600">Collapse</button>
                                     </div>
-                                </div>
-                            @empty
-                                <p class="text-sm text-gray-400 italic">No {{ strtolower($meta['label']) }} alerts.</p>
-                            @endforelse
-                        </div>
-                    </div>
-                @endforeach
+                                    <div x-show="loading" class="text-sm text-gray-400 py-6 text-center">Loading&hellip;</div>
+                                    <div x-show="error" x-text="error" class="text-sm text-red-600 py-4"></div>
+                                    <div x-ref="content"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    @empty
+                        <tbody>
+                            <tr><td colspan="7" class="py-8 text-center text-gray-400 text-sm">No active buildings yet.</td></tr>
+                        </tbody>
+                    @endforelse
+                </table>
             </div>
         @endif
     </div>
-    @endif
 
-    {{-- Per-Building Performance (3J — merged from the old standalone investment
-    dashboard; admin + manager only, same access level 3H used) ──────────── --}}
-    @if(in_array(Auth::user()->role, ['admin', 'manager']))
-    @php
-        $prodBandClasses = [
-            'green' => ['badge' => 'bg-green-100 text-green-700', 'border' => 'border-green-500'],
-            'amber' => ['badge' => 'bg-amber-100 text-amber-700', 'border' => 'border-amber-500'],
-            'red'   => ['badge' => 'bg-red-100 text-red-700',     'border' => 'border-red-500'],
-        ];
-    @endphp
+    {{-- AI Insights (farm-wide, all roles) --}}
     <div class="bg-white rounded-lg shadow-md p-6">
-        <div class="flex items-center justify-between mb-1 flex-wrap gap-2">
-            <div>
-                <h2 class="text-lg font-bold text-gray-800">Per-Building Performance</h2>
-                <p class="text-sm text-gray-500">Descriptive only — what has happened, from existing data. Click a building to expand its detail.</p>
-            </div>
-            <div class="flex gap-2">
-                @foreach(['1' => '1 mo', '2' => '2 mo', '3' => '3 mo', 'this_month' => 'This month'] as $val => $label)
-                    <a href="{{ route('dashboard', ['window' => $val]) }}"
-                       class="px-3 py-1 rounded-lg text-xs font-medium {{ $window === $val ? 'bg-[#4CAF50] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">
-                        {{ $label }}
-                    </a>
-                @endforeach
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold text-gray-800">AI Insights</h2>
+            <div class="flex items-center gap-2">
+                <span id="ai-model-badge" class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded font-medium">&nbsp;</span>
+                <button type="button" id="ai-insight-refresh" title="Regenerate today's insight"
+                        class="text-gray-400 hover:text-purple-600 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                </button>
             </div>
         </div>
-        <p class="text-xs text-gray-400 mb-4">{{ $perfStart->format('M d, Y') }} &mdash; {{ $perfEnd->format('M d, Y') }}</p>
-
-        {{-- Farm-wide summary strip --}}
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            <div class="p-4 rounded-lg border-l-4 {{ $farmOverview['farmBand'] ? $prodBandClasses[$farmOverview['farmBand']['color']]['border'] : 'border-gray-300' }} bg-gray-50">
-                <div class="text-gray-600 text-sm mb-1">Farm-wide Prod Rate</div>
-                <div class="text-2xl font-bold text-gray-800">{{ $farmOverview['farmProdRate'] !== null ? $farmOverview['farmProdRate'] . '%' : '—' }}</div>
-                @if($farmOverview['farmBand'])
-                    <span class="inline-block mt-1 text-xs px-2 py-1 rounded-full font-semibold {{ $prodBandClasses[$farmOverview['farmBand']['color']]['badge'] }}">{{ $farmOverview['farmBand']['label'] }}</span>
-                @endif
-                <div class="text-xs text-gray-500 mt-1">Target: &ge; {{ config('dashboard.prod_rate_healthy_min') }}%</div>
+        <div class="flex gap-4 items-start">
+            <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
             </div>
-            <div class="p-4 rounded-lg border-l-4 border-[#4CAF50] bg-gray-50">
-                <div class="text-gray-600 text-sm mb-1">Revenue (window)</div>
-                <div class="text-2xl font-bold text-gray-800">₱{{ number_format($farmOverview['farmRevenue'], 2) }}</div>
+            <div id="ai-insight-container" data-url="{{ route('dashboard.ai-insight') }}" class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 text-gray-400 text-sm">
+                    <svg class="animate-spin w-4 h-4 text-purple-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    <span>Fetching AI insight&hellip;</span>
+                </div>
             </div>
-            <div class="p-4 rounded-lg border-l-4 {{ $farmOverview['farmNet'] >= 0 ? 'border-[#4CAF50]' : 'border-red-500' }} bg-gray-50">
-                <div class="text-gray-600 text-sm mb-1">Net (Revenue &minus; Expenses)</div>
-                <div class="text-2xl font-bold {{ $farmOverview['farmNet'] >= 0 ? 'text-gray-800' : 'text-red-600' }}">₱{{ number_format($farmOverview['farmNet'], 2) }}</div>
-                <div class="text-xs text-gray-500 mt-1">Expenses: ₱{{ number_format($farmOverview['farmExpenses'], 2) }}</div>
-            </div>
-        </div>
-
-        {{-- Building list / leaderboard — click a row to expand in place --}}
-        <div class="overflow-x-auto">
-            <table class="w-full">
-                <thead>
-                    <tr class="border-b">
-                        <th class="text-left py-2 text-sm font-semibold text-gray-700">Building</th>
-                        <th class="text-right py-2 text-sm font-semibold text-gray-700">Population</th>
-                        <th class="text-right py-2 text-sm font-semibold text-gray-700">Prod Rate</th>
-                        <th class="text-left py-2 text-sm font-semibold text-gray-700">Status</th>
-                        <th class="text-right py-2 text-sm font-semibold text-gray-700">Alerts</th>
-                        <th class="text-left py-2 text-sm font-semibold text-gray-700">As of</th>
-                        <th class="w-8"></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($farmOverview['leaderboard'] as $row)
-                        @php $rowLabel = $row['building']->building_no ? 'Building ' . $row['building']->building_no : $row['building']->batch_id; @endphp
-                        <tr x-data="buildingRow({{ $row['building']->id }}, {{ \Illuminate\Support\Js::from($window) }})"
-                            @click="toggle()"
-                            class="border-b cursor-pointer hover:bg-gray-50 border-l-4 {{ $row['band'] ? $prodBandClasses[$row['band']['color']]['border'] : 'border-gray-200' }}">
-                            <td class="py-2 text-sm text-gray-700 pl-2">{{ $rowLabel }}</td>
-                            <td class="text-right py-2 text-sm">{{ $row['population'] !== null ? number_format($row['population']) : '—' }}</td>
-                            <td class="text-right py-2 text-sm font-semibold">{{ $row['prod_rate'] !== null ? number_format($row['prod_rate'], 1) . '%' : '—' }}</td>
-                            <td class="py-2 text-sm">
-                                @if($row['band'])
-                                    <span class="text-xs px-2 py-1 rounded-full font-semibold {{ $prodBandClasses[$row['band']['color']]['badge'] }}">{{ $row['band']['label'] }}</span>
-                                @else
-                                    <span class="text-xs text-gray-400">No data</span>
-                                @endif
-                            </td>
-                            <td class="text-right py-2 text-sm">
-                                @if($row['open_alerts_count'] > 0)
-                                    <span class="text-xs bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded-full">{{ $row['open_alerts_count'] }}</span>
-                                @else
-                                    <span class="text-gray-300 text-xs">0</span>
-                                @endif
-                            </td>
-                            <td class="py-2 text-sm text-gray-500">{{ $row['as_of']?->format('M d, Y') ?? '—' }}</td>
-                            <td class="text-right py-2">
-                                <svg :class="expanded ? 'rotate-180' : ''" class="w-4 h-4 text-gray-400 transition-transform inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                                </svg>
-                            </td>
-                        </tr>
-                        <tr x-show="expanded" x-cloak style="display:none" @click.stop>
-                            <td colspan="7" class="bg-gray-50 border-b p-4">
-                                <div class="flex items-center justify-between mb-2">
-                                    <h3 class="text-sm font-bold text-gray-800">{{ $rowLabel }}</h3>
-                                    <button type="button" @click.stop="toggle()" class="text-xs text-gray-400 hover:text-gray-600">Collapse</button>
-                                </div>
-                                <div x-show="loading" class="text-sm text-gray-400 py-6 text-center">Loading&hellip;</div>
-                                <div x-show="error" x-text="error" class="text-sm text-red-600 py-4"></div>
-                                <div x-ref="content"></div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="7" class="py-8 text-center text-gray-400 text-sm">No active buildings yet.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
         </div>
     </div>
-    @endif
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
