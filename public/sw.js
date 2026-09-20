@@ -1,26 +1,106 @@
 // Egg Monitor — Service Worker
-// Handles offline caching, POST queue for production/sales, and background sync
+// Handles app-shell precaching, offline navigation fallback, POST queueing
+// for offline-writable forms, and background sync.
 
-const CACHE = 'egg-monitor-v1';
+const CACHE = 'egg-monitor-v2';
 const OFFLINE_DB = 'EggMonitorSW';
+
+// Static shell URLs — always the same path, safe to hardcode.
+const SHELL_URLS = [
+    '/offline',
+    '/manifest.json',
+    '/images/icon-192.png',
+    '/images/icon-512.png',
+];
+
+// The single place offline-writable route paths live. Add a new form here
+// (e.g. '/expenses': 'expenses') and every consumer below — the POST
+// interceptor, the sync-tag dispatcher, and pwa.js's client-side replay —
+// picks it up automatically. No other literal '/production'/'/sales'
+// strings should exist in this file.
+const OFFLINE_WRITABLE_ROUTES = {
+    '/production': 'production',
+    '/sales':      'sales',
+    // '/expenses': 'expenses',  // add here once that form exists
+};
+
+function isOfflineWritable(pathname) {
+    return pathname in OFFLINE_WRITABLE_ROUTES;
+}
+function offlineWriteType(pathname) {
+    return OFFLINE_WRITABLE_ROUTES[pathname];
+}
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────
 
-self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+self.addEventListener('install', event => {
+    event.waitUntil(
+        (async () => {
+            const cache = await caches.open(CACHE);
+            await cache.addAll(SHELL_URLS);
+
+            // Vite fingerprints built asset filenames per build, so resolve
+            // them from the build manifest at cache time rather than
+            // hardcoding names that would go stale on the next deploy.
+            try {
+                const manifestRes = await fetch('/build/manifest.json');
+                const manifest    = await manifestRes.json();
+                const assetUrls   = Object.values(manifest)
+                    .filter(entry => entry.isEntry && entry.file)
+                    .map(entry => '/build/' + entry.file);
+
+                if (assetUrls.length) {
+                    await cache.addAll(assetUrls);
+                }
+            } catch {
+                // Build manifest unreachable (e.g. local dev server) — the
+                // shell still works without precached hashed assets since
+                // the /offline fallback itself doesn't depend on them.
+            }
+
+            self.skipWaiting();
+        })()
+    );
+});
+self.addEventListener('activate', event => {
+    event.waitUntil(
+        (async () => {
+            // Drop any caches from a previous SW version.
+            const keys = await caches.keys();
+            await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)));
+            await self.clients.claim();
+        })()
+    );
+});
 
 // ── Fetch interception ────────────────────────────────────────────────────
 
 self.addEventListener('fetch', event => {
     const { request } = event;
-    if (request.method !== 'POST') return;
 
-    const url = new URL(request.url);
-    const isProd  = url.pathname === '/production';
-    const isSales = url.pathname === '/sales';
-    if (!isProd && !isSales) return;
+    // Offline-write queueing — unchanged behavior, now driven by the
+    // OFFLINE_WRITABLE_ROUTES map instead of hardcoded path checks.
+    if (request.method === 'POST') {
+        const url = new URL(request.url);
+        if (isOfflineWritable(url.pathname)) {
+            event.respondWith(handlePost(event.request, offlineWriteType(url.pathname)));
+        }
+        return;
+    }
 
-    event.respondWith(handlePost(event.request, isProd ? 'production' : 'sales'));
+    // Navigation requests (loading a page, not a POST) — network first, so
+    // logged-in users always see live data when online, falling back to a
+    // cached copy of that exact page, and finally to /offline when neither
+    // is available. Without this, any GET made with no network hits the
+    // browser's native offline error instead of anything this app controls.
+    if (request.mode === 'navigate') {
+        event.respondWith(
+            fetch(request).catch(async () => {
+                const cached = await caches.match(request);
+                return cached || caches.match('/offline');
+            })
+        );
+    }
 });
 
 async function handlePost(request, type) {
@@ -49,8 +129,8 @@ async function handlePost(request, type) {
 // ── Background Sync ───────────────────────────────────────────────────────
 
 self.addEventListener('sync', event => {
-    if (event.tag === 'productionSync') event.waitUntil(replayQueue('production'));
-    if (event.tag === 'salesSync')      event.waitUntil(replayQueue('sales'));
+    const type = Object.values(OFFLINE_WRITABLE_ROUTES).find(t => event.tag === t + 'Sync');
+    if (type) event.waitUntil(replayQueue(type));
 });
 
 async function replayQueue(type) {

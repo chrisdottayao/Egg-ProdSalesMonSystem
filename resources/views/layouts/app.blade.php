@@ -170,6 +170,9 @@
 
 </div>
 
+{{-- Quick Entry — floating, present on every authenticated page so it's part of the precached shell --}}
+<x-quick-entry />
+
 {{-- ── PWA: Offline Banner ──────────────────────────────────────────────── --}}
 <div id="offline-banner" style="display:none"
      class="fixed top-0 left-0 right-0 z-50 bg-orange-500 text-white px-4 py-2 flex items-center justify-between shadow-lg">

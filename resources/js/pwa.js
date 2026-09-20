@@ -95,6 +95,15 @@ export async function updatePendingCount() {
 
 // ── Client-side sync (fallback when SW background sync unavailable) ────────
 
+// Mirrors OFFLINE_WRITABLE_ROUTES in public/sw.js (a separate script context,
+// so the map is duplicated rather than shared) — add a new offline-writable
+// form's type -> path here too when it's added there.
+const OFFLINE_WRITE_URLS = {
+    production: '/production',
+    sales:      '/sales',
+    // expenses: '/expenses',
+};
+
 export async function syncOfflineEntries() {
     const entries = await getPendingEntries();
     if (entries.length === 0) return;
@@ -107,7 +116,8 @@ export async function syncOfflineEntries() {
         const params = new URLSearchParams(entry.data);
         params.set('_token', token);
 
-        const url = entry.type === 'production' ? '/production' : '/sales';
+        const url = OFFLINE_WRITE_URLS[entry.type];
+        if (!url) continue; // unknown type — nothing to replay it against
         try {
             const res = await fetch(url, {
                 method:  'POST',

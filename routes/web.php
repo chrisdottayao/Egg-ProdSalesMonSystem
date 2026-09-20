@@ -21,6 +21,11 @@ Route::get('/', function () {
     return redirect()->route('dashboard');
 });
 
+// PWA offline fallback — must render with zero DB access and zero auth
+// dependency, since it may be the only page a client can reach with no
+// network and no live session (see public/sw.js's navigation handler).
+Route::get('/offline', fn () => view('offline'))->name('offline');
+
 // Fresh CSRF token for offline background sync replay
 Route::get('/api/csrf-token', function () {
     return response()->json(['token' => csrf_token()]);
