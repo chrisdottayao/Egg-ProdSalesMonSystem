@@ -22,7 +22,8 @@ class DailyEntryController extends Controller
         // seed data predating this feature) has no row to fill on a per-building
         // logbook form — including it would write a phantom building_daily row
         // and corrupt the rollup with population/eggs that belong to no building.
-        $batches = HenBatch::where('status', 'Active')->whereNotNull('building_no')->orderBy('building_no')->get();
+        // ->tracked(): only the 3 actively-tracked buildings (3M).
+        $batches = HenBatch::where('status', 'Active')->whereNotNull('building_no')->tracked()->orderBy('building_no')->get();
 
         $existingRows = BuildingDaily::whereDate('date', $date)
             ->get()
@@ -102,9 +103,10 @@ class DailyEntryController extends Controller
 
         $date = Carbon::parse($validated['date'])->format('Y-m-d');
 
-        // Only hen_batch_ids that actually belong to an active, numbered building —
-        // a stale hidden input can't be used to write an arbitrary building_daily row.
-        $validBatchIds = HenBatch::where('status', 'Active')->whereNotNull('building_no')->pluck('id')->flip();
+        // Only hen_batch_ids that actually belong to an active, numbered, tracked
+        // building — a stale hidden input can't be used to write an arbitrary
+        // building_daily row.
+        $validBatchIds = HenBatch::where('status', 'Active')->whereNotNull('building_no')->tracked()->pluck('id')->flip();
 
         DB::beginTransaction();
 

@@ -1,5 +1,11 @@
 <?php
 
+// NOTE (Prototype 3M): the farm has 45 real buildings, but the live system
+// currently actively records/displays only 3 of them (hen_batches.is_tracked)
+// per the IT expert's scope-reduction recommendation. The bands below apply
+// to whichever buildings are tracked, not a fixed count — nothing here
+// hardcodes "45," this note just exists so that mismatch isn't confusing.
+
 return [
 
     // Production rate = eggs collected ÷ hen population × 100 (hen-day %).

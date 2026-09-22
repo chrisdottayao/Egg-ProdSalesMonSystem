@@ -104,7 +104,10 @@ class DashboardController extends Controller
         [$perfStart, $perfEnd] = $performanceService->resolveWindow($request);
         // Numeric building order (1 -> 45), not alphabetical batch_id; any
         // building without a building_no sorts to the end rather than the top.
+        // ->tracked(): only the 3 actively-tracked buildings (3M) — the other
+        // 42's historical data is untouched, just not surfaced here.
         $buildings          = HenBatch::where('status', 'Active')
+            ->tracked()
             ->orderByRaw('building_no IS NULL, building_no ASC')
             ->get();
         $farmOverview       = $performanceService->farmOverview($buildings, $perfStart, $perfEnd);
@@ -158,12 +161,21 @@ class DashboardController extends Controller
             ->selectRaw('SUM(total_amount) / COUNT(DISTINCT DATE(date)) as avg_rev')
             ->value('avg_rev') ?? 0;
 
+        // Scoped to tracked buildings (3M) via hen_batch_id, so "farm-wide"
+        // here means the 3 actively-tracked buildings, not all 45 — CullRecord
+        // has building attribution, unlike EggSale below.
+        $trackedBatchIds = HenBatch::tracked()->pluck('id');
+
         $rollingCulling = CullRecord::where('date', '>=', $window)
             ->where('date', '<', Carbon::today())
+            ->whereIn('hen_batch_id', $trackedBatchIds)
             ->selectRaw('SUM(quantity_culled) / GREATEST(COUNT(DISTINCT DATE(date)), 1) as avg_cull')
             ->value('avg_cull') ?? 0;
 
-        // Revenue anomaly (daily total > 30% below rolling average)
+        // Revenue anomaly (daily total > 30% below rolling average). EggSale
+        // has no building attribution at all (eggs are pooled farm-wide before
+        // sale — see the data-model notes elsewhere), so this genuinely can't
+        // be scoped to tracked buildings; it stays a true farm-wide figure.
         EggSale::where('date', '>=', $window)
             ->selectRaw('DATE(date) as sale_date, SUM(total_amount) as daily_revenue')
             ->groupBy('sale_date')
@@ -187,6 +199,7 @@ class DashboardController extends Controller
 
         // High culling day (> 2× rolling average and > 3 absolute)
         CullRecord::where('date', '>=', $window)
+            ->whereIn('hen_batch_id', $trackedBatchIds)
             ->selectRaw('DATE(date) as cull_date, SUM(quantity_culled) as daily_cull')
             ->groupBy('cull_date')
             ->get()

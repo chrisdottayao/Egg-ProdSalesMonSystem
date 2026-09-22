@@ -156,6 +156,14 @@ class RecommendationService
 
         return FlockAlert::where('status', 'open')
             ->with('henBatch')
+            // Tracked-only (3M): farm-wide alerts (hen_batch_id null) always
+            // show; a per-building alert only shows if that building is still
+            // tracked — covers any alert left open from before this scope
+            // reduction, without deleting the underlying FlockAlert row.
+            ->where(function ($q) {
+                $q->whereNull('hen_batch_id')
+                    ->orWhereHas('henBatch', fn ($q2) => $q2->where('is_tracked', true));
+            })
             ->orderByDesc('severity')
             ->orderBy('triggered_since')
             ->get()
@@ -190,13 +198,21 @@ class RecommendationService
 
     private function evaluatePerBuildingConditions(): void
     {
+        // Tracked-only (3M): scoped at the source, not just at alert-firing,
+        // so Peer Deviation's mean/SD are computed across only the 3 actively-
+        // tracked buildings too — this is why peer deviation is statistically
+        // weak at this scope (documented as an expected limitation, not a bug).
+        $trackedIds = HenBatch::tracked()->pluck('id');
+
         $recent = BuildingDaily::where('date', '>=', Carbon::today()->subDays(40))
+            ->whereIn('hen_batch_id', $trackedIds)
             ->orderBy('date')
             ->get()
             ->groupBy('hen_batch_id');
 
         $batches = HenBatch::whereIn('id', $recent->keys())
             ->where('status', 'Active')
+            ->tracked()
             ->get()
             ->keyBy('id');
 
@@ -607,7 +623,7 @@ class RecommendationService
     // ── Condition 7 — Flock Decline & Low Production (suppressed in cull window) ──
     private function evaluateFlockDeclineWithLowProduction(): void
     {
-        $anyBatchInCullWindow = HenBatch::where('status', 'Active')->get()
+        $anyBatchInCullWindow = HenBatch::where('status', 'Active')->tracked()->get()
             ->contains(function (HenBatch $batch) {
                 $latest = BuildingDaily::where('hen_batch_id', $batch->id)->orderByDesc('date')->first();
                 return $latest && $this->inCullWindow($latest->age_weeks);

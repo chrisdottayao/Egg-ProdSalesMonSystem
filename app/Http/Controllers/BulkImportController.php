@@ -70,6 +70,12 @@ class BulkImportController extends Controller
 
     // ── building_daily import ────────────────────────────────────────────────
 
+    // NOTE (Prototype 3M): this importer deliberately still accepts rows for
+    // all 45 buildings, unfiltered — it never triggers per-building alerts,
+    // AI insight text, or forecast logic itself (those are computed fresh on
+    // dashboard load, and are the layer that's scoped to hen_batches.is_tracked
+    // instead), so keeping the full 45-building archive importable here costs
+    // nothing and preserves it for a future re-expansion.
     public function importBuildingDaily(Request $request)
     {
         $request->validate(['csv_file' => 'required|file|mimes:csv,txt|max:10240']);

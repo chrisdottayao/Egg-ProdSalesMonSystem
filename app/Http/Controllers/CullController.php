@@ -12,7 +12,7 @@ class CullController extends Controller
     public function index()
     {
         $cullRecords = CullRecord::with('henBatch')->latest('date')->paginate(20);
-        $henBatches  = HenBatch::where('status', 'Active')->orderBy('batch_id')->get();
+        $henBatches  = HenBatch::where('status', 'Active')->tracked()->orderBy('batch_id')->get();
 
         // Monthly stats
         $thisMonthStart = Carbon::now()->startOfMonth();

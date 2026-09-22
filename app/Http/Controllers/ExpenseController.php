@@ -44,7 +44,7 @@ class ExpenseController extends Controller
         }
 
         $expenses  = $query->paginate(20)->withQueryString();
-        $buildings = HenBatch::where('status', 'Active')->orderBy('batch_id')->get();
+        $buildings = HenBatch::where('status', 'Active')->tracked()->orderBy('batch_id')->get();
 
         $feedDefaults = [
             'kg_per_bag'   => (float) Setting::get('default_kg_per_bag', config('expenses.default_kg_per_bag')),
@@ -73,7 +73,7 @@ class ExpenseController extends Controller
 
     public function edit(Expense $expense)
     {
-        $buildings = HenBatch::where('status', 'Active')->orderBy('batch_id')->get();
+        $buildings = HenBatch::where('status', 'Active')->tracked()->orderBy('batch_id')->get();
 
         $feedDefaults = [
             'kg_per_bag'   => (float) Setting::get('default_kg_per_bag', config('expenses.default_kg_per_bag')),

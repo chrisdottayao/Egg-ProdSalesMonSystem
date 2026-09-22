@@ -183,7 +183,9 @@ SYSMSG;
 
     private function cullEventsSummary(): string
     {
+        // Tracked-only (3M) — see cullReadinessSummary() below.
         $culls = CullRecord::where('date', '>=', Carbon::today()->subDays(7))
+            ->whereHas('henBatch', fn ($q) => $q->where('is_tracked', true))
             ->with('henBatch')
             ->get();
 
@@ -202,7 +204,9 @@ SYSMSG;
 
     private function cullReadinessSummary(): string
     {
-        $batches = HenBatch::where('status', 'Active')->whereNotNull('building_no')->get()->keyBy('id');
+        // Tracked-only (3M) — the AI insight card should only speak to the 3
+        // actively-tracked buildings, not all 45.
+        $batches = HenBatch::where('status', 'Active')->whereNotNull('building_no')->tracked()->get()->keyBy('id');
 
         $latestPerBatch = BuildingDaily::whereIn('hen_batch_id', $batches->keys())
             ->orderBy('date')

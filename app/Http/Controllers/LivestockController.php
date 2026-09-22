@@ -9,7 +9,11 @@ class LivestockController extends Controller
 {
     public function index()
     {
-        $henBatches = HenBatch::latest()->get();
+        // Tracked-only (3M): the live system actively displays 3 of the
+        // farm's 45 real buildings. The other 42's flock records aren't
+        // deleted — just not listed here — and stay reachable via Tinker/DB
+        // if ever needed.
+        $henBatches = HenBatch::tracked()->latest()->get();
         $activeHenCount = HenBatch::activeHenCount();
         return view('livestock.index', compact('henBatches', 'activeHenCount'));
     }
