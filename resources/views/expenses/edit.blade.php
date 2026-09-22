@@ -21,7 +21,7 @@
                         <option value="">Farm-wide</option>
                         @foreach($buildings as $b)
                             <option value="{{ $b->id }}" {{ (string) old('building_id', $expense->building_id) === (string) $b->id ? 'selected' : '' }}>
-                                {{ $b->building_no ? 'Building ' . $b->building_no : $b->batch_id }}
+                                {{ $b->display_label }}
                             </option>
                         @endforeach
                     </select>

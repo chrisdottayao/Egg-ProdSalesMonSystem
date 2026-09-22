@@ -22,13 +22,19 @@
             <div class="text-sm text-gray-600 mt-1">from sales today</div>
         </div>
 
+        {{-- Production Rate was removed from here (3N) — it duplicated the
+        Per-Building Performance section's "Farm-wide Prod Rate" below, computed
+        a different way (today's single-day snapshot vs. a windowed average of
+        daily building rates), which read as a bug once both were individually
+        correct. Active Hens, previously just a subtitle here, is promoted to
+        its own card since the farm actually references that figure. --}}
         <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-[#4CAF50] hover:shadow-lg transition-shadow">
             <div class="flex items-center justify-between mb-2">
-                <span class="text-gray-600">Production Rate</span>
+                <span class="text-gray-600">Active Hens</span>
                 <svg class="w-5 h-5 text-[#4CAF50]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
             </div>
-            <div class="text-3xl font-bold text-gray-800">{{ $stats['production_rate'] }}%</div>
-            <div class="text-sm text-gray-600 mt-1">{{ number_format($stats['active_hens']) }} active hens</div>
+            <div class="text-3xl font-bold text-gray-800">{{ number_format($stats['active_hens']) }}</div>
+            <div class="text-sm text-gray-600 mt-1">across tracked buildings</div>
         </div>
 
         <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-400 hover:shadow-lg transition-shadow">
@@ -262,7 +268,7 @@
                         </tr>
                     </thead>
                     @forelse($farmOverview['leaderboard'] as $row)
-                        @php $rowLabel = $row['building']->building_no ? 'Building ' . $row['building']->building_no : $row['building']->batch_id; @endphp
+                        @php $rowLabel = $row['building']->display_label; @endphp
                         {{-- x-data lives on the <tbody> (a real ancestor of both rows below)
                         so the detail row can see `expanded`/`toggle()` — putting it on the
                         first <tr> left the second <tr> as a sibling, out of Alpine's scope,

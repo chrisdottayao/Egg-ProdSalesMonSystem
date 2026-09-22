@@ -194,7 +194,7 @@ SYSMSG;
         }
 
         return $culls->map(function (CullRecord $cull) {
-            $building = $cull->henBatch?->building_no ?? $cull->henBatch?->building ?? 'unknown';
+            $building = $cull->henBatch?->effective_building_no ?? 'unknown';
             $planned  = $cull->henBatch ? $this->wasInsideCullWindow($cull->henBatch, $cull->date) : null;
             $label    = $planned === null ? 'unknown window' : ($planned ? 'planned, in cull window' : 'unplanned');
 
@@ -224,7 +224,7 @@ SYSMSG;
             $currentAge  = $row->age_weeks + (int) floor($daysSince / 7);
 
             if ($currentAge >= self::CULL_READINESS_AGE_WEEKS) {
-                $building = $batches->get($henBatchId)?->building_no ?? '?';
+                $building = $batches->get($henBatchId)?->effective_building_no ?? '?';
                 $approaching[] = "Bldg {$building} ({$currentAge}wk)";
             }
         }

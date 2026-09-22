@@ -10,7 +10,7 @@ class HenBatch extends Model
 {
     protected $fillable = [
         'batch_id', 'batch_size', 'status', 'entry_date', 'notes', 'pen_number', 'building',
-        'placement_date', 'breed', 'building_no', 'is_tracked',
+        'placement_date', 'breed', 'building_no', 'is_tracked', 'display_no',
     ];
 
     protected $casts = [
@@ -42,6 +42,30 @@ class HenBatch extends Model
 
     public static function activeHenCount(): int
     {
-        return self::where('status', 'Active')->sum('batch_size');
+        // Tracked-only (3N) — was summing all 45 buildings' populations.
+        return self::where('status', 'Active')->tracked()->sum('batch_size');
+    }
+
+    /**
+     * The number to show a user for this building: display_no (Prototype 3N's
+     * UI relabeling, e.g. tracked building "4" reads as "1") if set, else the
+     * real building_no. Internal matching (CSV import, physical-adjacency
+     * clustering) must keep using building_no directly, never this.
+     */
+    public function getEffectiveBuildingNoAttribute(): ?int
+    {
+        return $this->display_no ?? $this->building_no;
+    }
+
+    /**
+     * "Building {N}" using the effective (display) number, or the batch_id
+     * for a batch with neither number set. The single source of truth for
+     * how a building's name is shown anywhere in the UI.
+     */
+    public function getDisplayLabelAttribute(): string
+    {
+        return $this->effective_building_no !== null
+            ? 'Building ' . $this->effective_building_no
+            : $this->batch_id;
     }
 }

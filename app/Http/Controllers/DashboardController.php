@@ -32,14 +32,12 @@ class DashboardController extends Controller
         $eggsThisMonth  = EggProduction::where('date', '>=', $thisMonth)->sum('eggs_collected');
         $salesThisMonth = EggSale::where('date', '>=', $thisMonth)->sum('total_amount');
 
-        $productionRate = $activeHens > 0
-            ? round(($eggsToday / $activeHens) * 100, 1)
-            : 0;
-
+        // production_rate was removed (3N) — it duplicated the Per-Building
+        // Performance section's "Farm-wide Prod Rate" below, computed a
+        // different way; that section's figure is the one that stays.
         $stats = [
             'eggs_today'       => $eggsToday,
             'revenue_today'    => $revenueToday,
-            'production_rate'  => $productionRate,
             'active_hens'      => $activeHens,
             'eggs_this_month'  => $eggsThisMonth,
             'sales_this_month' => $salesThisMonth,
@@ -102,13 +100,14 @@ class DashboardController extends Controller
         $performanceService = new BuildingPerformanceService;
         $window             = $request->input('window', '1');
         [$perfStart, $perfEnd] = $performanceService->resolveWindow($request);
-        // Numeric building order (1 -> 45), not alphabetical batch_id; any
-        // building without a building_no sorts to the end rather than the top.
+        // Numeric building order by the DISPLAYED number (3N: display_no when
+        // set, else building_no), not alphabetical batch_id; any building
+        // without either number sorts to the end rather than the top.
         // ->tracked(): only the 3 actively-tracked buildings (3M) — the other
         // 42's historical data is untouched, just not surfaced here.
         $buildings          = HenBatch::where('status', 'Active')
             ->tracked()
-            ->orderByRaw('building_no IS NULL, building_no ASC')
+            ->orderByRaw('COALESCE(display_no, building_no) IS NULL, COALESCE(display_no, building_no) ASC')
             ->get();
         $farmOverview       = $performanceService->farmOverview($buildings, $perfStart, $perfEnd);
 

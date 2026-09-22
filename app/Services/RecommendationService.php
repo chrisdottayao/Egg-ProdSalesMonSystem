@@ -174,18 +174,18 @@ class RecommendationService
 
                 return [
                     'condition'       => $alert->condition,
+                    // effective_building_no (3N): the DISPLAYED number (1/2/3),
+                    // never the real building_no (4/14/45), anywhere user-facing.
                     'recommendation'  => $alert->henBatch
                         ? "[{$alert->henBatch->batch_id}"
-                            . ($alert->henBatch->building ? " / Bldg {$alert->henBatch->building}" : '')
+                            . ($alert->henBatch->effective_building_no ? " / Bldg {$alert->henBatch->effective_building_no}" : '')
                             . "] {$recommendation}"
                         : $recommendation,
                     // Building number, exposed separately (not just baked into the
                     // "recommendation" string above) so the display layer can build
-                    // plain-language sentences like "Building 4 is..." without having
+                    // plain-language sentences like "Building 1 is..." without having
                     // to regex it back out of formatted text.
-                    'building'        => $alert->henBatch
-                        ? ($alert->henBatch->building ?? $alert->henBatch->building_no)
-                        : null,
+                    'building'        => $alert->henBatch?->effective_building_no,
                     'severity'        => $alert->severity,
                     'triggered_since' => $alert->triggered_since->format('Y-m-d'),
                 ];
@@ -277,6 +277,13 @@ class RecommendationService
             $count = $alerts->count();
             $clusterId = 'clu_' . substr(md5($alerts->first()->condition . '|' . now()->format('Y-m-d')), 0, 16);
 
+            // Deliberately real building_no/building here, not effective_building_no
+            // (3N) — "adjacent" is about physical placement in the farm's real
+            // 45-house layout, which the arbitrary display numbers (1/2/3) know
+            // nothing about. With only 3 tracked, non-adjacent real buildings
+            // (4/14/45), this note will in practice rarely if ever claim
+            // adjacency; that's correct, not a bug, and any "Adjacent buildings
+            // involved: X-Y" text this produces will show the real farm number.
             $buildingNumbers = $alerts
                 ->map(fn (FlockAlert $a) => $a->henBatch?->building)
                 ->filter(fn ($b) => $b !== null && is_numeric($b))

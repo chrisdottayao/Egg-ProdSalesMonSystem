@@ -11,12 +11,18 @@ class CullController extends Controller
 {
     public function index()
     {
-        $cullRecords = CullRecord::with('henBatch')->latest('date')->paginate(20);
+        // Tracked-only (3N) — the dropdown above already used .tracked(), but
+        // the list and monthly stats below it didn't, so they still showed
+        // all 45 buildings' history even though only 3 were selectable.
+        $cullRecords = CullRecord::with('henBatch')
+            ->whereHas('henBatch', fn ($q) => $q->tracked())
+            ->latest('date')->paginate(20);
         $henBatches  = HenBatch::where('status', 'Active')->tracked()->orderBy('batch_id')->get();
 
         // Monthly stats
         $thisMonthStart = Carbon::now()->startOfMonth();
-        $thisMonthRecords = CullRecord::where('date', '>=', $thisMonthStart)->get();
+        $thisMonthRecords = CullRecord::whereHas('henBatch', fn ($q) => $q->tracked())
+            ->where('date', '>=', $thisMonthStart)->get();
 
         $totalCulledThisMonth = $thisMonthRecords->sum('quantity_culled');
         $totalCullEvents      = $thisMonthRecords->count();

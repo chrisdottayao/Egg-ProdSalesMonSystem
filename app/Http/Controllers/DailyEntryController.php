@@ -22,8 +22,10 @@ class DailyEntryController extends Controller
         // seed data predating this feature) has no row to fill on a per-building
         // logbook form — including it would write a phantom building_daily row
         // and corrupt the rollup with population/eggs that belong to no building.
-        // ->tracked(): only the 3 actively-tracked buildings (3M).
-        $batches = HenBatch::where('status', 'Active')->whereNotNull('building_no')->tracked()->orderBy('building_no')->get();
+        // ->tracked(): only the 3 actively-tracked buildings (3M). Ordered by
+        // the DISPLAYED number (3N), not the real building_no.
+        $batches = HenBatch::where('status', 'Active')->whereNotNull('building_no')->tracked()
+            ->orderByRaw('COALESCE(display_no, building_no) ASC')->get();
 
         $existingRows = BuildingDaily::whereDate('date', $date)
             ->get()

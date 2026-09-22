@@ -105,7 +105,7 @@
                         @forelse($buildings as $b)
                             <tr class="border-b last:border-0 hover:bg-gray-50">
                                 <td class="py-2 px-2">{{ $b->date->format('Y-m-d') }}</td>
-                                <td class="py-2 px-2">{{ $b->henBatch->building_no ?? $b->henBatch->building ?? '—' }}</td>
+                                <td class="py-2 px-2">{{ $b->henBatch->effective_building_no ?? '—' }}</td>
                                 <td class="text-right py-2 px-2">{{ number_format($b->population) }}</td>
                                 <td class="text-right py-2 px-2">{{ number_format($b->eggs_house) }}</td>
                                 <td class="text-right py-2 px-2 font-semibold text-[#4CAF50]">{{ $b->prod_rate }}%</td>

@@ -32,7 +32,7 @@
                         <option value="">Farm-wide</option>
                         @foreach($buildings as $b)
                             <option value="{{ $b->id }}" {{ (string) old('building_id') === (string) $b->id ? 'selected' : '' }}>
-                                {{ $b->building_no ? 'Building ' . $b->building_no : $b->batch_id }}
+                                {{ $b->display_label }}
                             </option>
                         @endforeach
                     </select>
@@ -169,7 +169,7 @@
                     <option value="farm" {{ $buildingFilter === 'farm' ? 'selected' : '' }}>Farm-wide only</option>
                     @foreach($buildings as $b)
                         <option value="{{ $b->id }}" {{ (string) $buildingFilter === (string) $b->id ? 'selected' : '' }}>
-                            {{ $b->building_no ? 'Building ' . $b->building_no : $b->batch_id }}
+                            {{ $b->display_label }}
                         </option>
                     @endforeach
                 </select>
@@ -228,7 +228,7 @@
                     @forelse($expenses as $expense)
                         <tr class="border-b last:border-0 hover:bg-gray-50 align-top">
                             <td class="py-3 text-sm">{{ $expense->date->format('Y-m-d') }}</td>
-                            <td class="py-3 text-sm">{{ $expense->building ? ($expense->building->building_no ? 'Bldg ' . $expense->building->building_no : $expense->building->batch_id) : 'Farm-wide' }}</td>
+                            <td class="py-3 text-sm">{{ $expense->building ? $expense->building->display_label : 'Farm-wide' }}</td>
                             <td class="py-3 text-sm">
                                 <span class="text-xs px-2 py-1 rounded-full font-semibold {{ $catBadgeColors[$expense->category_color] }}">{{ $expense->category_label }}</span>
                             </td>
