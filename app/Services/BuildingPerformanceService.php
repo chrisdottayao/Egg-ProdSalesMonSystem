@@ -83,7 +83,9 @@ class BuildingPerformanceService
             return [
                 'building'          => $b,
                 'prod_rate'         => $rate !== null ? (float) $rate : null,
-                'band'              => ProdRateBand::resolve($rate !== null ? (float) $rate : null),
+                // Culled badge (3Q) replaces the usual prod-rate band once a
+                // flock has ended — a band no longer means anything for it.
+                'band'              => $b->isEnded() ? ProdRateBand::ended($b->ended_at) : ProdRateBand::resolve($rate !== null ? (float) $rate : null),
                 'as_of'             => $row->date ?? null,
                 'population'        => $row->population ?? null,
                 'open_alerts_count' => (int) ($openAlertCounts[$b->id] ?? 0),
@@ -119,7 +121,10 @@ class BuildingPerformanceService
             'prod_rate'  => $latestRow->prod_rate ?? null,
             'as_of'      => $latestRow?->date,
         ];
-        $currentBand = ProdRateBand::resolve($currentStatus['prod_rate'] !== null ? (float) $currentStatus['prod_rate'] : null);
+        // Culled badge (3Q) replaces the usual prod-rate band once ended.
+        $currentBand = $henBatch->isEnded()
+            ? ProdRateBand::ended($henBatch->ended_at)
+            : ProdRateBand::resolve($currentStatus['prod_rate'] !== null ? (float) $currentStatus['prod_rate'] : null);
 
         $lastCullDate  = CullRecord::where('hen_batch_id', $henBatch->id)->max('date');
         $daysSinceCull = $lastCullDate ? Carbon::parse($lastCullDate)->diffInDays(Carbon::today()) : null;
@@ -176,15 +181,28 @@ class BuildingPerformanceService
 
         $windowLabel = $window === 'this_month' ? 'this month' : $window . '-month window';
 
-        $insight = [
-            'Prod rate today: ' . ($currentStatus['prod_rate'] !== null ? number_format($currentStatus['prod_rate'], 1) . '%' : '—')
-                . ($currentBand ? ' (' . $currentBand['label'] . ')' : ''),
-            'Flock age: ' . ($currentStatus['age_weeks'] !== null ? $currentStatus['age_weeks'] . ' weeks' : '—'),
-            "Estimated revenue ({$windowLabel}): ₱" . number_format($estimatedRevenue, 2)
-                . ' · Estimated expenses: ₱' . number_format($expenses['total'], 2)
-                . ' · Net: ₱' . number_format($netContribution, 2),
-            'Status: ' . ($currentBand['label'] ?? 'Unknown'),
-        ];
+        if ($henBatch->isEnded()) {
+            // Ended (3Q) — no "declining production" narrative for a building
+            // that's actually just empty now; state the fact instead.
+            $insight = [
+                'Flock ended: ' . $henBatch->ended_at->format('M d, Y') . ' — building fully depopulated.',
+                'Historical figures below reflect the flock through its end date.',
+                "Estimated revenue ({$windowLabel}): ₱" . number_format($estimatedRevenue, 2)
+                    . ' · Estimated expenses: ₱' . number_format($expenses['total'], 2)
+                    . ' · Net: ₱' . number_format($netContribution, 2),
+                'Status: ' . $currentBand['label'],
+            ];
+        } else {
+            $insight = [
+                'Prod rate today: ' . ($currentStatus['prod_rate'] !== null ? number_format($currentStatus['prod_rate'], 1) . '%' : '—')
+                    . ($currentBand ? ' (' . $currentBand['label'] . ')' : ''),
+                'Flock age: ' . ($currentStatus['age_weeks'] !== null ? $currentStatus['age_weeks'] . ' weeks' : '—'),
+                "Estimated revenue ({$windowLabel}): ₱" . number_format($estimatedRevenue, 2)
+                    . ' · Estimated expenses: ₱' . number_format($expenses['total'], 2)
+                    . ' · Net: ₱' . number_format($netContribution, 2),
+                'Status: ' . ($currentBand['label'] ?? 'Unknown'),
+            ];
+        }
         $insightPlaceholder = [
             'Projected next 1–2 months: —',
             'Projected earnings: —',

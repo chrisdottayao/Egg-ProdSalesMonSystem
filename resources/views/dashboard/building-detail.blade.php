@@ -9,6 +9,8 @@
         'green' => ['badge' => 'bg-green-100 text-green-700', 'border' => 'border-green-500'],
         'amber' => ['badge' => 'bg-amber-100 text-amber-700', 'border' => 'border-amber-500'],
         'red'   => ['badge' => 'bg-red-100 text-red-700',     'border' => 'border-red-500'],
+        // Culled/ended badge (3Q) — neutral, not a health signal.
+        'gray'  => ['badge' => 'bg-gray-200 text-gray-600',   'border' => 'border-gray-400'],
     ];
 @endphp
 

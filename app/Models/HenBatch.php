@@ -10,13 +10,14 @@ class HenBatch extends Model
 {
     protected $fillable = [
         'batch_id', 'batch_size', 'status', 'entry_date', 'notes', 'pen_number', 'building',
-        'placement_date', 'breed', 'building_no', 'is_tracked', 'display_no',
+        'placement_date', 'breed', 'building_no', 'is_tracked', 'display_no', 'ended_at',
     ];
 
     protected $casts = [
         'entry_date'      => 'date',
         'placement_date'  => 'date',
         'is_tracked'      => 'boolean',
+        'ended_at'        => 'date',
     ];
 
     /**
@@ -28,6 +29,15 @@ class HenBatch extends Model
     public function scopeTracked(Builder $query): Builder
     {
         return $query->where('is_tracked', true);
+    }
+
+    /**
+     * ended_at is a separate fact from is_tracked (Prototype 3Q) — a building
+     * can be tracked AND ended (fully depopulated, e.g. Building 14) at once.
+     */
+    public function isEnded(): bool
+    {
+        return $this->ended_at !== null;
     }
 
     public function cullRecords(): HasMany
@@ -42,8 +52,10 @@ class HenBatch extends Model
 
     public static function activeHenCount(): int
     {
-        // Tracked-only (3N) — was summing all 45 buildings' populations.
-        return self::where('status', 'Active')->tracked()->sum('batch_size');
+        // Tracked-only (3N), excluding ended flocks (3Q) — a fully
+        // depopulated building has 0 live hens, not its last recorded
+        // batch_size.
+        return self::where('status', 'Active')->tracked()->whereNull('ended_at')->sum('batch_size');
     }
 
     /**

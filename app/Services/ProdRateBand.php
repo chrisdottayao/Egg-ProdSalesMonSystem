@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Carbon;
+
 class ProdRateBand
 {
     /**
@@ -30,5 +32,17 @@ class ProdRateBand
         }
 
         return $bands['watch'];
+    }
+
+    /**
+     * Replaces the usual Healthy/Watch/Cull-consideration badge for a
+     * building whose flock has ended (Prototype 3Q) — a prod-rate band no
+     * longer applies to a fully depopulated building.
+     *
+     * @return array{label: string, color: string}
+     */
+    public static function ended(Carbon $endedAt): array
+    {
+        return ['label' => 'Culled — ' . $endedAt->format('M d, Y'), 'color' => 'gray'];
     }
 }

@@ -202,7 +202,9 @@ class RecommendationService
         // so Peer Deviation's mean/SD are computed across only the 3 actively-
         // tracked buildings too — this is why peer deviation is statistically
         // weak at this scope (documented as an expected limitation, not a bug).
-        $trackedIds = HenBatch::tracked()->pluck('id');
+        // Also excludes ended flocks (3Q) — a fully depopulated building
+        // shouldn't generate or feed into any new alert, including as a peer.
+        $trackedIds = HenBatch::tracked()->whereNull('ended_at')->pluck('id');
 
         $recent = BuildingDaily::where('date', '>=', Carbon::today()->subDays(40))
             ->whereIn('hen_batch_id', $trackedIds)
@@ -327,6 +329,8 @@ class RecommendationService
     // Cull Readiness resolves on depopulation, not a "back to normal" streak — the
     // per-active-batch loop above never sees a batch after it's been culled, so this
     // has to be a separate pass over every currently-open Cull Readiness alert.
+    // ended_at (3Q) counts as depopulated here too — a "prepare replacements"
+    // nag is meaningless once the building's flock has actually ended.
     private function resolveCullReadinessForDepopulatedBatches(): void
     {
         FlockAlert::where('condition', 'Cull Readiness')
@@ -334,7 +338,7 @@ class RecommendationService
             ->with('henBatch')
             ->get()
             ->each(function (FlockAlert $alert) {
-                if (! $alert->henBatch || $alert->henBatch->status !== 'Active') {
+                if (! $alert->henBatch || $alert->henBatch->status !== 'Active' || $alert->henBatch->ended_at !== null) {
                     $alert->update(['status' => 'resolved', 'resolved_at' => now()]);
                 }
             });
@@ -630,7 +634,7 @@ class RecommendationService
     // ── Condition 7 — Flock Decline & Low Production (suppressed in cull window) ──
     private function evaluateFlockDeclineWithLowProduction(): void
     {
-        $anyBatchInCullWindow = HenBatch::where('status', 'Active')->tracked()->get()
+        $anyBatchInCullWindow = HenBatch::where('status', 'Active')->tracked()->whereNull('ended_at')->get()
             ->contains(function (HenBatch $batch) {
                 $latest = BuildingDaily::where('hen_batch_id', $batch->id)->orderByDesc('date')->first();
                 return $latest && $this->inCullWindow($latest->age_weeks);

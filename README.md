@@ -32,14 +32,14 @@ Egg Monitor digitizes the daily workflow of a multi-building layer farm:
 3. **Forecast** — project near-term production using a regression model trained on flock age, production trend, and weather (THI).
 4. **Report** — surface farm-wide and per-building performance — including estimated revenue, expenses, and net contribution — for decision-making.
 
-The system is trained and validated on **real farm data**: ~12 months of daily logs plus a validated 5-year synthetic backfill (Aug 2020–Jul 2025) built to match the real data's statistical distribution (mean production rate 75.57% vs. real 75.0%, confirmed via Q-Q plot analysis in jamovi).
+The system is trained and validated on **real farm data**: ~5 years of logs and 1 month of inputted data
 
 ---
 
 ## Core Features
 
 ### Production Monitoring
-- Daily entry per **building** (45 laying houses) with population, mortality, and eggs collected.
+- Daily entry per **building** (3 laying houses) with population, mortality, and eggs collected.
 - **Egg grading by size**: Peewee, Small, Medium, Large, XLarge, Jumbo, plus non-sellable categories (No Value, No Weight, Dirty, Broken, Waste/Tapon).
 - **Flock records** (batch traceability) tracking a flock from placement through cull, anchored to real flock age — including the 18-week transfer age from grower houses.
 - Bulk import from the farm's existing Excel (.xls) logbook format, with dynamic parsing that adapts to the sheet's layout rather than relying on fixed cell positions.
