@@ -90,13 +90,11 @@ class DashboardController extends Controller
         // today so a future forecast row (weather:sync also writes ~16 days
         // ahead) never gets mislabeled as "latest."
         $latestWeather = WeatherDaily::whereNotNull('thi')->where('date', '<=', $today)->orderByDesc('date')->first();
-        // Trend now extends into Open-Meteo's own short-range forecast
-        // (source='forecast', no upper date bound needed — weather_daily only
-        // ever has ~16 days of forecast rows from weather:sync) so upcoming
-        // heat-stress risk is visible, not just history. 'source' lets the
-        // chart draw the forecast portion dashed, same convention as the
-        // Production/Revenue trend charts.
-        $weatherTrend  = WeatherDaily::where('date', '>=', Carbon::today()->subDays(13))
+        // 7 days back + 7 days forward (3R pt2 — was a 14-day-back/unbounded
+        // window). 'source' lets the chart draw the forecast portion dashed,
+        // same convention as the Production/Revenue trend charts.
+        $weatherTrend  = WeatherDaily::where('date', '>=', Carbon::today()->subDays(6))
+            ->where('date', '<=', Carbon::today()->addDays(7))
             ->orderBy('date')
             ->get(['date', 'thi', 'source'])
             ->map(fn ($w) => ['date' => $w->date->format('M d'), 'thi' => $w->thi, 'is_forecast' => $w->source === 'forecast']);

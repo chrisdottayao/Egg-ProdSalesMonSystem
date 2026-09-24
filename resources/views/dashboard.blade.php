@@ -126,7 +126,7 @@
         <div class="bg-white rounded-lg shadow-md p-6 lg:col-span-2">
             <div class="mb-4">
                 <h2 class="text-lg font-bold text-gray-800">THI Trend</h2>
-                <p class="text-sm text-gray-500">Last 14 days + Open-Meteo's own short-range forecast (dashed) &mdash; heat-stress context, not a prediction by this app</p>
+                <p class="text-sm text-gray-500">Last 7 days + 7-day forecast (dashed, from Open-Meteo) &mdash; heat-stress context, not a prediction by this app</p>
             </div>
             <canvas id="thiChart" height="90"></canvas>
         </div>
