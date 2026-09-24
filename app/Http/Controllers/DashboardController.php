@@ -96,8 +96,8 @@ class DashboardController extends Controller
         $weatherTrend  = WeatherDaily::where('date', '>=', Carbon::today()->subDays(6))
             ->where('date', '<=', Carbon::today()->addDays(7))
             ->orderBy('date')
-            ->get(['date', 'thi', 'source'])
-            ->map(fn ($w) => ['date' => $w->date->format('M d'), 'thi' => $w->thi, 'is_forecast' => $w->source === 'forecast']);
+            ->get(['date', 'thi', 'temp_mean', 'source'])
+            ->map(fn ($w) => ['date' => $w->date->format('M d'), 'thi' => $w->thi, 'temp_mean' => $w->temp_mean, 'is_forecast' => $w->source === 'forecast']);
 
         // ── Per-building performance (3J — merged from the old standalone
         // investment dashboard). Financial figures here are gated to
