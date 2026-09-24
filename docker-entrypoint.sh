@@ -22,5 +22,9 @@ php artisan event:cache
 # Ensure permissions are correct on storage and bootstrap/cache
 chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Start Apache in the foreground
-exec apache2-foreground
+# Run whatever command this container was started with (the Dockerfile's CMD
+# default, or a Railway service's Custom Start Command override — e.g. the
+# cron service's "php artisan schedule:run"). Previously hardcoded to
+# apache2-foreground, so a Start Command override was silently ignored and
+# every service — including the cron job — always just booted the web server.
+exec "$@"
