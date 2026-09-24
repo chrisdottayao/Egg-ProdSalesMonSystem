@@ -53,7 +53,7 @@ class ForecastService
 
     public function forecast(bool $persist = false): array
     {
-        $records = EggProduction::orderBy('date')->get(['date', 'eggs_collected']);
+        $records = EggProduction::orderBy('date')->get(['date', 'eggs_collected', 'active_hens']);
         $n       = $records->count();
 
         if ($n < 30) {
@@ -64,13 +64,27 @@ class ForecastService
         }
 
         $dayIndexX = array_map(fn ($i) => [$i + 1], range(0, $n - 1));
-        $Y         = $records->pluck('eggs_collected')->map(fn ($v) => (float) $v)->toArray();
+
+        // 3R — the model predicts production RATE (eggs/hen), not a raw egg
+        // count, then multiplies back by a known/projected population. A
+        // model trained on raw counts has no way to represent "a building
+        // was just culled" — a sudden population drop reads as pure,
+        // unexplained error no matter how clean the historical data is.
+        // Rate is computed from egg_productions.active_hens directly (always
+        // present, farm-wide); actualEggs/actualPop are kept alongside for
+        // converting predictions back to egg-count terms for MAPE reporting.
+        $actualEggs = $records->pluck('eggs_collected')->map(fn ($v) => (float) $v)->toArray();
+        $actualPop  = $records->pluck('active_hens')->map(fn ($v) => (float) $v)->toArray();
+        $Y          = [];
+        foreach ($records as $i => $record) {
+            $Y[$i] = $record->active_hens > 0 ? $record->eggs_collected / $record->active_hens : 0.0;
+        }
 
         // ── Single-feature model (day index only) — the pre-Phase-7 baseline ──
         $baselineModel = new LeastSquares();
         $baselineModel->train($dayIndexX, $Y);
 
-        $mapeBefore = $this->holdoutMape($dayIndexX, $Y, fn () => new LeastSquares());
+        $mapeBefore = $this->holdoutMape($dayIndexX, $Y, $actualEggs, $actualPop, fn () => new LeastSquares());
 
         // ── Two-feature model (day index + flock-weighted mean age) ────────────
         $lastDate      = $records->last()->date;
@@ -95,7 +109,7 @@ class ForecastService
             $ageModel->train($twoFeatureX, $Y);
             $model = $ageModel;
 
-            $mapeAfter  = $this->holdoutMape($twoFeatureX, $Y, fn () => new LeastSquares());
+            $mapeAfter  = $this->holdoutMape($twoFeatureX, $Y, $actualEggs, $actualPop, fn () => new LeastSquares());
             $futureAges = $this->projectFutureWeightedAges($lastDate, 30);
         }
 
@@ -135,7 +149,7 @@ class ForecastService
             $model = $weatherModel;
 
             $mapeBeforeWeather = $mapeAfter ?? $mapeBefore;
-            $mapeAfterWeather  = $this->holdoutMape($weatherFeatureX, $Y, fn () => new LeastSquares());
+            $mapeAfterWeather  = $this->holdoutMape($weatherFeatureX, $Y, $actualEggs, $actualPop, fn () => new LeastSquares());
         }
 
         $avgPrice = (float) (
@@ -145,7 +159,14 @@ class ForecastService
 
         $cullIncomeByDayOffset = $this->projectSpentHenIncome($lastDate, 30);
 
-        $predictFor = function (int $dayOffset) use ($model, $n, $ageFeatureOn, $futureAges, $weatherFeatureOn, $weatherByDate, $climatology, $lastDate) {
+        // Future population to multiply the predicted rate by — same
+        // per-batch, cull-age-aware projection the age feature already uses,
+        // so the two stay consistent with each other. Falls back to the
+        // farm's last known actual population if building_daily has no
+        // usable per-batch data at all.
+        $futurePopulation = $this->projectFuturePopulation($lastDate, 30, end($actualPop));
+
+        $predictFor = function (int $dayOffset) use ($model, $n, $ageFeatureOn, $futureAges, $weatherFeatureOn, $weatherByDate, $climatology, $lastDate, $futurePopulation) {
             $sample = [$n + $dayOffset];
 
             if ($ageFeatureOn) {
@@ -162,7 +183,10 @@ class ForecastService
                 $sample = array_merge($sample, $this->weatherFeaturesForDate($futureDateKey, $weatherByDate, $climatology));
             }
 
-            return max(0, (int) round($model->predict($sample)));
+            $predictedRate = $model->predict($sample);
+            $projectedPop  = $futurePopulation[$dayOffset] ?? end($futurePopulation);
+
+            return max(0, (int) round($predictedRate * $projectedPop));
         };
 
         // 7-day production forecast
@@ -223,23 +247,31 @@ class ForecastService
      * MAPE holdout — retrain on the first n-7 records, predict the last 7 as a
      * holdout. Kept identical in mechanism for both the single- and
      * two-feature models so the reported improvement is apples-to-apples.
+     *
+     * 3R — $rateY is the training target (eggs/hen), but MAPE is still
+     * reported in "% of eggs" terms for continuity with the dashboard's
+     * existing thresholds: each holdout day's predicted rate is multiplied
+     * back by that date's ACTUAL historical population (not projected — a
+     * manager would already know that day's real population), then compared
+     * against the actual egg count.
      */
-    private function holdoutMape(array $X, array $Y, callable $newModel): float
+    private function holdoutMape(array $X, array $rateY, array $actualEggs, array $actualPop, callable $newModel): float
     {
         $holdout = 7;
-        $n       = count($Y);
+        $n       = count($rateY);
 
         $trainX = array_slice($X, 0, $n - $holdout);
-        $trainY = array_slice($Y, 0, $n - $holdout);
+        $trainY = array_slice($rateY, 0, $n - $holdout);
 
         $mapeModel = $newModel();
         $mapeModel->train($trainX, $trainY);
 
         $mapeValues = [];
         for ($i = 0; $i < $holdout; $i++) {
-            $idx       = $n - $holdout + $i;
-            $actual    = $Y[$idx];
-            $predicted = $mapeModel->predict($X[$idx]);
+            $idx           = $n - $holdout + $i;
+            $actual        = $actualEggs[$idx];
+            $predictedRate = $mapeModel->predict($X[$idx]);
+            $predicted     = $predictedRate * $actualPop[$idx];
             if ($actual > 0) {
                 $mapeValues[] = abs($actual - $predicted) / $actual * 100;
             }
@@ -334,6 +366,50 @@ class ForecastService
             } else {
                 $lastKnown = $age;
             }
+        }
+
+        return $projections;
+    }
+
+    /**
+     * Future total population (3R) — sums each tracked batch's latest known
+     * population per future day offset, zeroing a batch out once its
+     * projected age crosses CULL_TARGET_AGE_WEEKS. Same per-batch/cull-age
+     * policy as projectFutureWeightedAges() above, so the rate-based
+     * forecast's population multiplier stays consistent with the age
+     * feature and the spent-hen income projection.
+     *
+     * @return array<int,float> day offset (1..$days) => projected total population
+     */
+    private function projectFuturePopulation(Carbon $lastDate, int $days, float $fallbackPopulation): array
+    {
+        $latestPerBatch = BuildingDaily::where('date', '>=', $lastDate->copy()->subDays(14))
+            ->orderBy('date')
+            ->get()
+            ->groupBy('hen_batch_id')
+            ->map(fn ($rows) => $rows->last())
+            ->filter(fn ($row) => $row->age_weeks !== null);
+
+        // No usable per-batch data at all (e.g. before Daily Entry has ever
+        // been used) — hold the farm's last known actual population flat
+        // rather than projecting zero eggs for every future day.
+        if ($latestPerBatch->isEmpty()) {
+            return array_fill(1, $days, $fallbackPopulation);
+        }
+
+        $projections = [];
+        for ($d = 1; $d <= $days; $d++) {
+            $totalPop = 0;
+
+            foreach ($latestPerBatch as $row) {
+                $ageAtD = $row->age_weeks + ($d / 7);
+                if ($ageAtD > self::CULL_TARGET_AGE_WEEKS) {
+                    continue; // assume depopulated by then, per stated cull policy
+                }
+                $totalPop += $row->population;
+            }
+
+            $projections[$d] = $totalPop;
         }
 
         return $projections;
