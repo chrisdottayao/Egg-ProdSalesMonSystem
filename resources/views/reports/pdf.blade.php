@@ -29,7 +29,10 @@
     <tr>
         <th>Total Eggs Produced</th>
         <th>Total Eggs Sold</th>
+        <th>Total Mortality</th>
         <th>Total Revenue</th>
+        <th>Total Expenses</th>
+        <th>Net Income</th>
         <th>Avg Production Rate</th>
         <th>Avg Sales Rate</th>
         <th>Remaining Eggs</th>
@@ -37,7 +40,10 @@
     <tr>
         <td>{{ number_format($summary['total_eggs_produced']) }}</td>
         <td>{{ number_format($summary['total_eggs_sold']) }}</td>
+        <td>{{ number_format($summary['total_mortality']) }}</td>
         <td class="green">&#8369;{{ number_format($summary['total_revenue'], 2) }}</td>
+        <td>&#8369;{{ number_format($summary['total_expenses'], 2) }}</td>
+        <td class="{{ $summary['net_income'] >= 0 ? 'green' : '' }}">&#8369;{{ number_format($summary['net_income'], 2) }}</td>
         <td>{{ $summary['avg_production_rate'] }}%</td>
         <td>{{ $summary['avg_sales_rate'] }}%</td>
         <td>{{ number_format($summary['remaining_eggs']) }}</td>
@@ -51,7 +57,9 @@
             <th>Date</th>
             <th>Eggs Produced</th>
             <th>Eggs Sold</th>
+            <th>Mortality</th>
             <th>Revenue</th>
+            <th>Expenses</th>
             <th>Prod Rate</th>
             <th>Remaining</th>
         </tr>
@@ -62,12 +70,14 @@
             <td>{{ $row['date'] }}</td>
             <td>{{ number_format($row['eggs']) }}</td>
             <td>{{ number_format($row['sold']) }}</td>
+            <td>{{ number_format($row['mortality']) }}</td>
             <td class="green">&#8369;{{ number_format($row['revenue'], 2) }}</td>
+            <td>&#8369;{{ number_format($row['expenses'], 2) }}</td>
             <td>{{ $row['prod_rate'] }}%</td>
             <td>{{ number_format($row['eggs'] - $row['sold'] - $row['spoiled']) }}</td>
         </tr>
         @empty
-        <tr><td colspan="6" style="text-align:center;color:#999;">No data for selected period.</td></tr>
+        <tr><td colspan="8" style="text-align:center;color:#999;">No data for selected period.</td></tr>
         @endforelse
     </tbody>
     @if($dailyData->isNotEmpty())
@@ -76,7 +86,9 @@
             <td>Total</td>
             <td>{{ number_format($summary['total_eggs_produced']) }}</td>
             <td>{{ number_format($summary['total_eggs_sold']) }}</td>
+            <td>{{ number_format($summary['total_mortality']) }}</td>
             <td class="green">&#8369;{{ number_format($summary['total_revenue'], 2) }}</td>
+            <td>&#8369;{{ number_format($summary['total_expenses'], 2) }}</td>
             <td>{{ $summary['avg_production_rate'] }}%</td>
             <td>{{ number_format($summary['remaining_eggs']) }}</td>
         </tr>

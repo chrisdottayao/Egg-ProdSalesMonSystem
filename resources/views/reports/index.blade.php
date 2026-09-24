@@ -51,7 +51,7 @@
     {{-- Summary Cards --}}
     <div class="bg-white rounded-lg shadow-md p-6">
         <h2 class="text-lg font-bold text-gray-800 mb-4">Summary</h2>
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-9 gap-4">
             <div class="p-4 bg-gray-50 rounded-lg">
                 <div class="text-xs text-gray-500 mb-1">Total Eggs Produced</div>
                 <div class="text-2xl font-bold text-gray-800">{{ number_format($summary['total_eggs_produced']) }}</div>
@@ -61,8 +61,20 @@
                 <div class="text-2xl font-bold text-gray-800">{{ number_format($summary['total_eggs_sold']) }}</div>
             </div>
             <div class="p-4 bg-gray-50 rounded-lg">
+                <div class="text-xs text-gray-500 mb-1">Total Mortality</div>
+                <div class="text-2xl font-bold text-gray-800">{{ number_format($summary['total_mortality']) }}</div>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-lg">
                 <div class="text-xs text-gray-500 mb-1">Total Revenue</div>
                 <div class="text-2xl font-bold text-[#4CAF50]">₱{{ number_format($summary['total_revenue'], 0) }}</div>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-lg">
+                <div class="text-xs text-gray-500 mb-1">Total Expenses</div>
+                <div class="text-2xl font-bold text-gray-800">₱{{ number_format($summary['total_expenses'], 0) }}</div>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-lg">
+                <div class="text-xs text-gray-500 mb-1">Net Income</div>
+                <div class="text-2xl font-bold {{ $summary['net_income'] < 0 ? 'text-red-600' : 'text-[#4CAF50]' }}">₱{{ number_format($summary['net_income'], 0) }}</div>
             </div>
             <div class="p-4 bg-gray-50 rounded-lg">
                 <div class="text-xs text-gray-500 mb-1">Avg Production Rate</div>
@@ -105,7 +117,9 @@
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Date</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Eggs Produced</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Eggs Sold</th>
+                        <th class="text-right py-3 text-sm font-semibold text-gray-700">Mortality</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Revenue</th>
+                        <th class="text-right py-3 text-sm font-semibold text-gray-700">Expenses</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Prod Rate</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Remaining</th>
                     </tr>
@@ -116,14 +130,16 @@
                             <td class="py-3 text-sm">{{ $row['date'] }}</td>
                             <td class="text-right py-3 text-sm">{{ number_format($row['eggs']) }}</td>
                             <td class="text-right py-3 text-sm">{{ number_format($row['sold']) }}</td>
+                            <td class="text-right py-3 text-sm">{{ number_format($row['mortality']) }}</td>
                             <td class="text-right py-3 text-sm font-semibold text-[#4CAF50]">₱{{ number_format($row['revenue'], 2) }}</td>
+                            <td class="text-right py-3 text-sm">₱{{ number_format($row['expenses'], 2) }}</td>
                             <td class="text-right py-3 text-sm">{{ $row['prod_rate'] }}%</td>
                             <td class="text-right py-3 text-sm {{ ($row['eggs'] - $row['sold'] - $row['spoiled']) < 0 ? 'text-red-600 font-semibold' : 'text-gray-700' }}">
                                 {{ number_format($row['eggs'] - $row['sold'] - $row['spoiled']) }}
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="py-8 text-center text-gray-400 text-sm">No data for selected date range.</td></tr>
+                        <tr><td colspan="8" class="py-8 text-center text-gray-400 text-sm">No data for selected date range.</td></tr>
                     @endforelse
                 </tbody>
                 @if($dailyData->isNotEmpty())
@@ -132,7 +148,9 @@
                         <td class="py-3 text-sm font-bold text-gray-700">Total</td>
                         <td class="text-right py-3 text-sm font-bold">{{ number_format($summary['total_eggs_produced']) }}</td>
                         <td class="text-right py-3 text-sm font-bold">{{ number_format($summary['total_eggs_sold']) }}</td>
+                        <td class="text-right py-3 text-sm font-bold">{{ number_format($summary['total_mortality']) }}</td>
                         <td class="text-right py-3 text-sm font-bold text-[#4CAF50]">₱{{ number_format($summary['total_revenue'], 2) }}</td>
+                        <td class="text-right py-3 text-sm font-bold">₱{{ number_format($summary['total_expenses'], 2) }}</td>
                         <td class="text-right py-3 text-sm font-bold">{{ $summary['avg_production_rate'] }}%</td>
                         <td class="text-right py-3 text-sm font-bold {{ $summary['remaining_eggs'] < 0 ? 'text-red-600' : '' }}">
                             {{ number_format($summary['remaining_eggs']) }}

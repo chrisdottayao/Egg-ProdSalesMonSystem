@@ -7,6 +7,7 @@ use App\Exports\BatchTraceabilityExport;
 use App\Exports\ReportExport;
 use App\Models\EggProduction;
 use App\Models\EggSale;
+use App\Models\Expense;
 use App\Models\ForecastEvaluation;
 use App\Models\AuditLog;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -28,11 +29,20 @@ class ReportsController extends Controller
         $totalProduced = $productions->sum('eggs_collected');
         $totalSold     = $sales->sum('quantity');
         $totalSpoiled  = $productions->sum(fn ($p) => $p->spoilage_count ?? 0);
+        $totalMortality = $productions->sum('mortality');
+        // Farm-wide, not per-building — same convention BuildingPerformanceService
+        // uses for revenue/expenses (Expense::building_id is nullable/per-building,
+        // but this report has never scoped to a single building).
+        $totalExpenses = (float) Expense::whereBetween('date', [$startDate, $endDate])->sum('amount');
+        $totalRevenue  = $sales->sum('total_amount');
 
         $summary = [
             'total_eggs_produced' => $totalProduced,
             'total_eggs_sold'     => $totalSold,
-            'total_revenue'       => $sales->sum('total_amount'),
+            'total_revenue'       => $totalRevenue,
+            'total_mortality'     => $totalMortality,
+            'total_expenses'      => $totalExpenses,
+            'net_income'          => round($totalRevenue - $totalExpenses, 2),
             'avg_production_rate' => $productions->count()
                 ? round($productions->avg(fn($p) => $p->production_rate), 1)
                 : 0,
@@ -50,8 +60,9 @@ class ReportsController extends Controller
             ->orderBy('date')
             ->get()
             ->map(function ($prod) {
-                $sold    = EggSale::whereDate('date', $prod->date)->sum('quantity');
-                $revenue = EggSale::whereDate('date', $prod->date)->sum('total_amount');
+                $sold      = EggSale::whereDate('date', $prod->date)->sum('quantity');
+                $revenue   = EggSale::whereDate('date', $prod->date)->sum('total_amount');
+                $expenses  = Expense::whereDate('date', $prod->date)->sum('amount');
                 return [
                     'date'      => $prod->date->format('M d'),
                     'eggs'      => $prod->eggs_collected,
@@ -59,6 +70,8 @@ class ReportsController extends Controller
                     'revenue'   => $revenue,
                     'prod_rate' => $prod->production_rate,
                     'spoiled'   => $prod->spoilage_count ?? 0,
+                    'mortality' => $prod->mortality ?? 0,
+                    'expenses'  => (float) $expenses,
                 ];
             });
 
@@ -105,23 +118,26 @@ class ReportsController extends Controller
         $summary   = $data['summary'];
 
         $rows   = [];
-        $rows[] = ['Date', 'Eggs Produced', 'Eggs Sold', 'Revenue (PHP)', 'Prod Rate (%)', 'Remaining'];
+        $rows[] = ['Date', 'Eggs Produced', 'Eggs Sold', 'Mortality', 'Revenue (PHP)', 'Expenses (PHP)', 'Prod Rate (%)', 'Remaining'];
 
         foreach ($dailyData as $row) {
             $rows[] = [
                 $row['date'],
                 $row['eggs'],
                 $row['sold'],
+                $row['mortality'],
                 number_format($row['revenue'], 2),
+                number_format($row['expenses'], 2),
                 $row['prod_rate'],
                 $row['eggs'] - $row['sold'] - $row['spoiled'],
             ];
         }
 
         $rows[] = [];
-        $rows[] = ['TOTAL', $summary['total_eggs_produced'], $summary['total_eggs_sold'],
-                   number_format($summary['total_revenue'], 2), $summary['avg_production_rate'] . '%',
-                   $summary['remaining_eggs']];
+        $rows[] = ['TOTAL', $summary['total_eggs_produced'], $summary['total_eggs_sold'], $summary['total_mortality'],
+                   number_format($summary['total_revenue'], 2), number_format($summary['total_expenses'], 2),
+                   $summary['avg_production_rate'] . '%', $summary['remaining_eggs']];
+        $rows[] = ['NET INCOME', number_format($summary['net_income'], 2)];
 
         $filename = 'report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.csv';
 
