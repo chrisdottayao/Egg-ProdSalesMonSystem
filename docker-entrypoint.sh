@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+# TEMP DIAGNOSTIC: proves whether this script actually runs at all for a
+# given container start, since every fix we've tried tonight lives below
+# this point and none of them have visibly taken effect. Remove this line
+# once that's confirmed one way or the other.
+echo "ENTRYPOINT-DID-RUN at $(date -u +%FT%TZ)"
+
 # Disable all MPM modules to clear conflicts
 a2dismod mpm_event 2>/dev/null || true
 a2dismod mpm_worker 2>/dev/null || true
