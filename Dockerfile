@@ -1,6 +1,12 @@
 FROM php:8.4-apache
 
 # 1. Install system dependencies (PHP libs + Node.js/npm)
+# default-mysql-client provides the `mysqldump` binary that
+# spatie/laravel-backup shells out to for `backup:run --only-db` — without
+# it, the backup dump fails with "sh: 1: mysqldump: not found" even though
+# the pdo_mysql PHP extension (installed below) is present and the app's
+# own DB queries work fine. PHP extensions and CLI client tools are
+# separate things; pdo_mysql only covers the former.
 RUN apt-get update && apt-get install -y \
     libpng-dev \
     libjpeg-dev \
@@ -59,6 +65,22 @@ COPY . .
 
 # 8. Install PHP dependencies
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+
+# 8a. composer install's own post-install script auto-copies .env.example to
+# .env when .env is missing (a convenience for local dev). In this image
+# that leaves a REAL .env baked in, and .env.example's DB_* lines reference
+# ${MYSQLHOST}/${MYSQLUSER}/etc placeholders meant for a service that has
+# those Railway MySQL-plugin variables directly available. On a service
+# that instead sets plain DB_HOST/DB_USERNAME/etc (like the backup cron
+# service, which lives in a different Railway project than the MySQL
+# service and can't use those references), this baked-in .env's
+# unresolved/empty values won a precedence fight against the real env vars
+# during config:cache — causing mysqldump to connect to 127.0.0.1/laravel
+# (Laravel's own hardcoded fallback defaults) instead of the real DB_HOST.
+# A production container should never ship a real .env at all — every
+# value must come from the platform's actual environment — so delete it
+# here rather than track down the exact phpdotenv precedence rule involved.
+RUN rm -f .env
 
 # 9. Install Node dependencies & build Vite assets
 RUN npm ci && npm run build
