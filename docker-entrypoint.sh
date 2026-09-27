@@ -9,11 +9,31 @@ a2dismod mpm_prefork 2>/dev/null || true
 # Force enable only mpm_prefork for PHP
 a2enmod mpm_prefork
 
-# Bake config/route/view/event caches now, once per container start — this
-# is the earliest point Railway's runtime env vars (APP_KEY, DB credentials,
-# etc.) are actually available, so it can't happen at Docker build time.
-# Without this, Laravel re-parses config and recompiles Blade on every
-# request in production, which was the primary cause of slow login/nav.
+# IMPORTANT: composer.json's own post-install-cmd hook runs `artisan
+# config:cache` (and route/view:cache) DURING `composer install` in the
+# Docker build step — before Railway's runtime env vars (DB_HOST, DB_
+# DATABASE, etc.) exist, since those are only injected when the container
+# actually starts. That bakes bootstrap/cache/config.php into the image
+# with Laravel's raw fallback defaults (127.0.0.1, database "laravel",
+# user "root", empty password). Once that file exists, Laravel trusts it
+# completely and stops re-reading config/*.php or calling env() for any
+# command — so simply re-running `config:cache` here does NOT refresh
+# anything from the live environment, it just re-serializes the same
+# stale values back to the same file. `config:clear` (and the matching
+# route/view/event clears) deletes the stale cache first, forcing a truly
+# fresh read of the real runtime environment before we re-cache it below.
+# Skipping this step was the root cause of the backup service dumping the
+# wrong database at the wrong host for most of one evening's debugging,
+# despite every environment variable being correctly set the whole time.
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+php artisan event:clear
+
+# Bake config/route/view/event caches now, once per container start, using
+# the environment we just confirmed is fresh. Without this, Laravel
+# re-parses config and recompiles Blade on every request in production,
+# which was the primary cause of slow login/nav.
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
