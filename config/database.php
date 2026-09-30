@@ -17,7 +17,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    'default' => env('DB_CONNECTION', 'mysql'),
 
     /*
     |--------------------------------------------------------------------------
@@ -62,6 +62,18 @@ return [
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
+            // spatie/laravel-backup shells out to the `mysqldump` CLI binary directly —
+            // it does not go through the PDO connection above, so PDO::MYSQL_ATTR_SSL_CA
+            // has no effect on it. Railway's MySQL TCP proxy presents a self-signed
+            // certificate, and MySQL 8's mysqldump client verifies the server cert by
+            // default, so the dump fails with "TLS/SSL error: self-signed certificate
+            // in certificate chain" even though the app's own PDO connection (which
+            // doesn't verify by default) works fine. This only weakens the dump
+            // connection's transport, which already runs over Railway's private proxy
+            // tunnel — it doesn't touch the app's normal database connection at all.
+            'dump' => [
+                'add_extra_option' => '--skip-ssl',
+            ],
         ],
 
         'mariadb' => [
@@ -82,8 +94,12 @@ return [
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
+            // Same mysqldump-vs-self-signed-cert issue as the mysql connection above.
+            'dump' => [
+                'add_extra_option' => '--skip-ssl',
+            ],
         ],
-
+    
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),
