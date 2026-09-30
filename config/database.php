@@ -72,7 +72,7 @@ return [
             // connection's transport, which already runs over Railway's private proxy
             // tunnel — it doesn't touch the app's normal database connection at all.
             'dump' => [
-                'add_extra_option' => '--ssl-mode=DISABLED',
+                'add_extra_option' => '--skip-ssl',
             ],
         ],
 
@@ -96,7 +96,7 @@ return [
             ]) : [],
             // Same mysqldump-vs-self-signed-cert issue as the mysql connection above.
             'dump' => [
-                'add_extra_option' => '--ssl-mode=DISABLED',
+                'add_extra_option' => '--skip-ssl',
             ],
         ],
     
