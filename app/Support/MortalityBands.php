@@ -59,4 +59,28 @@ class MortalityBands
 
         return self::forWeeklyPct(($deaths / $flockSize) * 100);
     }
+
+    /** Band labels at or above "abnormal" (weekly mortality above 0.20%). */
+    private const WATCHLIST_LABELS = [
+        'abnormal',
+        'highly abnormal',
+        'severe mortality event',
+        'extreme, outbreak-level signal',
+    ];
+
+    /**
+     * Expert early-warning signs and Philippine disease watch list, shown only
+     * when the band is abnormal or worse. Empty string otherwise. Wording only.
+     */
+    public static function watchlist(?array $band): string
+    {
+        if ($band === null || ! in_array($band['label'], self::WATCHLIST_LABELS, true)) {
+            return '';
+        }
+
+        return ' Check for: feed intake 2-5% below normal, abnormal water intake, egg production down 3-5% or more,'
+            . ' smaller eggs, weak shells, quiet or panting birds, changed droppings.'
+            . ' Philippine surveillance list: Newcastle disease, avian influenza, infectious bronchitis,'
+            . ' fowl typhoid/Salmonella, E. coli, Mycoplasma.';
+    }
 }

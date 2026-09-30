@@ -34,4 +34,23 @@ class MortalityBandsTest extends TestCase
         // 35 deaths in a 10,000-bird flock = 0.35% -> abnormal.
         $this->assertSame('abnormal', MortalityBands::forDeaths(35, 10000)['label']);
     }
+
+    public function test_watchlist_only_appears_for_abnormal_or_worse(): void
+    {
+        $this->assertSame('', MortalityBands::watchlist(null));
+        $this->assertSame('', MortalityBands::watchlist(MortalityBands::forWeeklyPct(0.05)));
+        $this->assertSame('', MortalityBands::watchlist(MortalityBands::forWeeklyPct(0.15)));
+        foreach ([0.21, 0.6, 1.5, 3.2] as $pct) {
+            $text = MortalityBands::watchlist(MortalityBands::forWeeklyPct($pct));
+            $this->assertStringContainsString('Newcastle', $text, "pct {$pct}");
+            $this->assertStringContainsString('feed intake', $text, "pct {$pct}");
+        }
+    }
+
+    public function test_full_alert_suffix_stays_short(): void
+    {
+        $band = MortalityBands::forWeeklyPct(0.6);
+        $suffix = sprintf(' Expert scale: %s — %s.', $band['label'], $band['action']) . MortalityBands::watchlist($band);
+        $this->assertLessThan(700, strlen($suffix));
+    }
 }

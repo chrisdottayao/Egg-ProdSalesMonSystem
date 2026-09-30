@@ -134,6 +134,18 @@
                         </span>
                     @endforeach
                 </div>
+                @php
+                    $season = \App\Support\SeasonalRisk::forMonth(now('Asia/Manila')->month);
+                    $seasonDot = ['red' => 'bg-red-500', 'orange' => 'bg-orange-400', 'green' => 'bg-[#4CAF50]'][$season['color']];
+                @endphp
+                <div class="mt-3 pt-3 border-t border-gray-100">
+                    <p class="text-xs font-semibold text-gray-600 flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full {{ $seasonDot }}"></span>
+                        {{ $season['level'] }}
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1">{{ $season['note'] }}</p>
+                    <p class="text-[10px] text-gray-400 mt-1">Expert seasonal guide</p>
+                </div>
             @else
                 <div class="text-lg font-medium text-gray-400 mt-1">No weather data yet</div>
                 <p class="text-xs text-gray-400 mt-1">Run <code class="bg-gray-100 px-1 rounded">php artisan weather:backfill</code> to populate history.</p>

@@ -500,7 +500,7 @@ class RecommendationService
     {
         return $band === null
             ? ''
-            : sprintf(' Expert scale: %s — %s.', $band['label'], $band['action']);
+            : sprintf(' Expert scale: %s — %s.', $band['label'], $band['action']) . MortalityBands::watchlist($band);
     }
 
     private function evaluateRisingMortalityPerBuilding(HenBatch $batch, Collection $rows): void
