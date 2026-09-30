@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\CattleRecord;
 use App\Models\CullRecord;
 use App\Models\EggProduction;
 use App\Models\EggSale;
@@ -49,17 +48,6 @@ class DatabaseSeeder extends Seeder
             'entry_date' => '2024-06-01',
             'notes'      => 'Layer hens — Batch B (culled)',
         ]);
-
-        // ── Cattle Records ─────────────────────────────────────
-        foreach ([
-            ['ear_tag' => 'CT-001', 'status' => 'Active',   'entry_date' => '2023-03-10', 'notes' => 'Bull'],
-            ['ear_tag' => 'CT-002', 'status' => 'Active',   'entry_date' => '2023-05-20', 'notes' => 'Cow'],
-            ['ear_tag' => 'CT-003', 'status' => 'Sold',     'entry_date' => '2023-08-01', 'notes' => 'Sold Oct 2024'],
-            ['ear_tag' => 'CT-004', 'status' => 'Active',   'entry_date' => '2024-01-05', 'notes' => 'Heifer'],
-            ['ear_tag' => 'CT-005', 'status' => 'Deceased', 'entry_date' => '2024-04-12', 'notes' => 'Natural death'],
-        ] as $c) {
-            CattleRecord::firstOrCreate(['ear_tag' => $c['ear_tag']], $c);
-        }
 
         // ── Egg Production & Sales (61 days: 60 days ago → today) ────
         for ($day = 0; $day <= 60; $day++) {

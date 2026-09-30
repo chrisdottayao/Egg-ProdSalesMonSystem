@@ -26,6 +26,9 @@ Route::redirect('/', '/dashboard');
 // network and no live session (see public/sw.js's navigation handler).
 Route::get('/offline', [OfflineController::class, 'index'])->name('offline');
 
+// Shown to people who signed up (Google or /register) and await admin approval.
+Route::view('/pending-approval', 'auth.pending-approval')->name('pending-approval');
+
 // Fresh CSRF token for offline background sync replay
 Route::get('/api/csrf-token', [SyncConflictController::class, 'csrfToken'])
     ->middleware(['web', 'auth']);
@@ -135,6 +138,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::post('/users', [UserController::class, 'store'])->name('users.store');
         Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
+        Route::post('/users/{user}/approve', [UserController::class, 'approve'])->name('users.approve');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     });
 

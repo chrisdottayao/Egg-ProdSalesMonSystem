@@ -16,6 +16,36 @@
         <div class="bg-red-50 border-l-4 border-red-500 px-4 py-3 rounded-lg text-sm text-red-800">{{ session('error') }}</div>
     @endif
 
+    @if($pending->isNotEmpty())
+        <div class="bg-yellow-50 border border-yellow-300 rounded-lg p-4 space-y-3">
+            <p class="text-sm font-bold text-yellow-900">{{ $pending->count() }} sign-in{{ $pending->count() > 1 ? 's' : '' }} awaiting your approval &mdash; they cannot access the system until you approve.</p>
+            @foreach($pending as $p)
+                <div class="bg-white rounded-lg border border-yellow-200 p-3 flex flex-wrap items-center justify-between gap-3">
+                    <div class="text-sm">
+                        <span class="font-semibold">{{ $p->name }}</span>
+                        <span class="text-gray-500">&lt;{{ $p->email }}&gt;</span>
+                        <span class="text-xs text-gray-400 ml-2">{{ $p->google_id ? 'via Google' : 'via registration' }} &middot; {{ $p->created_at->diffForHumans() }}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <form method="POST" action="{{ route('users.approve', $p) }}" class="flex items-center gap-2">
+                            @csrf
+                            <select name="role" class="px-2 py-1.5 border border-gray-300 rounded text-sm">
+                                @foreach(['staff','manager','admin'] as $r)
+                                    <option value="{{ $r }}" {{ $r === 'staff' ? 'selected' : '' }}>{{ ucfirst($r) }}</option>
+                                @endforeach
+                            </select>
+                            <button type="submit" class="bg-[#4CAF50] text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-green-600">Approve</button>
+                        </form>
+                        <form method="POST" action="{{ route('users.destroy', $p) }}" onsubmit="return confirm('Reject and delete {{ $p->name }}?')">
+                            @csrf @method('DELETE')
+                            <button type="submit" class="px-3 py-1.5 rounded text-sm border border-red-300 text-red-600 hover:bg-red-50">Reject</button>
+                        </form>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    @endif
+
     {{-- Add User Modal --}}
     <div x-show="showCreate" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div class="bg-white rounded-lg p-6 max-w-md w-full">
@@ -96,6 +126,9 @@
                                 <span class="px-2 py-1 rounded text-xs font-semibold {{ $loginMethod === 'Google only' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700' }}">
                                     {{ $loginMethod }}
                                 </span>
+                                @unless($user->approved_at)
+                                    <span class="px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-700 ml-1">Pending</span>
+                                @endunless
                             </td>
                             <td class="py-3 text-sm">
                                 <div class="flex items-center justify-center gap-1">

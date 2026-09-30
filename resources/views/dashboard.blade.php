@@ -2,6 +2,12 @@
 <div class="space-y-6">
     <h1 class="text-2xl font-bold text-gray-800">Dashboard</h1>
 
+    @if(($pendingApprovals ?? 0) > 0)
+        <a href="{{ route('users.index') }}" class="block bg-yellow-50 border-l-4 border-yellow-500 px-4 py-3 rounded-lg text-sm text-yellow-900 hover:bg-yellow-100">
+            <strong>{{ $pendingApprovals }}</strong> new sign-in{{ $pendingApprovals > 1 ? 's are' : ' is' }} waiting for your approval. Review in Users Management &rarr;
+        </a>
+    @endif
+
     {{-- Metric Cards --}}
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-[#4CAF50] hover:shadow-lg transition-shadow">
@@ -73,7 +79,10 @@
                 <div class="mt-3 flex items-center gap-2">
                     <span class="text-xs px-2 py-1 rounded-full font-semibold
                         {{ $forecast['mape'] < 5 ? 'bg-green-100 text-green-700' : ($forecast['mape'] <= 15 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700') }}">
-                        PHP-ML &mdash; MAPE: {{ $forecast['mape'] }}% &mdash; retrained weekly
+                        PHP-ML &mdash; MAPE: {{ $forecast['mape'] }}% &mdash; auto-retrained weekly
+                    </span>
+                    <span class="text-xs text-gray-500" title="Model refits automatically when the last training run is over 7 days old">
+                        Last retrained: {{ $lastTrained ? $lastTrained->timezone('Asia/Manila')->format('M d, Y g:i A').' ('.$lastTrained->diffForHumans().')' : 'not yet recorded' }}
                     </span>
                 </div>
             @else

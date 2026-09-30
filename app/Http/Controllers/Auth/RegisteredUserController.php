@@ -44,8 +44,9 @@ class RegisteredUserController extends Controller
 
         event(new Registered($user));
 
-        Auth::login($user);
+        // Not approved → no session. An admin must approve first.
+        \App\Support\AccessRequests::notifyAdmins($user);
 
-        return redirect(route('dashboard', absolute: false));
+        return redirect()->route('pending-approval');
     }
 }

@@ -30,6 +30,10 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
+            // Factory users are approved by default — the same convention as
+            // any other "happy path" factory default. Tests exercising the
+            // pending-approval gate override this explicitly (approved_at: null).
+            'approved_at' => now(),
         ];
     }
 

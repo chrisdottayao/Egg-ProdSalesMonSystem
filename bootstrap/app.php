@@ -21,6 +21,10 @@ return Application::configure(basePath: dirname(__DIR__))
                 | Request::HEADER_X_FORWARDED_AWS_ELB,
         );
 
+        // Every request from a signed-in but not-yet-approved account is
+        // bounced, no matter which route or login method created the session.
+        $middleware->appendToGroup('web', \App\Http\Middleware\EnsureApproved::class);
+
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureRole::class,
         ]);

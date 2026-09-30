@@ -9,8 +9,9 @@ class UserController extends Controller
 {
     public function index()
     {
-        $users = User::latest()->paginate(20);
-        return view('users.index', compact('users'));
+        $users   = User::orderByRaw('approved_at IS NOT NULL')->latest()->paginate(20);
+        $pending = User::whereNull('approved_at')->latest()->get();
+        return view('users.index', compact('users', 'pending'));
     }
 
     public function store(Request $request)
@@ -24,7 +25,8 @@ class UserController extends Controller
 
         // No manual Hash::make() needed — the model casts 'password' as
         // 'hashed', which hashes plain text on assignment automatically.
-        User::create($validated);
+        // Admin-created accounts are approved immediately.
+        User::create($validated + ['approved_at' => now(), 'approved_by' => auth()->id()]);
 
         return redirect()->route('users.index')->with('success', 'User created successfully.');
     }
@@ -49,6 +51,20 @@ class UserController extends Controller
         $user->update($validated);
 
         return redirect()->route('users.index')->with('success', 'User updated.');
+    }
+
+    public function approve(Request $request, User $user)
+    {
+        $validated = $request->validate(['role' => 'required|in:admin,manager,staff']);
+
+        $user->update([
+            'role'        => $validated['role'],
+            'approved_at' => now(),
+            'approved_by' => auth()->id(),
+        ]);
+
+        return redirect()->route('users.index')
+            ->with('success', "{$user->name} approved as {$validated['role']}. They can now sign in.");
     }
 
     public function destroy(User $user)

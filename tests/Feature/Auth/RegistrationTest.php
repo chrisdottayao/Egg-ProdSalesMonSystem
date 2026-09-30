@@ -16,7 +16,7 @@ class RegistrationTest extends TestCase
         $response->assertStatus(200);
     }
 
-    public function test_new_users_can_register(): void
+    public function test_new_users_register_pending_admin_approval(): void
     {
         $response = $this->post('/register', [
             'name' => 'Test User',
@@ -25,7 +25,10 @@ class RegistrationTest extends TestCase
             'password_confirmation' => 'password',
         ]);
 
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        // Registration no longer logs the user in — an admin must approve
+        // the account first (see ApprovalGateTest for the full gate).
+        $this->assertGuest();
+        $response->assertRedirect(route('pending-approval'));
+        $this->assertNull(\App\Models\User::where('email', 'test@example.com')->value('approved_at'));
     }
 }

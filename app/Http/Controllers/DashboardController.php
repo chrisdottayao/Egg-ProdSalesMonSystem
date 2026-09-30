@@ -6,6 +6,7 @@ use App\Models\AnomalyAlert;
 use App\Models\CullRecord;
 use App\Models\EggProduction;
 use App\Models\EggSale;
+use App\Models\ForecastEvaluation;
 use App\Models\HenBatch;
 use App\Models\WeatherDaily;
 use App\Services\AiInsightService;
@@ -19,6 +20,8 @@ use Illuminate\Support\Facades\Auth;
 
 class DashboardController extends Controller
 {
+    private const RETRAIN_AFTER_DAYS = 7;
+
 
     public function index(Request $request)
     {
@@ -83,7 +86,27 @@ class DashboardController extends Controller
         $recommendations = (new RecommendationService)->getRecommendations();
 
         // ── Predictive forecast ──────────────────────────────────────────────
-        $forecast = (new ForecastService)->forecast();
+        // Automatic retraining: no scheduler needed. If the newest saved
+        // training run is older than RETRAIN_AFTER_DAYS (or none exists yet)
+        // and there is enough data for a live forecast, refit and record it.
+        // The weekly `forecast:retrain` job still runs when a scheduler is up.
+        $forecastService = new ForecastService;
+        $forecast        = $forecastService->forecast();
+        $lastTrained     = ForecastEvaluation::latest('evaluated_at')->value('evaluated_at');
+
+        if ($forecast['active'] && (! $lastTrained || Carbon::parse($lastTrained)->lt(now()->subDays(self::RETRAIN_AFTER_DAYS)))) {
+            try {
+                $forecast    = $forecastService->forecast(persist: true);
+                $lastTrained = ForecastEvaluation::latest('evaluated_at')->value('evaluated_at');
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Auto-retrain failed: '.$e->getMessage());
+            }
+        }
+        $lastTrained = $lastTrained ? Carbon::parse($lastTrained) : null;
+
+        $pendingApprovals = Auth::user()?->role === 'admin'
+            ? \App\Models\User::whereNull('approved_at')->count()
+            : 0;
 
         // ── Weather context (read-only — dashboard never calls Open-Meteo live) ──
         // "Latest" means most recent OBSERVED/current reading — capped at
@@ -121,7 +144,7 @@ class DashboardController extends Controller
             'stats', 'recentActivity',
             'productionChartData', 'revenueChartData',
             'anomalyAlerts', 'recommendations',
-            'forecast', 'latestWeather', 'weatherTrend',
+            'forecast', 'lastTrained', 'pendingApprovals', 'latestWeather', 'weatherTrend',
             'window', 'perfStart', 'perfEnd', 'buildings', 'farmOverview'
         ));
     }

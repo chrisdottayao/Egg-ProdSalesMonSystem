@@ -9,6 +9,7 @@ use App\Models\EggProduction;
 use App\Models\EggSale;
 use App\Models\FlockAlert;
 use App\Models\HenBatch;
+use App\Support\MortalityBands;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -464,7 +465,7 @@ class RecommendationService
     {
         $records = EggProduction::orderByDesc('date')
             ->take(self::MORTALITY_BASELINE_DAYS)
-            ->get(['date', 'mortality']);
+            ->get(['date', 'mortality', 'active_hens']);
 
         if ($records->count() < self::MORTALITY_BASELINE_DAYS) {
             return;
@@ -475,6 +476,10 @@ class RecommendationService
         $condition = 'Rising Mortality (Farm-wide)';
 
         if ($mean30 > 0 && $mean7 > $mean30 * (1 + self::MORTALITY_SPIKE_PCT / 100)) {
+            $band = MortalityBands::forDeaths(
+                $records->take(self::MORTALITY_TRAILING_DAYS)->sum('mortality'),
+                $records->first()->active_hens
+            );
             $this->openOrTouch(
                 null,
                 $condition,
@@ -482,12 +487,20 @@ class RecommendationService
                 sprintf(
                     'Farm-wide 7-day average mortality (%.1f/day) is %.0f%% above the 30-day average (%.1f/day).',
                     $mean7, (($mean7 - $mean30) / $mean30) * 100, $mean30
-                ),
+                ) . self::bandSuffix($band),
                 $records->take(self::MORTALITY_TRAILING_DAYS)->last()->date
             );
         } else {
             $this->markNormalDay(null, $condition);
         }
+    }
+
+    /** Expert severity band (MortalityBands) appended to a mortality alert; empty when it cannot be computed. */
+    private static function bandSuffix(?array $band): string
+    {
+        return $band === null
+            ? ''
+            : sprintf(' Expert scale: %s — %s.', $band['label'], $band['action']);
     }
 
     private function evaluateRisingMortalityPerBuilding(HenBatch $batch, Collection $rows): void
@@ -504,6 +517,7 @@ class RecommendationService
         $condition = 'Rising Mortality (Building)';
 
         if ($mean30 > 0 && $mean7 > $mean30 * (1 + self::MORTALITY_SPIKE_PCT / 100)) {
+            $band = MortalityBands::forDeaths($tail7->sum('mortality'), $tail7->last()->population);
             $this->openOrTouch(
                 $batch->id,
                 $condition,
@@ -511,7 +525,7 @@ class RecommendationService
                 sprintf(
                     'This building\'s 7-day average mortality (%.1f/day) is %.0f%% above its own 30-day average (%.1f/day) — a farm-wide average can hide a single sick house.',
                     $mean7, (($mean7 - $mean30) / $mean30) * 100, $mean30
-                ),
+                ) . self::bandSuffix($band),
                 $tail7->first()->date
             );
         } else {

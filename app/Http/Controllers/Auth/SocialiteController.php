@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\AccessRequests;
 use Illuminate\Support\Facades\Auth;
 use Laravel\Socialite\Facades\Socialite;
 
@@ -50,7 +51,15 @@ class SocialiteController extends Controller
                     'password'          => null,
                     'email_verified_at' => now(),
                     'role'              => 'staff', // Default role for your app
+                    // approved_at stays NULL: a brand-new Google sign-in gets
+                    // NO access until an admin approves it.
                 ]);
+
+                AccessRequests::notifyAdmins($user);
+            }
+
+            if (! $user->isApproved()) {
+                return redirect()->route('pending-approval');
             }
 
             Auth::login($user);
