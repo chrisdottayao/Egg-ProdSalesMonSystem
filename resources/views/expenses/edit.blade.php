@@ -1,6 +1,6 @@
 <x-app-layout>
 <div class="space-y-6">
-    <h1 class="text-2xl font-bold text-gray-800">Edit Expense</h1>
+    <h1 class="text-2xl font-bold text-gray-800">Edit Utility Expense</h1>
 
     <div class="bg-white rounded-lg shadow-md p-6" x-data="{ category: '{{ old('category', $expense->category) }}', isRecurring: {{ old('is_recurring', $expense->is_recurring) ? 'true' : 'false' }} }">
         <form method="POST" action="{{ route('expenses.update', $expense) }}" enctype="multipart/form-data" class="space-y-4">
@@ -30,11 +30,18 @@
 
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Category</label>
-                    <select name="category" x-model="category" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required>
-                        @foreach(\App\Models\Expense::CATEGORIES as $key => $meta)
-                            <option value="{{ $key }}" {{ old('category', $expense->category) === $key ? 'selected' : '' }}>{{ $meta['label'] }}</option>
-                        @endforeach
-                    </select>
+                    @if($expense->is_archived_category)
+                        {{-- Recorded before the Utility Expenses change (S19): keep its category, read-only. --}}
+                        <input type="hidden" name="category" value="{{ $expense->category }}" />
+                        <div class="w-full px-3 py-2 border border-gray-200 bg-gray-100 rounded-lg text-gray-700">{{ $expense->category_label }}</div>
+                        <p class="text-xs text-gray-500 mt-1">Category no longer used for new entries; kept for this older record.</p>
+                    @else
+                        <select name="category" x-model="category" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required>
+                            @foreach(\App\Models\Expense::activeCategories() as $key => $meta)
+                                <option value="{{ $key }}" {{ old('category', $expense->category) === $key ? 'selected' : '' }}>{{ $meta['label'] }}</option>
+                            @endforeach
+                        </select>
+                    @endif
                     @error('category')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
                 </div>
 
@@ -142,7 +149,7 @@
 
             <div class="flex gap-2">
                 <button type="submit" class="bg-[#4CAF50] text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors font-medium">
-                    Update Expense
+                    Update Utility Expense
                 </button>
                 <a href="{{ route('expenses.index') }}" class="bg-gray-100 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-200 transition-colors font-medium">
                     Cancel

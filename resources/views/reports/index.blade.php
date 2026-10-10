@@ -69,7 +69,7 @@
                 <div class="text-2xl font-bold text-[#4CAF50]">₱{{ number_format($summary['total_revenue'], 0) }}</div>
             </div>
             <div class="p-4 bg-gray-50 rounded-lg">
-                <div class="text-xs text-gray-500 mb-1">Total Expenses</div>
+                <div class="text-xs text-gray-500 mb-1">Total Utility Expenses</div>
                 <div class="text-2xl font-bold text-gray-800">₱{{ number_format($summary['total_expenses'], 0) }}</div>
             </div>
             <div class="p-4 bg-gray-50 rounded-lg">
@@ -119,7 +119,7 @@
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Eggs Sold</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Mortality</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Revenue</th>
-                        <th class="text-right py-3 text-sm font-semibold text-gray-700">Expenses</th>
+                        <th class="text-right py-3 text-sm font-semibold text-gray-700">Utility Expenses</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Prod Rate</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Remaining</th>
                     </tr>

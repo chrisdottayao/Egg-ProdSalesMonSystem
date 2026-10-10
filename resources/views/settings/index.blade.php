@@ -7,7 +7,7 @@
     @endif
 
     <div class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-2">Expense Estimate Defaults</h2>
+        <h2 class="text-lg font-bold text-gray-800 mb-2">Utility Expense Estimate Defaults</h2>
         <p class="text-sm text-gray-500 mb-4">
             These are market-reference placeholders, not confirmed farm figures — feed comes through the owner's
             partner (kasosyo) and neither managers nor the production manager currently know the real price, and

@@ -33,6 +33,11 @@ class ExpenseController extends Controller
             $query->forBuilding((int) $buildingFilter);
         }
 
+        // Only active (Utility Expenses) categories are filterable; an old
+        // link carrying a retired category falls back to "All".
+        if (! in_array($category, Expense::ACTIVE_CATEGORIES, true)) {
+            $category = null;
+        }
         if ($category) {
             $query->category($category);
         }
@@ -68,7 +73,7 @@ class ExpenseController extends Controller
 
         Expense::create($data);
 
-        return redirect()->route('expenses.index')->with('success', 'Expense recorded.');
+        return redirect()->route('expenses.index')->with('success', 'Utility expense recorded.');
     }
 
     public function edit(Expense $expense)
@@ -86,7 +91,7 @@ class ExpenseController extends Controller
 
     public function update(Request $request, Expense $expense)
     {
-        $validated = $this->validateExpense($request);
+        $validated = $this->validateExpense($request, $expense);
         $data      = $this->prepareData($validated, $request);
 
         if ($request->hasFile('receipt')) {
@@ -98,7 +103,7 @@ class ExpenseController extends Controller
 
         $expense->update($data);
 
-        return redirect()->route('expenses.index')->with('success', 'Expense updated.');
+        return redirect()->route('expenses.index')->with('success', 'Utility expense updated.');
     }
 
     public function destroy(Expense $expense)
@@ -108,7 +113,7 @@ class ExpenseController extends Controller
         }
         $expense->delete();
 
-        return redirect()->route('expenses.index')->with('success', 'Expense deleted.');
+        return redirect()->route('expenses.index')->with('success', 'Utility expense deleted.');
     }
 
     // ── Farm-wide summary (read-only) ───────────────────────────────────────
@@ -119,8 +124,12 @@ class ExpenseController extends Controller
 
         $expenses = Expense::where('date', '>=', $start)->get();
 
-        $byCategory = collect(Expense::CATEGORIES)->keys()
+        $byCategory = collect(Expense::ACTIVE_CATEGORIES)
             ->mapWithKeys(fn ($cat) => [$cat => (float) $expenses->where('category', $cat)->sum('amount')]);
+
+        // Rows recorded before S19 under now-retired categories are still in
+        // the totals, so show them as one line instead of hiding the gap.
+        $archivedAmount = (float) $expenses->whereNotIn('category', Expense::ACTIVE_CATEGORIES)->sum('amount');
 
         $byMonth = $expenses->groupBy(fn ($e) => $e->date->format('Y-m'))
             ->map(fn ($rows) => [
@@ -151,18 +160,25 @@ class ExpenseController extends Controller
             ->values();
 
         return view('expenses.summary', compact(
-            'byCategory', 'byMonth', 'totalAmount', 'estimatedAmount', 'recurring', 'start'
+            'byCategory', 'archivedAmount', 'byMonth', 'totalAmount', 'estimatedAmount', 'recurring', 'start'
         ));
     }
 
     // ── Shared validation/shaping for store() and update() ──────────────────
 
-    private function validateExpense(Request $request): array
+    private function validateExpense(Request $request, ?Expense $existing = null): array
     {
+        // New records: active categories only. Editing an old row may keep
+        // its retired category (shown read-only in the edit form).
+        $allowedCategories = Expense::ACTIVE_CATEGORIES;
+        if ($existing && $existing->is_archived_category) {
+            $allowedCategories[] = $existing->category;
+        }
+
         $rules = [
             'date'         => 'required|date',
             'building_id'  => 'nullable|exists:hen_batches,id',
-            'category'     => 'required|string|in:' . implode(',', array_keys(Expense::CATEGORIES)),
+            'category'     => 'required|string|in:' . implode(',', $allowedCategories),
             'description'  => 'required|string|max:255',
             'supplier'     => 'nullable|string|max:255',
             'is_estimated' => 'nullable|boolean',

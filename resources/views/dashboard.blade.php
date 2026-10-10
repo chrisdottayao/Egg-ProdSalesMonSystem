@@ -208,9 +208,9 @@
                     <div class="text-2xl font-bold text-gray-800">₱{{ number_format($farmOverview['farmRevenue'], 2) }}</div>
                 </div>
                 <div class="p-4 rounded-lg border-l-4 {{ $farmOverview['farmNet'] >= 0 ? 'border-[#4CAF50]' : 'border-red-500' }} bg-gray-50">
-                    <div class="text-gray-600 text-sm mb-1">Net (Revenue &minus; Expenses)</div>
+                    <div class="text-gray-600 text-sm mb-1">Net (Revenue &minus; Utility Expenses)</div>
                     <div class="text-2xl font-bold {{ $farmOverview['farmNet'] >= 0 ? 'text-gray-800' : 'text-red-600' }}">₱{{ number_format($farmOverview['farmNet'], 2) }}</div>
-                    <div class="text-xs text-gray-500 mt-1">Expenses: ₱{{ number_format($farmOverview['farmExpenses'], 2) }}</div>
+                    <div class="text-xs text-gray-500 mt-1">Utility Expenses: ₱{{ number_format($farmOverview['farmExpenses'], 2) }}</div>
                 </div>
             </div>
         @endif
