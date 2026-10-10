@@ -96,14 +96,16 @@ class LatestEntry
         return $this->ids;
     }
 
-    /** "Added 10:42 AM" today, "Added Oct 9, 10:42 AM" on another day. */
+    /** "Added 10:42 AM" today, "Added Oct 9, 10:42 AM" on another day — farm (Manila) time, not the app's UTC. */
     public function addedLabel(): string
     {
         if (! $this->at) {
             return '';
         }
 
-        return 'Added ' . ($this->at->isToday() ? $this->at->format('g:i A') : $this->at->format('M j, g:i A'));
+        $at = $this->at->copy()->setTimezone(ManilaDate::TZ);
+
+        return 'Added ' . ($at->isSameDay(ManilaDate::today()) ? $at->format('g:i A') : $at->format('M j, g:i A'));
     }
 
     private static function withoutImportedRows(Collection $candidates): Collection

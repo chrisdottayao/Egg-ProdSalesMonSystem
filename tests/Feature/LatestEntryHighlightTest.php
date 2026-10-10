@@ -54,7 +54,8 @@ class LatestEntryHighlightTest extends TestCase
         $this->assertCount(1, $rows);
         $this->assertStringContainsString('second-sale', $rows[0]);
         $this->assertStringContainsString('Latest entry (highlighted until the next one is saved)', $page);
-        $this->assertStringContainsString('Added 8:30 AM', $rows[0]);
+        // Saved at 08:30 UTC = 4:30 PM in Manila; the pill shows farm time.
+        $this->assertStringContainsString('Added 4:30 PM', $rows[0]);
 
         // A plain reload, later, with no flash data: still highlighted.
         $this->travel(3)->hours();
