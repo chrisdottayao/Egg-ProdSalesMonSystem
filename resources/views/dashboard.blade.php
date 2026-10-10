@@ -493,11 +493,14 @@ window.initBuildingChart = function (container, buildingId) {
         },
         options: {
             responsive: true,
-            plugins: { legend: { display: true, labels: { font: { size: 10 } } } },
+            plugins: {
+                title:  { display: true, text: 'Production Rate Trend' },
+                legend: { display: true, labels: { font: { size: 10 } } },
+            },
             scales: {
-                x: { ticks: { maxTicksLimit: 10, font: { size: 11 } }, grid: { display: false } },
-                y:  { position: 'left', min: 0, max: 100, ticks: { font: { size: 11 }, callback: v => v + '%' } },
-                y1: { position: 'right', min: 60, max: 95, grid: { drawOnChartArea: false }, ticks: { font: { size: 11 } } },
+                x: { title: { display: true, text: 'Date' }, ticks: { maxTicksLimit: 10, font: { size: 11 } }, grid: { display: false } },
+                y:  { title: { display: true, text: 'Production rate (%)' }, position: 'left', min: 0, max: 100, ticks: { font: { size: 11 }, callback: v => v + '%' } },
+                y1: { title: { display: true, text: 'THI' }, position: 'right', min: 60, max: 95, grid: { drawOnChartArea: false }, ticks: { font: { size: 11 } } },
             }
         }
     });
@@ -558,10 +561,13 @@ window.initBuildingChart = function (container, buildingId) {
             data: { labels: allLabels, datasets: prodDatasets },
             options: {
                 responsive: true,
-                plugins: { legend: { display: forecastActive } },
+                plugins: {
+                    title:  { display: true, text: 'Egg Production Trend' },
+                    legend: { display: true },
+                },
                 scales: {
-                    x: { ticks: { maxTicksLimit: 10, font: { size: 11 } }, grid: { display: false } },
-                    y: { ticks: { font: { size: 11 } }, beginAtZero: false }
+                    x: { title: { display: true, text: 'Date' }, ticks: { maxTicksLimit: 10, font: { size: 11 } }, grid: { display: false } },
+                    y: { title: { display: true, text: 'Eggs collected' }, ticks: { font: { size: 11 } }, beginAtZero: false }
                 }
             }
         });
@@ -601,12 +607,13 @@ window.initBuildingChart = function (container, buildingId) {
             options: {
                 responsive: true,
                 plugins: {
-                    legend: { display: forecastActive },
+                    title:   { display: true, text: 'Sales Revenue Trend' },
+                    legend:  { display: true },
                     tooltip: { callbacks: { label: ctx => '₱' + (ctx.parsed.y ?? 0).toLocaleString() } }
                 },
                 scales: {
-                    x: { ticks: { font: { size: 11 } }, grid: { display: false } },
-                    y: { ticks: { callback: v => '₱' + v.toLocaleString(), font: { size: 11 } }, beginAtZero: true }
+                    x: { title: { display: true, text: 'Date' }, ticks: { font: { size: 11 } }, grid: { display: false } },
+                    y: { title: { display: true, text: 'Revenue (₱)' }, ticks: { callback: v => '₱' + v.toLocaleString(), font: { size: 11 } }, beginAtZero: true }
                 }
             }
         });
@@ -657,10 +664,13 @@ window.initBuildingChart = function (container, buildingId) {
             },
             options: {
                 responsive: true,
-                plugins: { legend: { display: thiForecast.some(v => v !== null), labels: { font: { size: 10 } } } },
+                plugins: {
+                    title:  { display: true, text: 'Temperature Trend' },
+                    legend: { display: true, labels: { font: { size: 10 } } },
+                },
                 scales: {
-                    x: { ticks: { maxTicksLimit: 10, font: { size: 11 } }, grid: { display: false } },
-                    y: { ticks: { font: { size: 11 } }, beginAtZero: false }
+                    x: { title: { display: true, text: 'Date' }, ticks: { maxTicksLimit: 10, font: { size: 11 } }, grid: { display: false } },
+                    y: { title: { display: true, text: 'Temperature (°C)' }, ticks: { font: { size: 11 } }, beginAtZero: false }
                 }
             }
         });
