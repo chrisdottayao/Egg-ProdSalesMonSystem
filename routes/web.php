@@ -58,6 +58,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/production/{production}/edit', [EggProductionController::class, 'edit'])->name('productions.edit');
     Route::patch('/production/{production}', [EggProductionController::class, 'update'])->name('productions.update');
     Route::delete('/production/{production}', [EggProductionController::class, 'destroy'])->name('productions.destroy');
+    Route::delete('/production/buildings/{buildingDaily}', [EggProductionController::class, 'destroyBuildingRow'])->name('productions.buildings.destroy');
 
     // Egg Sales
     Route::get('/sales', [EggSaleController::class, 'index'])->name('sales.index');

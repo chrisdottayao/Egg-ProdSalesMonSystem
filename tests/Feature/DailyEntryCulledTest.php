@@ -113,12 +113,12 @@ class DailyEntryCulledTest extends TestCase
     {
         $this->b2->update(['ended_at' => '2026-10-10']);
 
-        $cull = $this->actingAs($this->staff)->get(route('cull.index'))->getContent();
-        $this->assertStringNotContainsString('value="' . $this->b2->id . '"', $cull);
-
-        $expenses = $this->actingAs($this->staff)->get(route('expenses.index'))->getContent();
-        // Once in the filter dropdown (marked culled), not in the entry form.
-        $this->assertSame(1, substr_count($expenses, 'value="' . $this->b2->id . '"'));
-        $this->assertStringContainsString('(culled)', $expenses);
+        // Each page lists it once — in its history filter (marked culled) —
+        // and not in its entry form.
+        foreach (['cull.index', 'expenses.index'] as $route) {
+            $html = $this->actingAs($this->staff)->get(route($route))->getContent();
+            $this->assertSame(1, substr_count($html, 'value="' . $this->b2->id . '"'), $route);
+            $this->assertStringContainsString('(culled)', $html, $route);
+        }
     }
 }

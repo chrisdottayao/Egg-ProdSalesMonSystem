@@ -114,12 +114,22 @@
         <div class="flex items-center gap-3 flex-wrap mb-4">
             <h2 class="text-lg font-bold text-gray-800">Cull Records</h2>
             <x-latest-entry.legend :latest="$latest" />
+            <form method="GET" action="{{ route('cull.index') }}" class="ml-auto flex items-center gap-2">
+                <label for="cull_building_id" class="text-sm text-gray-600">Building</label>
+                <select id="cull_building_id" name="building_id" onchange="this.form.submit()" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
+                    <option value="">All</option>
+                    @foreach($filterBuildings as $b)
+                        <option value="{{ $b->id }}" @selected($buildingFilter === $b->id)>{{ $b->display_label }}{{ $b->isEnded() ? ' (culled)' : '' }}</option>
+                    @endforeach
+                </select>
+            </form>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead>
                     <tr class="border-b">
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Date</th>
+                        <th class="text-left py-3 text-sm font-semibold text-gray-700">Building</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Chickens Culled</th>
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Reason</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Heads Sold</th>
@@ -137,6 +147,7 @@
                                 {{ $record->date->format('Y-m-d') }}
                                 @if($isLatest)<x-latest-entry.pill :latest="$latest" />@endif
                             </td>
+                            <td class="py-3 text-sm text-gray-700">{{ $record->henBatch?->display_label ?? '—' }}</td>
                             <td class="text-right py-3 text-sm font-semibold text-orange-600">{{ number_format($record->quantity_culled) }}</td>
                             <td class="py-3 text-sm text-gray-700">{{ $record->reason ?? '—' }}</td>
                             <td class="text-right py-3 text-sm">{{ $record->heads_sold ? number_format($record->heads_sold) : '—' }}</td>
@@ -155,7 +166,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="py-8 text-center text-gray-400 text-sm">No cull records yet.</td></tr>
+                        <tr><td colspan="9" class="py-8 text-center text-gray-400 text-sm">No cull records yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

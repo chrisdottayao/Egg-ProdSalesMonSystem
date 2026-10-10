@@ -335,7 +335,11 @@
                                 <td colspan="7" class="bg-gray-50 border-b p-4">
                                     <div class="flex items-center justify-between mb-2">
                                         <h3 class="text-sm font-bold text-gray-800">{{ $rowLabel }}</h3>
-                                        <button type="button" @click.stop="toggle()" class="text-xs text-gray-400 hover:text-gray-600">Collapse</button>
+                                        <div class="flex items-center gap-4">
+                                            {{-- S4: this building's own daily records (edit/delete from there). --}}
+                                            <a href="{{ route('productions.index', ['building_id' => $row['building']->id]) }}" class="text-xs font-semibold text-[#4CAF50] hover:underline">Production records &rarr;</a>
+                                            <button type="button" @click.stop="toggle()" class="text-xs text-gray-400 hover:text-gray-600">Collapse</button>
+                                        </div>
                                     </div>
                                     <div x-show="loading" class="text-sm text-gray-400 py-6 text-center">Loading&hellip;</div>
                                     <div x-show="error" x-text="error" class="text-sm text-red-600 py-4"></div>

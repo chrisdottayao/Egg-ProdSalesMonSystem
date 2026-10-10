@@ -22,20 +22,64 @@ class EggProductionController extends Controller
     // TODO: calibrate if profiling on real hardware suggests a different size
     private const IMPORT_CHUNK_SIZE = 500;
 
-    public function index()
+    public function index(Request $request)
     {
         $productions = EggProduction::latest('date')->paginate(20);
         $activeHens  = HenBatch::activeHenCount();
 
+        // S4: per-building view. egg_productions is the farm-wide daily rollup
+        // (no building column), so filtering by building lists that building's
+        // own building_daily rows instead. Ended buildings stay selectable so
+        // their history remains reachable.
+        $filterBuildings = HenBatch::tracked()->whereNotNull('building_no')
+            ->orderByRaw('COALESCE(display_no, building_no) ASC')->get();
+        $selectedBuilding = $filterBuildings->firstWhere('id', (int) $request->input('building_id'));
+        $buildingRows = $selectedBuilding
+            ? BuildingDaily::with(['henBatch', 'user'])->where('hen_batch_id', $selectedBuilding->id)
+                ->latest('date')->paginate(20)->withQueryString()
+            : null;
+
         // THI context alongside each row's date — read-only, no prediction here.
-        $dates = $productions->pluck('date')->map(fn ($d) => $d->format('Y-m-d'));
+        $dates = ($buildingRows ?? $productions)->pluck('date')->map(fn ($d) => $d->format('Y-m-d'));
         $weatherByDate = WeatherDaily::whereIn('date', $dates)
             ->get(['date', 'thi'])
             ->keyBy(fn ($w) => $w->date->format('Y-m-d'));
 
         $latest = LatestEntry::for(EggProduction::class);
 
-        return view('productions.index', compact('productions', 'activeHens', 'weatherByDate', 'latest'));
+        return view('productions.index', compact(
+            'productions', 'activeHens', 'weatherByDate', 'latest',
+            'filterBuildings', 'selectedBuilding', 'buildingRows'
+        ));
+    }
+
+    /**
+     * S4: delete one building's row for one day from the per-building view.
+     * BuildingDaily's deleted hook re-runs the farm-wide rollup for that date.
+     */
+    public function destroyBuildingRow(BuildingDaily $buildingDaily)
+    {
+        $this->denyPastRecordChangeForStaff($buildingDaily->date);
+
+        $label = $buildingDaily->henBatch?->display_label;
+        $date  = $buildingDaily->date->toDateString();
+        $buildingDaily->delete();
+
+        AuditLog::create([
+            'user_id'    => auth()->id(),
+            'action'     => 'delete',
+            'model_type' => 'BuildingDaily',
+            'model_id'   => $buildingDaily->id,
+            'details'    => [
+                'building'   => $label,
+                'date'       => $date,
+                'population' => $buildingDaily->population,
+                'eggs_house' => $buildingDaily->eggs_house,
+            ],
+        ]);
+
+        return redirect()->route('productions.index', ['building_id' => $buildingDaily->hen_batch_id])
+            ->with('success', "Deleted {$label}'s entry for {$date}.");
     }
 
     public function store(Request $request)

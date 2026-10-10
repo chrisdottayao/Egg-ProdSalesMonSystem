@@ -45,6 +45,16 @@ class HenBatch extends Model
         return $query->whereNull('ended_at');
     }
 
+    /**
+     * Buildings that were still running on $date: not ended, or ended after
+     * it. Lets an admin correct a past day of a building culled since then;
+     * a building culled on $date itself is excluded from that day on.
+     */
+    public function scopeRunningOn(Builder $query, string $date): Builder
+    {
+        return $query->where(fn ($q) => $q->whereNull('ended_at')->orWhereDate('ended_at', '>', $date));
+    }
+
     public function isEnded(): bool
     {
         return $this->ended_at !== null;

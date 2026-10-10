@@ -48,8 +48,9 @@ class DailyEntryController extends Controller
         // and corrupt the rollup with population/eggs that belong to no building.
         // ->tracked(): only the 3 actively-tracked buildings (3M). Ordered by
         // the DISPLAYED number (3N), not the real building_no.
-        // ->notEnded(): a building marked culled (S3) drops out of the form.
-        $batches = HenBatch::where('status', 'Active')->whereNotNull('building_no')->tracked()->notEnded()
+        // ->runningOn(): a building marked culled (S3) drops out of the form from
+        // its culling date on (it still shows on earlier dates, for corrections).
+        $batches = HenBatch::where('status', 'Active')->whereNotNull('building_no')->tracked()->runningOn($date->toDateString())
             ->orderByRaw('COALESCE(display_no, building_no) ASC')->get();
 
         $existingRows = BuildingDaily::whereDate('date', $date)
@@ -144,7 +145,7 @@ class DailyEntryController extends Controller
         // Only hen_batch_ids that actually belong to an active, numbered, tracked,
         // not-ended building — a stale hidden input can't be used to write an
         // arbitrary building_daily row, or a row for a building already culled (S3).
-        $validBatchIds = HenBatch::where('status', 'Active')->whereNotNull('building_no')->tracked()->notEnded()->pluck('id')->flip();
+        $validBatchIds = HenBatch::where('status', 'Active')->whereNotNull('building_no')->tracked()->runningOn($date)->pluck('id')->flip();
 
         DB::beginTransaction();
 

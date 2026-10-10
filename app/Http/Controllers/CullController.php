@@ -10,14 +10,20 @@ use Illuminate\Support\Carbon;
 
 class CullController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        // S4: building filter for the list — every tracked building, including
+        // ended (culled) ones, so their records stay reachable.
+        $filterBuildings = HenBatch::tracked()->orderByRaw('COALESCE(display_no, building_no) ASC')->get();
+        $buildingFilter  = $filterBuildings->firstWhere('id', (int) $request->input('building_id'))?->id;
+
         // Tracked-only (3N) — the dropdown above already used .tracked(), but
         // the list and monthly stats below it didn't, so they still showed
         // all 45 buildings' history even though only 3 were selectable.
         $cullRecords = CullRecord::with('henBatch')
             ->whereHas('henBatch', fn ($q) => $q->tracked())
-            ->latest('date')->paginate(20);
+            ->when($buildingFilter, fn ($q) => $q->where('hen_batch_id', $buildingFilter))
+            ->latest('date')->paginate(20)->withQueryString();
         // Entry dropdown: a building already ended (culled, S3) can't be culled again.
         $henBatches  = HenBatch::where('status', 'Active')->tracked()->notEnded()->orderBy('batch_id')->get();
 
@@ -53,7 +59,7 @@ class CullController extends Controller
 
         return view('cull.index', compact(
             'cullRecords', 'henBatches',
-            'monthStats', 'cullingAnomaly', 'latest'
+            'monthStats', 'cullingAnomaly', 'latest', 'filterBuildings', 'buildingFilter'
         ));
     }
 
