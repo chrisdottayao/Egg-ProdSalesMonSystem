@@ -98,11 +98,11 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="bg-white rounded-lg shadow-md p-6">
             <h2 class="text-lg font-bold text-gray-800 mb-4">Production Trend</h2>
-            <canvas id="prodTrendChart" height="120"></canvas>
+            <div class="relative h-64 sm:h-72"><canvas id="prodTrendChart"></canvas></div>
         </div>
         <div class="bg-white rounded-lg shadow-md p-6">
             <h2 class="text-lg font-bold text-gray-800 mb-4">Revenue Trend</h2>
-            <canvas id="revTrendChart" height="120"></canvas>
+            <div class="relative h-64 sm:h-72"><canvas id="revTrendChart"></canvas></div>
         </div>
     </div>
     @endif
@@ -387,6 +387,7 @@
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     title:  { display: true, text: 'Egg Production Trend' },
                     legend: { display: true },
@@ -419,6 +420,7 @@
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     title:   { display: true, text: 'Sales Revenue Trend' },
                     legend:  { display: true },

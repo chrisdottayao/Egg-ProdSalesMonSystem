@@ -74,7 +74,7 @@
                 <h2 class="text-lg font-bold text-gray-800">Production Trend</h2>
                 <p class="text-sm text-gray-500">Last 30 days{{ $forecast['active'] ? ' + 7-day forecast' : '' }}</p>
             </div>
-            <canvas id="productionChart" height="130"></canvas>
+            <div class="relative h-64 sm:h-72"><canvas id="productionChart"></canvas></div>
             @if($forecast['active'])
                 <div class="mt-3 flex items-center gap-2">
                     <span class="text-xs px-2 py-1 rounded-full font-semibold
@@ -98,7 +98,7 @@
                 <h2 class="text-lg font-bold text-gray-800">Revenue Trend</h2>
                 <p class="text-sm text-green-600">{{ $forecast['active'] ? 'Last 10 days + 30-day forecast' : 'Last 10 days of sales' }}</p>
             </div>
-            <canvas id="revenueChart" height="130"></canvas>
+            <div class="relative h-64 sm:h-72"><canvas id="revenueChart"></canvas></div>
         </div>
     </div>
 
@@ -157,7 +157,7 @@
                 <h2 class="text-lg font-bold text-gray-800">Temperature Trend</h2>
                 <p class="text-sm text-gray-500">Last 7 days + 7-day forecast (dashed, from Open-Meteo) &mdash; heat-stress context, not a prediction by this app</p>
             </div>
-            <canvas id="thiChart" height="90"></canvas>
+            <div class="relative h-56 sm:h-60"><canvas id="thiChart"></canvas></div>
         </div>
     </div>
 
@@ -561,6 +561,7 @@ window.initBuildingChart = function (container, buildingId) {
             data: { labels: allLabels, datasets: prodDatasets },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     title:  { display: true, text: 'Egg Production Trend' },
                     legend: { display: true },
@@ -606,6 +607,7 @@ window.initBuildingChart = function (container, buildingId) {
             data: { labels: allRevLabels, datasets: revDatasets },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     title:   { display: true, text: 'Sales Revenue Trend' },
                     legend:  { display: true },
@@ -664,6 +666,7 @@ window.initBuildingChart = function (container, buildingId) {
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     title:  { display: true, text: 'Temperature Trend' },
                     legend: { display: true, labels: { font: { size: 10 } } },
