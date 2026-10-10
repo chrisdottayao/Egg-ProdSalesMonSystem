@@ -108,17 +108,13 @@
         </div>
 
         {{-- Egg Grading Daily table --}}
+        {{-- S9: the totals caption sits beside the grading table (right column)
+             at lg widths and stacks below it on smaller screens. --}}
         <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <h2 class="text-lg font-bold text-gray-800">Egg Grading (farm-wide)</h2>
-                <div class="text-sm text-gray-600">
-                    Grading total: <span id="gradingTotal" class="font-bold text-[#4CAF50]">0</span>
-                    <span class="mx-2 text-gray-300">|</span>
-                    vs Eggs House total: <span id="buildingEggsTotalEcho" class="font-bold text-gray-700">0</span>
-                </div>
-            </div>
+            <h2 class="text-lg font-bold text-gray-800 mb-4">Egg Grading (farm-wide)</h2>
 
-            <div class="overflow-x-auto">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            <div class="overflow-x-auto lg:col-span-2">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="border-b">
@@ -152,6 +148,20 @@
                         @endforeach
                     </tbody>
                 </table>
+            </div>
+
+            <aside class="lg:col-span-1 lg:sticky lg:top-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3 text-sm">
+                <div class="flex items-baseline justify-between gap-2">
+                    <span class="text-gray-600">Grading total</span>
+                    <span id="gradingTotal" class="text-xl font-bold text-[#4CAF50]">0</span>
+                </div>
+                <div class="flex items-baseline justify-between gap-2">
+                    <span class="text-gray-600">Eggs House total</span>
+                    <span id="buildingEggsTotalEcho" class="text-xl font-bold text-gray-700">0</span>
+                </div>
+                <div id="gradingMatch" class="rounded px-2 py-1 text-xs font-semibold bg-gray-100 text-gray-500">—</div>
+                <p class="text-xs text-gray-500 border-t border-gray-200 pt-3">Farm-level grading output by category — no building column, since grading happens once for the whole farm at the egg room. The grading total is compared against the Eggs House total from the buildings table above.</p>
+            </aside>
             </div>
         </div>
 
@@ -309,6 +319,28 @@
         });
         document.getElementById('buildingEggsTotal').textContent = total.toLocaleString();
         document.getElementById('buildingEggsTotalEcho').textContent = total.toLocaleString();
+        buildingEggsTotal = total;
+        updateGradingMatch();
+    }
+
+    // Match/mismatch indicator in the caption beside the grading table.
+    let buildingEggsTotal = 0;
+    let gradingTotal      = 0;
+    function updateGradingMatch() {
+        const el = document.getElementById('gradingMatch');
+        if (!el) return;
+        const base = 'rounded px-2 py-1 text-xs font-semibold ';
+        if (gradingTotal === 0 && buildingEggsTotal === 0) {
+            el.className = base + 'bg-gray-100 text-gray-500';
+            el.textContent = '—';
+        } else if (gradingTotal === buildingEggsTotal) {
+            el.className = base + 'bg-green-100 text-green-700';
+            el.textContent = 'Totals match';
+        } else {
+            const diff = gradingTotal - buildingEggsTotal;
+            el.className = base + 'bg-orange-100 text-orange-700';
+            el.textContent = 'Mismatch: grading is ' + Math.abs(diff).toLocaleString() + (diff > 0 ? ' more' : ' fewer') + ' than Eggs House';
+        }
     }
 
     function setRowSkipped(row, skipped) {
@@ -354,6 +386,8 @@
         let total = 0;
         gradingRows.forEach(row => { total += recomputeGradingRow(row); });
         document.getElementById('gradingTotal').textContent = total.toLocaleString();
+        gradingTotal = total;
+        updateGradingMatch();
     }
 
     gradingRows.forEach(row => {
