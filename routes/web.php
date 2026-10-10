@@ -143,6 +143,11 @@ Route::middleware('auth')->group(function () {
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     });
 
+    // Add a building from the UI (admin + manager, S17)
+    Route::middleware('role:admin,manager')->group(function () {
+        Route::post('/flock-records/buildings', [LivestockController::class, 'storeBuilding'])->name('flock-records.buildings.store');
+    });
+
     // Reopen a building marked culled by mistake (admin only, S3)
     Route::middleware('role:admin')->group(function () {
         Route::patch('/flock-records/hens/{henBatch}/reopen', [LivestockController::class, 'reopenHen'])->name('flock-records.hens.reopen');

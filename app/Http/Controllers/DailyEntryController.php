@@ -70,7 +70,10 @@ class DailyEntryController extends Controller
 
             return [
                 'batch'        => $batch,
-                'population'   => $existing->population ?? $previous->net_birds ?? null,
+                // A building with no rows yet (just added, S17) starts from its
+                // starting hen count.
+                'population'   => $existing->population ?? $previous->net_birds
+                    ?? ($batch->buildingDailies()->exists() ? null : $batch->batch_size),
                 'mortality'    => $existing->mortality ?? null,
                 'feed_bags'    => $existing->feed_bags ?? null,
                 'eggs_house'   => $existing->eggs_house ?? null,
