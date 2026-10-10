@@ -13,6 +13,10 @@ use Illuminate\Support\Facades\DB;
 
 class DailyEntryController extends Controller
 {
+    // Same packing EggGradingDaily::booted() uses: 1 case = 12 trays = 360 pcs.
+    private const PCS_PER_CASE = 360;
+    private const PCS_PER_TRAY = 30;
+
     public function index(Request $request)
     {
         $date         = $request->query('date') ? Carbon::parse($request->query('date')) : Carbon::today();
@@ -60,10 +64,8 @@ class DailyEntryController extends Controller
         $gradingRows = collect(EggGradingDaily::CATEGORIES)->map(function (string $category) use ($existingGrading) {
             $existing = $existingGrading->get($category);
             return [
-                'category' => $category,
-                'cases'    => $existing->cases ?? null,
-                'trays'    => $existing->trays ?? null,
-                'pieces'   => $existing->pieces ?? null,
+                'category'  => $category,
+                'total_pcs' => $existing->total_pcs ?? null,
             ];
         });
 
@@ -89,6 +91,7 @@ class DailyEntryController extends Controller
             'grading.*.cases'             => 'nullable|integer|min:0',
             'grading.*.trays'             => 'nullable|integer|min:0',
             'grading.*.pieces'            => 'nullable|integer|min:0',
+            'grading.*.total_pcs'         => 'nullable|integer|min:0',
         ];
 
         // population/eggs_house are required per row UNLESS that row is marked
@@ -182,13 +185,29 @@ class DailyEntryController extends Controller
                     continue;
                 }
 
-                $cases  = (int) ($row['cases'] ?? 0);
-                $trays  = (int) ($row['trays'] ?? 0);
-                $pieces = (int) ($row['pieces'] ?? 0);
+                // S10/S22: the form sends one total per size. Never trust the
+                // browser's cases/trays/pieces split — derive it here. A
+                // submission without total_pcs falls back to the old fields.
+                $totalPcs = isset($row['total_pcs']) && $row['total_pcs'] !== ''
+                    ? (int) $row['total_pcs']
+                    : ((int) ($row['cases'] ?? 0)) * self::PCS_PER_CASE
+                        + ((int) ($row['trays'] ?? 0)) * self::PCS_PER_TRAY
+                        + (int) ($row['pieces'] ?? 0);
+
+                // Only sizes with a value are saved; 0/blank means no row
+                // (and clears a row saved earlier for this date).
+                if ($totalPcs <= 0) {
+                    EggGradingDaily::whereDate('date', $date)->where('category', $category)->delete();
+                    continue;
+                }
 
                 EggGradingDaily::updateOrCreate(
                     ['date' => $date, 'category' => $category],
-                    ['cases' => $cases, 'trays' => $trays, 'pieces' => $pieces]
+                    [
+                        'cases'  => intdiv($totalPcs, self::PCS_PER_CASE),
+                        'trays'  => intdiv($totalPcs % self::PCS_PER_CASE, self::PCS_PER_TRAY),
+                        'pieces' => $totalPcs % self::PCS_PER_TRAY,
+                    ]
                 );
 
                 $gradingSaved++;

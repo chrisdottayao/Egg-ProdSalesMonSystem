@@ -119,35 +119,36 @@
                     <thead>
                         <tr class="border-b">
                             <th class="text-left py-2 px-1 font-semibold text-gray-700">Category</th>
-                            <th class="text-right py-2 px-1 font-semibold text-gray-700">Cases</th>
-                            <th class="text-right py-2 px-1 font-semibold text-gray-700">Trays</th>
-                            <th class="text-right py-2 px-1 font-semibold text-gray-700">Pieces</th>
-                            <th class="text-right py-2 px-1 font-semibold text-gray-700">Total Pcs</th>
+                            <th class="text-right py-2 px-1 font-semibold text-gray-700">Total Pieces</th>
+                            <th class="text-right py-2 px-1 font-semibold text-gray-500">Cases</th>
+                            <th class="text-right py-2 px-1 font-semibold text-gray-500">Trays</th>
+                            <th class="text-right py-2 px-1 font-semibold text-gray-500">Pieces</th>
                         </tr>
                     </thead>
                     <tbody>
+                        {{-- S10/S22: staff type one number per size; cases/trays/pieces are
+                             derived (1 case = 360 pcs = 12 trays, 1 tray = 30 pcs) and sent as
+                             hidden fields. The server recomputes them from total_pcs anyway. --}}
                         @foreach($gradingRows as $row)
+                            @php $cat = $row['category']; @endphp
                             <tr class="border-b last:border-0 grading-row">
-                                <td class="py-1 px-1 font-medium text-gray-700">{{ $row['category'] }}</td>
-                                <td class="py-1 px-1">
-                                    <input type="number" min="0" name="grading[{{ $row['category'] }}][cases]" value="{{ old("grading.{$row['category']}.cases", $row['cases']) }}"
-                                           class="grading-cases w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
-                                </td>
-                                <td class="py-1 px-1">
-                                    <input type="number" min="0" name="grading[{{ $row['category'] }}][trays]" value="{{ old("grading.{$row['category']}.trays", $row['trays']) }}"
-                                           class="grading-trays w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
-                                </td>
-                                <td class="py-1 px-1">
-                                    <input type="number" min="0" name="grading[{{ $row['category'] }}][pieces]" value="{{ old("grading.{$row['category']}.pieces", $row['pieces']) }}"
-                                           class="grading-pieces w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
-                                </td>
+                                <td class="py-1 px-1 font-medium text-gray-700">{{ $cat }}</td>
                                 <td class="py-1 px-1 text-right">
-                                    <span class="grading-total-display font-semibold text-gray-700">0</span>
+                                    <input type="number" min="0" step="1" name="grading[{{ $cat }}][total_pcs]" value="{{ old("grading.{$cat}.total_pcs", $row['total_pcs']) }}"
+                                           placeholder="0"
+                                           class="grading-total-input w-24 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
+                                    <input type="hidden" name="grading[{{ $cat }}][cases]"  class="grading-cases" />
+                                    <input type="hidden" name="grading[{{ $cat }}][trays]"  class="grading-trays" />
+                                    <input type="hidden" name="grading[{{ $cat }}][pieces]" class="grading-pieces" />
                                 </td>
+                                <td class="py-1 px-1 text-right"><span class="grading-cases-display text-gray-400">—</span></td>
+                                <td class="py-1 px-1 text-right"><span class="grading-trays-display text-gray-400">—</span></td>
+                                <td class="py-1 px-1 text-right"><span class="grading-pieces-display text-gray-400">—</span></td>
                             </tr>
                         @endforeach
                     </tbody>
                 </table>
+                <p class="text-xs text-gray-500 mt-3">Type the total pieces for each size. Cases and trays are computed automatically (1 case = 12 trays = 360 pcs; 1 tray = 30 pcs). Sizes left blank or 0 are not saved.</p>
             </div>
 
             <aside class="lg:col-span-1 lg:sticky lg:top-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3 text-sm">
@@ -373,12 +374,25 @@
     // Grading section
     const gradingRows = document.querySelectorAll('.grading-row');
 
+    const PCS_PER_CASE = 360, PCS_PER_TRAY = 30;
+
     function recomputeGradingRow(row) {
-        const cases  = parseFloat(row.querySelector('.grading-cases').value) || 0;
-        const trays  = parseFloat(row.querySelector('.grading-trays').value) || 0;
-        const pieces = parseFloat(row.querySelector('.grading-pieces').value) || 0;
-        const totalPcs = (cases * 360) + (trays * 30) + pieces;
-        row.querySelector('.grading-total-display').textContent = totalPcs.toLocaleString();
+        const totalPcs = Math.max(0, Math.floor(parseFloat(row.querySelector('.grading-total-input').value) || 0));
+        const hasValue = totalPcs > 0;
+        const parts = {
+            cases:  Math.floor(totalPcs / PCS_PER_CASE),
+            trays:  Math.floor((totalPcs % PCS_PER_CASE) / PCS_PER_TRAY),
+            pieces: totalPcs % PCS_PER_TRAY,
+        };
+        Object.entries(parts).forEach(([key, value]) => {
+            // Blank/0 sizes submit nothing and show "—" (not saved server-side).
+            row.querySelector('.grading-' + key).value = hasValue ? value : '';
+            const display = row.querySelector('.grading-' + key + '-display');
+            display.textContent = hasValue ? value.toLocaleString() : '—';
+            display.classList.toggle('text-gray-400', !hasValue);
+            display.classList.toggle('font-semibold', hasValue);
+            display.classList.toggle('text-gray-700', hasValue);
+        });
         return totalPcs;
     }
 
@@ -391,9 +405,7 @@
     }
 
     gradingRows.forEach(row => {
-        row.querySelectorAll('.grading-cases, .grading-trays, .grading-pieces').forEach(input => {
-            input.addEventListener('input', recomputeGradingTotal);
-        });
+        row.querySelector('.grading-total-input').addEventListener('input', recomputeGradingTotal);
     });
     recomputeGradingTotal();
 })();
