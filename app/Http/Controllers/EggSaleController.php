@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\EggGradingDaily;
 use App\Models\EggProduction;
 use App\Models\EggSale;
+use App\Support\EggPrices;
 use App\Support\LatestEntry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -44,7 +45,10 @@ class EggSaleController extends Controller
 
         $latest = LatestEntry::for(EggSale::class);
 
-        return view('sales.index', compact('sales', 'producedBySizeAndDate', 'latest'));
+        // S13: set prices per size, for the form's price auto-fill.
+        $eggPrices = EggPrices::all();
+
+        return view('sales.index', compact('sales', 'producedBySizeAndDate', 'latest', 'eggPrices'));
     }
 
     public function store(Request $request)
@@ -53,9 +57,15 @@ class EggSaleController extends Controller
             'date'           => $this->entryDateRules(true, $request->input('queued_at')),
             'egg_size'       => 'required|string',
             'quantity'       => 'required|integer|min:1',
-            'price_per_unit' => 'required|numeric|min:0',
+            'price_per_unit' => 'nullable|numeric|min:0',
             'notes'          => 'nullable|string',
         ]);
+
+        // S13: a blank price takes the admin-set price for that size.
+        $validated['price_per_unit'] = EggPrices::priceOrDefault($validated['price_per_unit'] ?? null, $validated['egg_size']);
+        if ($validated['price_per_unit'] === null) {
+            return back()->withInput()->withErrors(['price_per_unit' => 'Enter a price — no set price exists for this egg size.']);
+        }
 
         // Hard block: sold > produced on that date
         $produced = EggProduction::whereDate('date', $validated['date'])->sum('eggs_collected');
@@ -200,8 +210,9 @@ class EggSaleController extends Controller
                 continue;
             }
 
-            // Validate price_per_unit
-            $price = (float) ($data['price_per_unit'] ?? 0);
+            // Validate price_per_unit. S13: a blank price uses the admin-set
+            // price for that size; a price in the CSV is always kept.
+            $price = (float) EggPrices::priceOrDefault($data['price_per_unit'] ?? null, $eggSize);
             if ($price <= 0) {
                 $errors[] = "Row {$rowNumber} ({$date}): price_per_unit must be a positive number.";
                 $failed++;

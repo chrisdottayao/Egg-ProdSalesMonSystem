@@ -32,7 +32,7 @@
 
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Egg Size</label>
-                    <select name="egg_size" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]">
+                    <select name="egg_size" id="eggSize" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]">
                         @foreach(['Peewee','Small','Medium','Large','XL','Jumbo','No Value','No Weight','Dirty','Broken','Waste'] as $size)
                             <option value="{{ $size }}" {{ old('egg_size', 'Large') === $size ? 'selected' : '' }}>{{ $size }}</option>
                         @endforeach
@@ -48,8 +48,10 @@
 
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Price per Unit (₱)</label>
-                    <input type="number" name="price_per_unit" id="pricePerUnit" value="{{ old('price_per_unit', '9.00') }}" step="0.01" min="0" placeholder="0.00"
+                    <input type="number" name="price_per_unit" id="pricePerUnit" value="{{ old('price_per_unit', number_format($eggPrices[old('egg_size', 'Large')] ?? 0, 2, '.', '')) }}" step="0.01" min="0" placeholder="0.00"
+                        data-prices='@json($eggPrices)'
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required />
+                    <p class="text-xs text-gray-500 mt-1">Filled from the set price for this size; change it for a special price.</p>
                 </div>
 
                 <div>
@@ -320,6 +322,17 @@
 
     qtyInput?.addEventListener('input', recalc);
     priceInput?.addEventListener('input', recalc);
+
+    // S13: picking a size fills in its set price (Settings); still editable
+    // afterwards for a special price.
+    const eggPrices = JSON.parse(priceInput?.dataset.prices || '{}');
+    document.getElementById('eggSize')?.addEventListener('change', e => {
+        const price = eggPrices[e.target.value];
+        if (price !== undefined) {
+            priceInput.value = Number(price).toFixed(2);
+            recalc();
+        }
+    });
     recalc();
 </script>
 </x-app-layout>
