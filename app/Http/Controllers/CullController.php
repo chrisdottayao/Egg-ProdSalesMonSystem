@@ -60,7 +60,7 @@ class CullController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'date'            => 'required|date',
+            'date'            => $this->entryDateRules(),
             'hen_batch_id'    => 'nullable|exists:hen_batches,id',
             'quantity_culled' => 'required|integer|min:1',
             'reason'          => 'nullable|string|max:255',
@@ -79,6 +79,8 @@ class CullController extends Controller
 
     public function destroy(CullRecord $cullRecord)
     {
+        $this->denyPastRecordChangeForStaff($cullRecord->date);
+
         $cullRecord->delete();
         return redirect()->route('cull.index')->with('success', 'Cull record deleted.');
     }

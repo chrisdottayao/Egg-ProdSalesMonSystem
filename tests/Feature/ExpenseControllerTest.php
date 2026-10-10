@@ -12,6 +12,13 @@ class ExpenseControllerTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // The entries below are dated 2026-09-19; S16 only accepts today (Manila).
+        $this->travelTo('2026-09-19 02:00:00');
+    }
+
     public function test_feed_entry_computes_kg_total_and_amount_from_bags(): void
     {
         $user = User::factory()->create(['role' => 'staff']);

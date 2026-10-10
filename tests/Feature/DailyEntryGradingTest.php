@@ -12,6 +12,13 @@ class DailyEntryGradingTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // The entries below are dated 2026-09-19; S16 only accepts today (Manila).
+        $this->travelTo('2026-09-19 02:00:00');
+    }
+
     private function postEntry(array $grading, string $date = '2026-09-19')
     {
         $user  = User::factory()->create(['role' => 'staff']);

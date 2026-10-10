@@ -28,7 +28,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Date</label>
-                    <input type="date" name="date" value="{{ old('date', date('Y-m-d')) }}"
+                    <input type="date" name="date" value="{{ \App\Support\ManilaDate::todayString() }}" min="{{ \App\Support\ManilaDate::todayString() }}" max="{{ \App\Support\ManilaDate::todayString() }}" readonly title="Entries can only be recorded for today"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required />
                     @error('date')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
                 </div>
@@ -146,10 +146,12 @@
                             <td class="py-3 text-sm text-gray-700">{{ $record->buyer ?? '—' }}</td>
                             <td class="py-3 text-sm text-gray-600">{{ $record->notes ?? '—' }}</td>
                             <td class="text-right py-3 text-sm">
-                                <form method="POST" action="{{ route('cull.destroy', $record) }}" class="inline" onsubmit="return confirm('Delete this cull record?')">
-                                    @csrf @method('DELETE')
-                                    <button type="submit" class="text-red-600 hover:underline">Delete</button>
-                                </form>
+                                <x-past-record-guard :date="$record->date">
+                                    <form method="POST" action="{{ route('cull.destroy', $record) }}" class="inline" onsubmit="return confirm('Delete this cull record?')">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="text-red-600 hover:underline">Delete</button>
+                                    </form>
+                                </x-past-record-guard>
                             </td>
                         </tr>
                     @empty

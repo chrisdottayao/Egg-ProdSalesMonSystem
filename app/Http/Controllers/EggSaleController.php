@@ -50,7 +50,7 @@ class EggSaleController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'date'           => 'required|date',
+            'date'           => $this->entryDateRules(true, $request->input('queued_at')),
             'egg_size'       => 'required|string',
             'quantity'       => 'required|integer|min:1',
             'price_per_unit' => 'required|numeric|min:0',
@@ -77,13 +77,17 @@ class EggSaleController extends Controller
 
     public function edit(EggSale $sale)
     {
+        $this->denyPastRecordChangeForStaff($sale->date);
+
         return view('sales.edit', compact('sale'));
     }
 
     public function update(Request $request, EggSale $sale)
     {
+        $this->denyPastRecordChangeForStaff($sale->date);
+
         $validated = $request->validate([
-            'date'           => 'required|date',
+            'date'           => $this->entryDateRules(false),
             'egg_size'       => 'required|string',
             'quantity'       => 'required|integer|min:1',
             'price_per_unit' => 'required|numeric|min:0',
@@ -98,6 +102,8 @@ class EggSaleController extends Controller
 
     public function destroy(EggSale $sale)
     {
+        $this->denyPastRecordChangeForStaff($sale->date);
+
         $sale->delete();
         return redirect()->route('sales.index')->with('success', 'Sales record deleted.');
     }

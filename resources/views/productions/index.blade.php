@@ -20,7 +20,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Date</label>
-                    <input type="date" name="date" value="{{ old('date', date('Y-m-d')) }}"
+                    <input type="date" name="date" value="{{ \App\Support\ManilaDate::todayString() }}" min="{{ \App\Support\ManilaDate::todayString() }}" max="{{ \App\Support\ManilaDate::todayString() }}" readonly title="Entries can only be recorded for today"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required />
                     @error('date')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
                 </div>
@@ -101,11 +101,13 @@
                 <h2 class="text-lg font-bold text-gray-800">Production History</h2>
                 <x-latest-entry.legend :latest="$latest" />
             </div>
+            @if(auth()->user()->canManageRecords())
             <button @click="showHistoricalImport = true"
                 class="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                 Import Historical Logbooks
             </button>
+            @endif
         </div>
 
         {{-- Historical Logbook Import Modal --}}
@@ -249,11 +251,13 @@
                             </td>
                             <td class="py-3 text-sm text-gray-600">{{ $record->notes ?? '—' }}</td>
                             <td class="text-right py-3 text-sm space-x-2">
-                                <a href="{{ route('productions.edit', $record) }}" class="text-blue-600 hover:underline">Edit</a>
-                                <form method="POST" action="{{ route('productions.destroy', $record) }}" class="inline" onsubmit="return confirm('Delete this record?')">
-                                    @csrf @method('DELETE')
-                                    <button type="submit" class="text-red-600 hover:underline">Delete</button>
-                                </form>
+                                <x-past-record-guard :date="$record->date">
+                                    <a href="{{ route('productions.edit', $record) }}" class="text-blue-600 hover:underline">Edit</a>
+                                    <form method="POST" action="{{ route('productions.destroy', $record) }}" class="inline" onsubmit="return confirm('Delete this record?')">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="text-red-600 hover:underline">Delete</button>
+                                    </form>
+                                </x-past-record-guard>
                             </td>
                         </tr>
                     @empty

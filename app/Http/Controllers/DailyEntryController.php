@@ -9,6 +9,7 @@ use App\Models\EggGradingDaily;
 use App\Models\EggProduction;
 use App\Models\HenBatch;
 use App\Services\ProductionRollupService;
+use App\Support\ManilaDate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -21,7 +22,24 @@ class DailyEntryController extends Controller
 
     public function index(Request $request)
     {
-        $date         = $request->query('date') ? Carbon::parse($request->query('date')) : Carbon::today();
+        // S16: today (Manila) only. Admin/manager may still open a past date to
+        // correct it — Daily Entry is the only editor for per-building rows.
+        $today = ManilaDate::todayString();
+        $requested = $request->query('date');
+        if ($requested) {
+            try {
+                $requestedDay = Carbon::parse($requested)->toDateString();
+            } catch (\Throwable) {
+                $requestedDay = null;
+            }
+            $allowed = $requestedDay === $today
+                || ($requestedDay !== null && $requestedDay < $today && $request->user()->canManageRecords());
+            if (! $allowed) {
+                return redirect()->route('daily-entry.index')->with('date_notice', ManilaDate::MESSAGE);
+            }
+        }
+
+        $date         = Carbon::parse($requested ?: $today);
         $previousDate = $date->copy()->subDay();
 
         // whereNotNull('building_no'): a batch with no building number (e.g. legacy
@@ -82,7 +100,9 @@ class DailyEntryController extends Controller
     public function store(Request $request)
     {
         $baseRules = [
-            'date'                        => 'required|date',
+            'date'                        => $request->user()->canManageRecords()
+                ? ['required', 'date', 'before_or_equal:' . ManilaDate::todayString()]
+                : $this->entryDateRules(),
             'buildings'                   => 'required|array',
             'buildings.*.skip'            => 'nullable|boolean',
             'buildings.*.choice'          => 'nullable|in:skip,culled',

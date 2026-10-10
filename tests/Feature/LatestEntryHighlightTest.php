@@ -86,16 +86,16 @@ class LatestEntryHighlightTest extends TestCase
         ]);
 
         $this->actingAs($this->user)->post(route('daily-entry.store'), [
-            'date'      => '2026-10-09',
+            'date'      => '2026-10-10',
             'buildings' => [$batch->id => ['population' => 1500, 'eggs_house' => 1234, 'skip' => '0']],
         ])->assertSessionHas('latest_ids');
 
-        $written = EggProduction::whereDate('date', '2026-10-09')->firstOrFail();
+        $written = EggProduction::whereDate('date', '2026-10-10')->firstOrFail();
         $this->assertSame([$written->id], session('latest_ids'));
 
         $rows = $this->highlightedRows($this->actingAs($this->user)->get(route('productions.index'))->getContent());
         $this->assertCount(1, $rows);
-        $this->assertStringContainsString('2026-10-09', $rows[0]);
+        $this->assertStringContainsString('2026-10-10', $rows[0]);
         $this->assertStringContainsString('1,234', $rows[0]);
     }
 

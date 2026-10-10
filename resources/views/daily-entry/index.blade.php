@@ -2,13 +2,22 @@
 <div class="space-y-6">
     <div class="flex items-center justify-between flex-wrap gap-3">
         <h1 class="text-2xl font-bold text-gray-800">Daily Building &amp; Grading Entry</h1>
-        <form method="GET" action="{{ route('daily-entry.index') }}" class="flex items-center gap-2">
-            <label class="text-sm text-gray-600">Date</label>
-            <input type="date" name="date" value="{{ $date->format('Y-m-d') }}"
-                   onchange="this.form.submit()"
-                   class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
-        </form>
+        @if(auth()->user()->canManageRecords())
+            {{-- Admin/manager: today, or a past date to correct it (S16). --}}
+            <form method="GET" action="{{ route('daily-entry.index') }}" class="flex items-center gap-2">
+                <label class="text-sm text-gray-600">Date</label>
+                <input type="date" name="date" value="{{ $date->format('Y-m-d') }}" max="{{ \App\Support\ManilaDate::todayString() }}"
+                       onchange="this.form.submit()"
+                       class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
+            </form>
+        @else
+            <div class="text-sm text-gray-600">Recording for <span class="font-semibold text-gray-800">today, {{ $date->format('M d, Y') }}</span></div>
+        @endif
     </div>
+
+    @if(session('date_notice'))
+        <div class="bg-yellow-50 border-l-4 border-yellow-500 px-4 py-3 rounded-lg text-sm text-yellow-800">{{ session('date_notice') }} Showing today instead.</div>
+    @endif
 
     @if(session('success'))
         <div class="bg-green-50 border-l-4 border-green-500 px-4 py-3 rounded-lg text-sm text-green-800 flex items-center justify-between flex-wrap gap-2">
@@ -186,6 +195,7 @@
         </div>
     </form>
 
+    @if(auth()->user()->canManageRecords())
     {{-- ── Bulk / Historical Import ────────────────────────────────────────
          Separate from the day-to-day form above: use this for backfilling
          past dates from a spreadsheet instead of entering one date at a time. --}}
@@ -287,6 +297,7 @@
             </div>
         </div>
     </div>
+    @endif
 </div>
 
 <script>

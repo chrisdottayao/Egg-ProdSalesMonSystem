@@ -86,6 +86,8 @@ class ExpenseController extends Controller
 
     public function edit(Expense $expense)
     {
+        $this->denyPastRecordChangeForStaff($expense->date);
+
         // Running buildings, plus this expense's own building even if it has
         // since been culled, so editing never silently reassigns it.
         $buildings = HenBatch::where('status', 'Active')->tracked()
@@ -103,6 +105,8 @@ class ExpenseController extends Controller
 
     public function update(Request $request, Expense $expense)
     {
+        $this->denyPastRecordChangeForStaff($expense->date);
+
         $validated = $this->validateExpense($request, $expense);
         $data      = $this->prepareData($validated, $request);
 
@@ -120,6 +124,8 @@ class ExpenseController extends Controller
 
     public function destroy(Expense $expense)
     {
+        $this->denyPastRecordChangeForStaff($expense->date);
+
         if ($expense->receipt_path) {
             Storage::disk('public')->delete($expense->receipt_path);
         }
@@ -188,7 +194,7 @@ class ExpenseController extends Controller
         }
 
         $rules = [
-            'date'         => 'required|date',
+            'date'         => $this->entryDateRules($existing === null),
             'building_id'  => 'nullable|exists:hen_batches,id',
             'category'     => 'required|string|in:' . implode(',', $allowedCategories),
             'description'  => 'required|string|max:255',

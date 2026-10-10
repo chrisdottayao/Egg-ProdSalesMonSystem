@@ -12,7 +12,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Date</label>
-                    <input type="date" name="date" value="{{ old('date', $sale->date->format('Y-m-d')) }}"
+                    <input type="date" name="date" value="{{ old('date', $sale->date->format('Y-m-d')) }}" @unless(auth()->user()->canManageRecords()) min="{{ \App\Support\ManilaDate::todayString() }}" max="{{ \App\Support\ManilaDate::todayString() }}" readonly @endunless
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required />
                     @error('date')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
                 </div>

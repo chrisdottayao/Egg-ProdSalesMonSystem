@@ -57,6 +57,9 @@ function openClientDB() {
 }
 
 export async function saveOfflineEntry(type, data) {
+    // When it was recorded offline — the server's today-only rule (S16)
+    // accepts the entry's date if it matches this, even if it syncs later.
+    data = { ...data, queued_at: new Date().toISOString() };
     const db = await openClientDB();
     return new Promise((resolve, reject) => {
         const tx = db.transaction(IDB_STORE, 'readwrite');

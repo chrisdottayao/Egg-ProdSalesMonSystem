@@ -110,8 +110,11 @@ async function handlePost(request, type) {
         notifyClients({ type: 'SYNC_SUCCESS', entryType: type });
         return response;
     } catch {
-        // Network unavailable — queue the request body
-        const body = await request.text();
+        // Network unavailable — queue the request body, stamped with when it
+        // was queued: the server's today-only rule (S16) accepts an entry
+        // dated the day it was recorded offline, even if it syncs later.
+        const queuedAt = new Date().toISOString();
+        const body = (await request.text()) + '&queued_at=' + encodeURIComponent(queuedAt);
         await enqueue({ type, url: request.url, body, timestamp: Date.now() });
         notifyClients({ type: 'OFFLINE_QUEUED', entryType: type });
 
