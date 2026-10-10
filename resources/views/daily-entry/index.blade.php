@@ -196,106 +196,109 @@
     </form>
 
     @if(auth()->user()->canManageRecords())
-    {{-- ── Bulk / Historical Import ────────────────────────────────────────
-         Separate from the day-to-day form above: use this for backfilling
-         past dates from a spreadsheet instead of entering one date at a time. --}}
-    <div class="pt-6 border-t border-gray-200">
-        <h2 class="text-xl font-bold text-gray-800 mb-1">Bulk / Historical Import</h2>
-        <p class="text-sm text-gray-500 mb-4">Import per-building daily logs and farm-level egg grading data from a CSV — for backfilling historical dates, not today's entry. Pick the button that matches your file; the importer does not try to guess.</p>
+    {{-- ── Import data (S20) ───────────────────────────────────────────────
+         Historical backfill from CSV, separate from today's form above. Pick
+         Production, Sales or both; each file is imported on its own, so one
+         failing file does not undo another that succeeded. --}}
+    <div class="pt-6 border-t border-gray-200"
+         x-data="{ production: {{ in_array('production', old('types', [])) ? 'true' : 'false' }}, sales: {{ in_array('sales', old('types', [])) ? 'true' : 'false' }}, uploading: false }">
+        <h2 class="text-xl font-bold text-gray-800 mb-1">Import Data</h2>
+        <p class="text-sm text-gray-500 mb-4">Load past records from CSV files — for backfilling history, not today's entry. Choose what to import: production, sales, or both.</p>
 
-        @if(session('building_import_summary'))
-            @php $s = session('building_import_summary'); @endphp
-            <div class="p-4 bg-green-50 border border-green-300 rounded-lg text-sm mb-4">
-                <p class="font-bold text-green-800 mb-2">Building Daily Import Complete</p>
-                <ul class="space-y-1 text-green-700">
-                    <li><strong>{{ $s['imported'] }}</strong> rows imported, {{ $s['skipped'] }} skipped (duplicates)</li>
-                    <li>{{ $s['hen_batches_created'] }} hen batches created</li>
-                    @if($s['prod_rate_mismatches'] > 0)
-                        <li class="text-orange-700">{{ $s['prod_rate_mismatches'] }} prod_rate mismatches — see error log</li>
-                    @endif
-                    @if($s['errors'] > 0)
-                        <li class="text-orange-700">{{ $s['errors'] }} rows with errors
-                            @if(session('import_error_token'))
-                                &mdash; <a href="{{ route('imports.errors', session('import_error_token')) }}" class="underline font-semibold">Download error log</a>
+        @if(session('combined_import_results'))
+            @php
+                $summaryLabels = [
+                    'imported' => 'imported', 'skipped' => 'skipped (already recorded)', 'failed' => 'rejected',
+                    'errors' => 'rows with errors', 'hen_batches_created' => 'hen batches created',
+                    'prod_rate_mismatches' => 'prod-rate mismatches', 'total_pcs_mismatches' => 'total-pieces mismatches',
+                ];
+            @endphp
+            <div class="space-y-3 mb-4">
+                @foreach(session('combined_import_results') as $r)
+                    <div class="p-4 rounded-lg text-sm border {{ $r['ok'] ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300' }}">
+                        <p class="font-bold {{ $r['ok'] ? 'text-green-800' : 'text-red-800' }} mb-1">{{ $r['type'] }}: {{ $r['ok'] ? 'import complete' : 'not imported' }}</p>
+                        @if($r['ok'])
+                            <ul class="text-green-700 flex flex-wrap gap-x-4 gap-y-1">
+                                @foreach($r['summary'] as $key => $value)
+                                    @if(isset($summaryLabels[$key]))
+                                        <li><strong>{{ $value }}</strong> {{ $summaryLabels[$key] }}</li>
+                                    @endif
+                                @endforeach
+                            </ul>
+                            @if($r['error_url'])
+                                <a href="{{ $r['error_url'] }}" class="inline-block mt-1 underline font-semibold text-orange-700">Download error log</a>
                             @endif
-                        </li>
-                    @endif
-                </ul>
+                        @else
+                            <p class="text-red-700">{{ $r['message'] }}</p>
+                        @endif
+                    </div>
+                @endforeach
+                @if(collect(session('combined_import_results'))->contains('ok', false) && collect(session('combined_import_results'))->contains('ok', true))
+                    <p class="text-xs text-gray-600">Each file is imported separately: the files marked complete were saved even though another file failed.</p>
+                @endif
             </div>
         @endif
 
-        @if(session('grading_import_summary'))
-            @php $s = session('grading_import_summary'); @endphp
-            <div class="p-4 bg-green-50 border border-green-300 rounded-lg text-sm mb-4">
-                <p class="font-bold text-green-800 mb-2">Egg Grading Import Complete</p>
-                <ul class="space-y-1 text-green-700">
-                    <li><strong>{{ $s['imported'] }}</strong> rows imported, {{ $s['skipped'] }} skipped (duplicates)</li>
-                    @if($s['total_pcs_mismatches'] > 0)
-                        <li class="text-orange-700">{{ $s['total_pcs_mismatches'] }} total_pcs mismatches — see error log</li>
-                    @endif
-                    @if($s['errors'] > 0)
-                        <li class="text-orange-700">{{ $s['errors'] }} rows with errors
-                            @if(session('import_error_token'))
-                                &mdash; <a href="{{ route('imports.errors', session('import_error_token')) }}" class="underline font-semibold">Download error log</a>
-                            @endif
-                        </li>
-                    @endif
-                </ul>
-            </div>
-        @endif
+        <form method="POST" action="{{ route('imports.combined') }}" enctype="multipart/form-data" @submit="uploading = true"
+              class="bg-white rounded-lg shadow-md p-6 space-y-5">
+            @csrf
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {{-- Building Daily --}}
-            <div class="bg-white rounded-lg shadow-md p-6">
-                <h3 class="text-lg font-bold text-gray-800 mb-2">Building Daily</h3>
-                <p class="text-xs text-gray-500 mb-4">One row per building per day: population, mortality, feed, eggs, age. Matched to a hen batch by building_no.</p>
+            <fieldset>
+                <legend class="text-sm font-semibold text-gray-700 mb-2">What do you want to import?</legend>
+                <div class="flex flex-wrap gap-4">
+                    <label class="flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer" :class="production ? 'border-blue-500 bg-blue-50' : 'border-gray-300'">
+                        <input type="checkbox" name="types[]" value="production" x-model="production" class="rounded border-gray-300 text-blue-600" />
+                        <span class="text-sm font-medium text-gray-800">Production</span>
+                    </label>
+                    <label class="flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer" :class="sales ? 'border-blue-500 bg-blue-50' : 'border-gray-300'">
+                        <input type="checkbox" name="types[]" value="sales" x-model="sales" class="rounded border-gray-300 text-blue-600" />
+                        <span class="text-sm font-medium text-gray-800">Sales</span>
+                    </label>
+                </div>
+                @error('types')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
+            </fieldset>
 
-                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-xs text-blue-800">
-                    <p class="font-semibold mb-1">Expected CSV columns:</p>
-                    <p class="font-mono">date, building_no, population, mortality, net_birds, feed_bags, eggs_house, eggs_eggroom, soft_shell, age_weeks, prod_rate</p>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {{-- Production: building daily + egg grading --}}
+                <div x-show="production" x-cloak class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <h3 class="font-bold text-gray-800 mb-1">Building daily CSV</h3>
+                        <p class="text-xs text-gray-500 mb-2">One row per building per day. Matched to a building by building_no.</p>
+                        <p class="text-xs font-mono bg-blue-50 text-blue-800 rounded p-2 mb-2">date, building_no, population, mortality, net_birds, feed_bags, eggs_house, eggs_eggroom, soft_shell, age_weeks, prod_rate</p>
+                        <a href="{{ route('imports.building-daily.template') }}" class="text-sm text-blue-600 hover:underline">Download template</a>
+                        <input type="file" name="building_file" accept=".csv,.txt" class="block w-full mt-2 text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                        @error('building_file')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
+                    </div>
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <h3 class="font-bold text-gray-800 mb-1">Egg grading CSV</h3>
+                        <p class="text-xs text-gray-500 mb-2">Farm-level grading per size, per day.</p>
+                        <p class="text-xs font-mono bg-blue-50 text-blue-800 rounded p-2 mb-2">date, category, cases, trays, pieces, total_pcs</p>
+                        <a href="{{ route('imports.egg-grading.template') }}" class="text-sm text-blue-600 hover:underline">Download template</a>
+                        <input type="file" name="grading_file" accept=".csv,.txt" class="block w-full mt-2 text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                        @error('grading_file')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
+                    </div>
                 </div>
 
-                <a href="{{ route('imports.building-daily.template') }}" class="flex items-center gap-1 text-sm text-blue-600 hover:underline mb-4">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    Download CSV Template
-                </a>
-
-                <form method="POST" action="{{ route('imports.building-daily.import') }}" enctype="multipart/form-data">
-                    @csrf
-                    <input type="file" name="csv_file" accept=".csv,.txt" required
-                           class="block w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mb-4" />
-                    <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
-                        Import Building Daily
-                    </button>
-                </form>
-            </div>
-
-            {{-- Egg Grading Daily --}}
-            <div class="bg-white rounded-lg shadow-md p-6">
-                <h3 class="text-lg font-bold text-gray-800 mb-2">Egg Grading Daily</h3>
-                <p class="text-xs text-gray-500 mb-4">Farm-level grading output by category — no building column, since grading happens once for the whole farm at the egg room.</p>
-
-                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-xs text-blue-800">
-                    <p class="font-semibold mb-1">Expected CSV columns:</p>
-                    <p class="font-mono">date, category, cases, trays, pieces, total_pcs</p>
-                    <p class="mt-1">Categories: No Value, No Weight, Peewee, Small, Medium, Large, XLarge, Jumbo, Broken, Dirty, Waste, TAPON</p>
+                {{-- Sales --}}
+                <div x-show="sales" x-cloak class="border border-gray-200 rounded-lg p-4">
+                    <h3 class="font-bold text-gray-800 mb-1">Sales CSV</h3>
+                    <p class="text-xs text-gray-500 mb-2">One row per size per day. Rows already recorded are skipped.</p>
+                    <p class="text-xs font-mono bg-blue-50 text-blue-800 rounded p-2 mb-2">date, egg_size, quantity_sold, price_per_unit, notes</p>
+                    <a href="{{ route('sales.import.template') }}" class="text-sm text-blue-600 hover:underline">Download template</a>
+                    <input type="file" name="sales_file" accept=".csv,.txt" class="block w-full mt-2 text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                    @error('sales_file')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
                 </div>
-
-                <a href="{{ route('imports.egg-grading.template') }}" class="flex items-center gap-1 text-sm text-blue-600 hover:underline mb-4">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    Download CSV Template
-                </a>
-
-                <form method="POST" action="{{ route('imports.egg-grading.import') }}" enctype="multipart/form-data">
-                    @csrf
-                    <input type="file" name="csv_file" accept=".csv,.txt" required
-                           class="block w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mb-4" />
-                    <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
-                        Import Egg Grading Daily
-                    </button>
-                </form>
             </div>
-        </div>
+
+            <div class="flex items-center justify-between gap-3 flex-wrap">
+                <p class="text-xs text-gray-500" x-show="production && sales">Production and sales are imported separately — if one file fails, the other is still saved.</p>
+                <p class="text-xs text-gray-500" x-show="!production && !sales">Tick Production, Sales, or both.</p>
+                <button type="submit" :disabled="uploading || (!production && !sales)"
+                        class="ml-auto bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50">
+                    <span x-text="uploading ? 'Importing…' : 'Import'"></span>
+                </button>
+            </div>
+        </form>
     </div>
     @endif
 </div>

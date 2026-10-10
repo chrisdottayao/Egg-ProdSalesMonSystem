@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\BulkImportController;
+use App\Http\Controllers\CombinedImportController;
 use App\Http\Controllers\CullController;
 use App\Http\Controllers\DailyEntryController;
 use App\Http\Controllers\DashboardController;
@@ -107,6 +108,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/imports/egg-grading/template', [BulkImportController::class, 'eggGradingTemplate'])->name('imports.egg-grading.template');
         Route::post('/imports/egg-grading', [BulkImportController::class, 'importEggGrading'])->name('imports.egg-grading.import');
         Route::get('/imports/errors/{token}', [BulkImportController::class, 'downloadImportErrors'])->name('imports.errors');
+        // S20: one panel, choose Production and/or Sales
+        Route::post('/imports/combined', [CombinedImportController::class, 'store'])->name('imports.combined');
     });
     // Anomaly alert actions (admin + manager)
     Route::middleware('role:admin,manager')->group(function () {
