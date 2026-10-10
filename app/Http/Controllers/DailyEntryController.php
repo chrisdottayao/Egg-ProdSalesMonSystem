@@ -169,7 +169,7 @@ class DailyEntryController extends Controller
                     'date'            => $date,
                     'hen_batch_id'    => $henBatchId,
                     'quantity_culled' => (int) $row['population'],
-                    'reason'          => 'Building culled (daily entry)',
+                    'reason'          => CullRecord::BUILDING_CULLED_REASON,
                 ]);
                 $batch->update(['ended_at' => $date]);
                 BuildingDaily::withoutEvents(fn () => BuildingDaily::where('date', $date)->where('hen_batch_id', $henBatchId)->delete());

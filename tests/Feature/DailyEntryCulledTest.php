@@ -109,6 +109,34 @@ class DailyEntryCulledTest extends TestCase
         $this->actingAs($admin)->get(route('dashboard'))->assertSee('Culled — Oct 10, 2026');
     }
 
+    public function test_whole_building_cull_is_not_flagged_as_high_culling(): void
+    {
+        foreach (['2026-10-10', '2026-10-11', '2026-10-12'] as $d) {
+            CullRecord::create(['date' => $d, 'hen_batch_id' => $this->b1->id, 'quantity_culled' => 2]);
+        }
+        $this->postEntry([$this->b2->id => ['population' => 1750, 'choice' => 'culled']]);
+
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($admin)->get(route('dashboard'))->assertOk();
+
+        $this->assertFalse(\App\Models\AnomalyAlert::where('type', 'High Culling')->exists());
+    }
+
+    public function test_a_very_large_manual_cull_does_not_overflow_the_alert(): void
+    {
+        foreach (['2026-10-10', '2026-10-11', '2026-10-12'] as $d) {
+            CullRecord::create(['date' => $d, 'hen_batch_id' => $this->b1->id, 'quantity_culled' => 2]);
+        }
+        CullRecord::create(['date' => '2026-10-13', 'hen_batch_id' => $this->b1->id, 'quantity_culled' => 500, 'reason' => 'Health Condition']);
+
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($admin)->get(route('dashboard'))->assertOk();
+
+        // (500 - 2) / 2 = +24,900% — clamped to what decimal(6,2) can hold.
+        $alert = \App\Models\AnomalyAlert::where('type', 'High Culling')->firstOrFail();
+        $this->assertSame(9999.99, (float) $alert->deviation_pct);
+    }
+
     public function test_ended_building_is_excluded_from_entry_dropdowns_but_kept_in_filters(): void
     {
         $this->b2->update(['ended_at' => '2026-10-10']);

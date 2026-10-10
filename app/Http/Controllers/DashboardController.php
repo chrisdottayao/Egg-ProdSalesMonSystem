@@ -194,9 +194,15 @@ class DashboardController extends Controller
         // has building attribution, unlike EggSale below.
         $trackedBatchIds = HenBatch::tracked()->pluck('id');
 
+        // A whole-building cull (Daily Entry "Culled", S3) is a planned
+        // depopulation, not unusual culling — kept out of both the baseline
+        // and the High Culling check below.
+        $routineCulls = fn ($q) => $q->whereNull('reason')->orWhere('reason', '!=', CullRecord::BUILDING_CULLED_REASON);
+
         $rollingCulling = CullRecord::where('date', '>=', $window)
             ->where('date', '<', Carbon::today())
             ->whereIn('hen_batch_id', $trackedBatchIds)
+            ->where($routineCulls)
             ->selectRaw('SUM(quantity_culled) / GREATEST(COUNT(DISTINCT DATE(date)), 1) as avg_cull')
             ->value('avg_cull') ?? 0;
 
@@ -228,6 +234,7 @@ class DashboardController extends Controller
         // High culling day (> 2× rolling average and > 3 absolute)
         CullRecord::where('date', '>=', $window)
             ->whereIn('hen_batch_id', $trackedBatchIds)
+            ->where($routineCulls)
             ->selectRaw('DATE(date) as cull_date, SUM(quantity_culled) as daily_cull')
             ->groupBy('cull_date')
             ->get()
@@ -249,6 +256,13 @@ class DashboardController extends Controller
 
     private function upsertAlert(array $data): void
     {
+        // anomaly_alerts.deviation_pct is decimal(6,2): anything beyond
+        // ±9999.99 (e.g. one large cull against a ~4/day average) would make
+        // the insert, and with it the whole dashboard, fail.
+        if (isset($data['deviation_pct'])) {
+            $data['deviation_pct'] = max(-9999.99, min(9999.99, $data['deviation_pct']));
+        }
+
         AnomalyAlert::updateOrCreate(
             ['type' => $data['type'], 'alert_date' => $data['alert_date']],
             // Only overwrite values, not status/resolved fields (preserve reviews)
