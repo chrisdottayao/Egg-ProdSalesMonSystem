@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CullRecord;
 use App\Models\HenBatch;
+use App\Support\LatestEntry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -44,9 +45,14 @@ class CullController extends Controller
             'historical_avg'       => $historicalMonthlyAvg,
         ];
 
+        $latest = LatestEntry::for(
+            CullRecord::class,
+            fn ($q) => $q->whereHas('henBatch', fn ($b) => $b->tracked()),
+        );
+
         return view('cull.index', compact(
             'cullRecords', 'henBatches',
-            'monthStats', 'cullingAnomaly'
+            'monthStats', 'cullingAnomaly', 'latest'
         ));
     }
 
@@ -63,9 +69,11 @@ class CullController extends Controller
             'buyer'           => 'nullable|string|max:255',
         ]);
 
-        CullRecord::create($validated);
+        $record = CullRecord::create($validated);
 
-        return redirect()->route('cull.index')->with('success', 'Cull record saved successfully.');
+        return redirect()->route('cull.index')
+            ->with('success', 'Cull record saved successfully.')
+            ->with('latest_ids', [$record->id]);
     }
 
     public function destroy(CullRecord $cullRecord)

@@ -200,7 +200,10 @@
 
     {{-- Expense List --}}
     <div class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-4">Utility Expense Records</h2>
+        <div class="flex items-center gap-3 flex-wrap mb-4">
+            <h2 class="text-lg font-bold text-gray-800">Utility Expense Records</h2>
+            <x-latest-entry.legend :latest="$latest" />
+        </div>
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead>
@@ -226,8 +229,12 @@
                         ];
                     @endphp
                     @forelse($expenses as $expense)
-                        <tr class="border-b last:border-0 hover:bg-gray-50 align-top">
-                            <td class="py-3 text-sm">{{ $expense->date->format('Y-m-d') }}</td>
+                        @php $isLatest = $latest->has($expense); @endphp
+                        <tr @class(['border-b last:border-0 align-top', 'hover:bg-gray-50' => ! $isLatest, \App\Support\LatestEntry::ROW_CLASSES => $isLatest]) @if($isLatest) data-latest @endif>
+                            <td class="py-3 text-sm">
+                                {{ $expense->date->format('Y-m-d') }}
+                                @if($isLatest)<x-latest-entry.pill :latest="$latest" />@endif
+                            </td>
                             <td class="py-3 text-sm">{{ $expense->building ? $expense->building->display_label : 'Farm-wide' }}</td>
                             <td class="py-3 text-sm">
                                 <span class="text-xs px-2 py-1 rounded-full font-semibold {{ $catBadgeColors[$expense->category_color] }}">{{ $expense->category_label }}</span>
@@ -308,4 +315,5 @@
         [quantity, unitPrice].forEach(el => el?.addEventListener('input', updateAmount));
     })();
 </script>
+<x-latest-entry.scroll />
 </x-app-layout>

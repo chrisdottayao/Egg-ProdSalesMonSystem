@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\BuildingDaily;
 use App\Models\EggGradingDaily;
+use App\Models\EggProduction;
 use App\Models\HenBatch;
 use App\Services\ProductionRollupService;
 use Illuminate\Http\Request;
@@ -216,8 +217,19 @@ class DailyEntryController extends Controller
             // Recompute whenever this submission changed the day's building set at
             // all — including a pure skip that deleted a previously-saved row, which
             // must also shrink the rollup, not just a fresh save growing it.
+            $latestProductionIds = [];
             if ($buildingsSaved > 0 || $buildingsSkipped > 0) {
                 (new ProductionRollupService)->rollupDate($date);
+
+                // S14: the rolled-up egg_productions row is what Production
+                // History highlights as the latest entry. Touch it so a
+                // re-save with unchanged numbers still counts as the newest
+                // (the rollup's update() is a no-op when nothing is dirty).
+                $production = EggProduction::whereDate('date', $date)->first();
+                if ($production) {
+                    $production->touchQuietly();
+                    $latestProductionIds[] = $production->id;
+                }
             }
 
             AuditLog::create([
@@ -240,6 +252,7 @@ class DailyEntryController extends Controller
         }
 
         return redirect()->route('daily-entry.index', ['date' => $date])
-            ->with('success', "Saved {$buildingsSaved} building rows ({$buildingsSkipped} marked no data today) and {$gradingSaved} grading rows for {$date}.");
+            ->with('success', "Saved {$buildingsSaved} building rows ({$buildingsSkipped} marked no data today) and {$gradingSaved} grading rows for {$date}.")
+            ->with('latest_ids', $latestProductionIds);
     }
 }

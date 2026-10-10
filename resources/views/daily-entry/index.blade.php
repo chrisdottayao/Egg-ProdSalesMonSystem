@@ -11,7 +11,12 @@
     </div>
 
     @if(session('success'))
-        <div class="bg-green-50 border-l-4 border-green-500 px-4 py-3 rounded-lg text-sm text-green-800">{{ session('success') }}</div>
+        <div class="bg-green-50 border-l-4 border-green-500 px-4 py-3 rounded-lg text-sm text-green-800 flex items-center justify-between flex-wrap gap-2">
+            <span>{{ session('success') }}</span>
+            @if(session('latest_ids'))
+                <a href="{{ route('productions.index', ['latest' => 1]) }}" class="font-semibold underline">View in Production History</a>
+            @endif
+        </div>
     @endif
 
     @if($errors->any())

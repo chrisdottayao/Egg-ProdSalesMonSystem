@@ -198,8 +198,11 @@
             </div>
         </div>
 
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-bold text-gray-800">Sales History</h2>
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div class="flex items-center gap-3 flex-wrap">
+                <h2 class="text-lg font-bold text-gray-800">Sales History</h2>
+                <x-latest-entry.legend :latest="$latest" />
+            </div>
             <button @click="showImport = true"
                 class="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
@@ -223,8 +226,12 @@
                 </thead>
                 <tbody>
                     @forelse($sales as $sale)
-                        <tr class="border-b last:border-0 hover:bg-gray-50">
-                            <td class="py-3 text-sm">{{ $sale->date->format('Y-m-d') }}</td>
+                        @php $isLatest = $latest->has($sale); @endphp
+                        <tr @class(['border-b last:border-0', 'hover:bg-gray-50' => ! $isLatest, \App\Support\LatestEntry::ROW_CLASSES => $isLatest]) @if($isLatest) data-latest @endif>
+                            <td class="py-3 text-sm">
+                                {{ $sale->date->format('Y-m-d') }}
+                                @if($isLatest)<x-latest-entry.pill :latest="$latest" />@endif
+                            </td>
                             <td class="py-3 text-sm">{{ $sale->egg_size }}</td>
                             <td class="text-right py-3 text-sm">{{ number_format($sale->quantity) }}</td>
                             <td class="text-right py-3 text-sm">₱{{ number_format($sale->price_per_unit, 2) }}</td>
@@ -255,6 +262,8 @@
         <div class="mt-3">{{ $sales->links() }}</div>
     </div> {{-- end x-data (Sales History card) --}}
 </div>
+
+<x-latest-entry.scroll />
 
 <script>
     // ── PWA offline intercept ──────────────────────────────────────────

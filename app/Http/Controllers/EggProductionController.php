@@ -10,6 +10,7 @@ use App\Models\EggSale;
 use App\Models\HenBatch;
 use App\Models\User;
 use App\Models\WeatherDaily;
+use App\Support\LatestEntry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -32,7 +33,9 @@ class EggProductionController extends Controller
             ->get(['date', 'thi'])
             ->keyBy(fn ($w) => $w->date->format('Y-m-d'));
 
-        return view('productions.index', compact('productions', 'activeHens', 'weatherByDate'));
+        $latest = LatestEntry::for(EggProduction::class);
+
+        return view('productions.index', compact('productions', 'activeHens', 'weatherByDate', 'latest'));
     }
 
     public function store(Request $request)
@@ -57,9 +60,11 @@ class EggProductionController extends Controller
         $validated['spoilage_count'] = $validated['spoilage_count'] ?? 0;
         $validated['user_id'] = auth()->id();
 
-        EggProduction::create($validated);
+        $production = EggProduction::create($validated);
 
-        return redirect()->route('productions.index')->with('success', 'Production entry saved successfully!');
+        return redirect()->route('productions.index')
+            ->with('success', 'Production entry saved successfully!')
+            ->with('latest_ids', [$production->id]);
     }
 
     public function edit(EggProduction $production)

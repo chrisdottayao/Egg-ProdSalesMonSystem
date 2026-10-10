@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Expense;
 use App\Models\HenBatch;
 use App\Models\Setting;
+use App\Support\LatestEntry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -57,8 +58,10 @@ class ExpenseController extends Controller
             'price_per_bag'=> (float) Setting::get('feed_price_per_bag_estimate', config('expenses.feed_price_per_bag_estimate')),
         ];
 
+        $latest = LatestEntry::for(Expense::class);
+
         return view('expenses.index', compact(
-            'expenses', 'buildings', 'buildingFilter', 'category', 'startDate', 'endDate', 'feedDefaults'
+            'expenses', 'buildings', 'buildingFilter', 'category', 'startDate', 'endDate', 'feedDefaults', 'latest'
         ));
     }
 
@@ -71,9 +74,11 @@ class ExpenseController extends Controller
             $data['receipt_path'] = $request->file('receipt')->store('expenses', 'public');
         }
 
-        Expense::create($data);
+        $expense = Expense::create($data);
 
-        return redirect()->route('expenses.index')->with('success', 'Utility expense recorded.');
+        return redirect()->route('expenses.index')
+            ->with('success', 'Utility expense recorded.')
+            ->with('latest_ids', [$expense->id]);
     }
 
     public function edit(Expense $expense)

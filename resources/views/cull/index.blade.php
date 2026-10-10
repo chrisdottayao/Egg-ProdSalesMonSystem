@@ -111,7 +111,10 @@
 
     {{-- Cull Records Table --}}
     <div class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-4">Cull Records</h2>
+        <div class="flex items-center gap-3 flex-wrap mb-4">
+            <h2 class="text-lg font-bold text-gray-800">Cull Records</h2>
+            <x-latest-entry.legend :latest="$latest" />
+        </div>
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead>
@@ -128,8 +131,12 @@
                 </thead>
                 <tbody>
                     @forelse($cullRecords as $record)
-                        <tr class="border-b last:border-0 hover:bg-gray-50">
-                            <td class="py-3 text-sm">{{ $record->date->format('Y-m-d') }}</td>
+                        @php $isLatest = $latest->has($record); @endphp
+                        <tr @class(['border-b last:border-0', 'hover:bg-gray-50' => ! $isLatest, \App\Support\LatestEntry::ROW_CLASSES => $isLatest]) @if($isLatest) data-latest @endif>
+                            <td class="py-3 text-sm">
+                                {{ $record->date->format('Y-m-d') }}
+                                @if($isLatest)<x-latest-entry.pill :latest="$latest" />@endif
+                            </td>
                             <td class="text-right py-3 text-sm font-semibold text-orange-600">{{ number_format($record->quantity_culled) }}</td>
                             <td class="py-3 text-sm text-gray-700">{{ $record->reason ?? '—' }}</td>
                             <td class="text-right py-3 text-sm">{{ $record->heads_sold ? number_format($record->heads_sold) : '—' }}</td>
@@ -158,4 +165,5 @@
         </div>
     </div>
 </div>
+<x-latest-entry.scroll />
 </x-app-layout>

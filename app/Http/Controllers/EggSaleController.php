@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\EggGradingDaily;
 use App\Models\EggProduction;
 use App\Models\EggSale;
+use App\Support\LatestEntry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -41,7 +42,9 @@ class EggSaleController extends Controller
             $producedBySizeAndDate[$key] = $gradingBySizeAndDate[$dateKey][$category] ?? null;
         }
 
-        return view('sales.index', compact('sales', 'producedBySizeAndDate'));
+        $latest = LatestEntry::for(EggSale::class);
+
+        return view('sales.index', compact('sales', 'producedBySizeAndDate', 'latest'));
     }
 
     public function store(Request $request)
@@ -65,9 +68,11 @@ class EggSaleController extends Controller
 
         $validated['total_amount'] = $validated['quantity'] * $validated['price_per_unit'];
 
-        EggSale::create($validated);
+        $sale = EggSale::create($validated);
 
-        return redirect()->route('sales.index')->with('success', 'Sales entry saved successfully!');
+        return redirect()->route('sales.index')
+            ->with('success', 'Sales entry saved successfully!')
+            ->with('latest_ids', [$sale->id]);
     }
 
     public function edit(EggSale $sale)
