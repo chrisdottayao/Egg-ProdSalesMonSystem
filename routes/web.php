@@ -142,6 +142,11 @@ Route::middleware('auth')->group(function () {
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     });
 
+    // Reopen a building marked culled by mistake (admin only, S3)
+    Route::middleware('role:admin')->group(function () {
+        Route::patch('/flock-records/hens/{henBatch}/reopen', [LivestockController::class, 'reopenHen'])->name('flock-records.hens.reopen');
+    });
+
     // Settings — editable expense-estimate defaults (admin only)
     Route::middleware('role:admin')->group(function () {
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');

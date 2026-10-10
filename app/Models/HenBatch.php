@@ -35,6 +35,16 @@ class HenBatch extends Model
      * ended_at is a separate fact from is_tracked (Prototype 3Q) — a building
      * can be tracked AND ended (fully depopulated, e.g. Building 14) at once.
      */
+    /**
+     * Buildings that can still receive new entries (S3). Entry forms and
+     * dropdowns use this; history/report filters must not, so an ended
+     * building's old records stay reachable.
+     */
+    public function scopeNotEnded(Builder $query): Builder
+    {
+        return $query->whereNull('ended_at');
+    }
+
     public function isEnded(): bool
     {
         return $this->ended_at !== null;

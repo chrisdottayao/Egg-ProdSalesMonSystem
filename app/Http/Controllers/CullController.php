@@ -18,7 +18,8 @@ class CullController extends Controller
         $cullRecords = CullRecord::with('henBatch')
             ->whereHas('henBatch', fn ($q) => $q->tracked())
             ->latest('date')->paginate(20);
-        $henBatches  = HenBatch::where('status', 'Active')->tracked()->orderBy('batch_id')->get();
+        // Entry dropdown: a building already ended (culled, S3) can't be culled again.
+        $henBatches  = HenBatch::where('status', 'Active')->tracked()->notEnded()->orderBy('batch_id')->get();
 
         // Monthly stats
         $thisMonthStart = Carbon::now()->startOfMonth();

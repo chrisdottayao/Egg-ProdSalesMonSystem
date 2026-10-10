@@ -50,7 +50,10 @@ class ExpenseController extends Controller
         }
 
         $expenses  = $query->paginate(20)->withQueryString();
-        $buildings = HenBatch::where('status', 'Active')->tracked()->orderBy('batch_id')->get();
+        // Entry form: buildings still running. Filter: every tracked building,
+        // including ended (culled) ones, so their old expenses stay reachable.
+        $buildings       = HenBatch::where('status', 'Active')->tracked()->notEnded()->orderBy('batch_id')->get();
+        $filterBuildings = HenBatch::where('status', 'Active')->tracked()->orderBy('batch_id')->get();
 
         $feedDefaults = [
             'kg_per_bag'   => (float) Setting::get('default_kg_per_bag', config('expenses.default_kg_per_bag')),
@@ -61,7 +64,7 @@ class ExpenseController extends Controller
         $latest = LatestEntry::for(Expense::class);
 
         return view('expenses.index', compact(
-            'expenses', 'buildings', 'buildingFilter', 'category', 'startDate', 'endDate', 'feedDefaults', 'latest'
+            'expenses', 'buildings', 'filterBuildings', 'buildingFilter', 'category', 'startDate', 'endDate', 'feedDefaults', 'latest'
         ));
     }
 
@@ -83,7 +86,11 @@ class ExpenseController extends Controller
 
     public function edit(Expense $expense)
     {
-        $buildings = HenBatch::where('status', 'Active')->tracked()->orderBy('batch_id')->get();
+        // Running buildings, plus this expense's own building even if it has
+        // since been culled, so editing never silently reassigns it.
+        $buildings = HenBatch::where('status', 'Active')->tracked()
+            ->where(fn ($q) => $q->whereNull('ended_at')->orWhere('id', $expense->building_id))
+            ->orderBy('batch_id')->get();
 
         $feedDefaults = [
             'kg_per_bag'   => (float) Setting::get('default_kg_per_bag', config('expenses.default_kg_per_bag')),

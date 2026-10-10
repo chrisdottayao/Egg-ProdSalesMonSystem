@@ -94,6 +94,9 @@
                                         {{ $batch->status === 'Active' ? 'bg-green-100 text-green-800' : ($batch->status === 'Culled' ? 'bg-orange-100 text-orange-800' : 'bg-red-100 text-red-800') }}">
                                         {{ $batch->status }}
                                     </span>
+                                    @if($batch->isEnded())
+                                        <span class="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-200 text-gray-700">Culled — {{ $batch->ended_at->format('M d, Y') }}</span>
+                                    @endif
                                 </td>
                                 <td class="py-3 text-sm">{{ $batch->entry_date->format('Y-m-d') }}</td>
                                 <td class="py-3 text-sm text-gray-600">
@@ -105,6 +108,13 @@
                                 </td>
                                 <td class="py-3 text-sm text-gray-600">{{ $batch->notes ?? '—' }}</td>
                                 <td class="text-right py-3 text-sm space-x-2">
+                                    @if($batch->isEnded() && auth()->user()->role === 'admin')
+                                        <form method="POST" action="{{ route('flock-records.hens.reopen', $batch) }}" class="inline"
+                                              onsubmit="return confirm('Reopen {{ $batch->display_label }}? It will appear in Daily Entry again.')">
+                                            @csrf @method('PATCH')
+                                            <button type="submit" class="text-green-700 hover:underline">Reopen building</button>
+                                        </form>
+                                    @endif
                                     <button @click="editHen = {{ $batch->id }}" class="text-blue-600 hover:underline">Edit</button>
                                     <form method="POST" action="{{ route('flock-records.hens.destroy', $batch) }}" class="inline" onsubmit="return confirm('Delete this batch?')">
                                         @csrf @method('DELETE')

@@ -57,7 +57,7 @@
                             <th class="text-right py-2 px-1 font-semibold text-gray-700">Eggs Egg Room</th>
                             <th class="text-right py-2 px-1 font-semibold text-gray-700">Soft Shell</th>
                             <th class="text-right py-2 px-1 font-semibold text-gray-700">Prod Rate</th>
-                            <th class="text-center py-2 px-1 font-semibold text-gray-700">No Data Today</th>
+                            <th class="text-center py-2 px-1 font-semibold text-gray-700">Skip / Culled</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -98,18 +98,26 @@
                                 <td class="py-1 px-1 text-right">
                                     <span class="prod-rate-display font-semibold text-gray-700">—</span>
                                 </td>
-                                <td class="py-1 px-1 text-center">
-                                    <input type="hidden" name="buildings[{{ $batch->id }}][skip]" value="0" />
-                                    <input type="checkbox" name="buildings[{{ $batch->id }}][skip]" value="1"
-                                           {{ old("buildings.{$batch->id}.skip") ? 'checked' : '' }}
-                                           class="skip-checkbox w-4 h-4" title="No data today — this building will not get a row for this date" />
+                                {{-- S18: Skip today / Culled. Neither selected = normal entry;
+                                     clicking a selected option again clears it. --}}
+                                @php $choice = old("buildings.{$batch->id}.choice"); @endphp
+                                <td class="py-1 px-1 text-center whitespace-nowrap">
+                                    <input type="hidden" name="buildings[{{ $batch->id }}][choice]" value="" />
+                                    <div class="inline-flex rounded border border-gray-300 overflow-hidden text-xs" role="radiogroup" aria-label="{{ $batch->display_label }}: skip or culled">
+                                        <label class="row-choice-label cursor-pointer px-2 py-1 has-[:checked]:bg-gray-600 has-[:checked]:text-white" title="No data today — this building will not get a row for this date">
+                                            <input type="radio" class="row-choice sr-only" name="buildings[{{ $batch->id }}][choice]" value="skip" {{ $choice === 'skip' ? 'checked' : '' }} />Skip today
+                                        </label>
+                                        <label class="row-choice-label cursor-pointer px-2 py-1 border-l border-gray-300 has-[:checked]:bg-red-600 has-[:checked]:text-white" title="Building fully culled — it stops appearing in Daily Entry">
+                                            <input type="radio" class="row-choice sr-only" name="buildings[{{ $batch->id }}][choice]" value="culled" data-label="{{ $batch->display_label }}" {{ $choice === 'culled' ? 'checked' : '' }} />Culled
+                                        </label>
+                                    </div>
                                 </td>
                             </tr>
                         @endforeach
                     </tbody>
                 </table>
             </div>
-            <p class="text-xs text-gray-500 mt-3">* Required unless "No Data Today" is checked. Feed bags and soft shell may be left blank. A row highlighted orange means eggs house exceeds population — not blocked, just worth a second look before you submit. "No Data Today" skips this building entirely for this date — it will not appear as a zero, matching how a building between flocks or simply not checked is handled everywhere else in the system.</p>
+            <p class="text-xs text-gray-500 mt-3">* Required unless "Skip today" or "Culled" is selected (Culled still needs the population — the hens removed). Feed bags and soft shell may be left blank. A row highlighted orange means eggs house exceeds population — not blocked, just worth a second look before you submit. "Skip today" (no data today) skips this building entirely for this date — it will not appear as a zero, matching how a building between flocks or simply not checked is handled everywhere else in the system. "Culled" records the remaining population as culled, marks the building as ended on this date, and removes it from Daily Entry; its history stays available, and an admin can reopen it from Flock Records.</p>
         </div>
 
         {{-- Egg Grading Daily table --}}
@@ -285,12 +293,17 @@
 (function () {
     const buildingRows = document.querySelectorAll('.building-row');
 
+    // 'skip', 'culled' or '' (normal entry) for a building row.
+    function rowChoice(row) {
+        return row.querySelector('.row-choice:checked')?.value || '';
+    }
+
     function recomputeBuildingRow(row) {
         const display = row.querySelector('.prod-rate-display');
-        const skipBox = row.querySelector('.skip-checkbox');
+        const choice  = rowChoice(row);
 
-        if (skipBox && skipBox.checked) {
-            display.textContent = 'Skipped';
+        if (choice) {
+            display.textContent = choice === 'culled' ? 'Culled' : 'Skipped';
             display.classList.remove('text-orange-600');
             row.classList.remove('bg-orange-50');
             return;
@@ -318,8 +331,7 @@
     function recomputeBuildingTotal() {
         let total = 0;
         document.querySelectorAll('.building-row').forEach(row => {
-            const skipBox = row.querySelector('.skip-checkbox');
-            if (skipBox && skipBox.checked) return; // skipped rows don't count toward the total
+            if (rowChoice(row)) return; // skipped/culled rows don't count toward the total
             const el = row.querySelector('.eggs-house-input');
             total += parseFloat(el.value) || 0;
         });
@@ -349,12 +361,15 @@
         }
     }
 
-    function setRowSkipped(row, skipped) {
+    function setRowState(row) {
+        const choice = rowChoice(row);
         row.querySelectorAll('.row-field').forEach(input => {
-            input.disabled = skipped;
+            // A culled row keeps its population: that is the number of hens culled.
+            input.disabled = choice === 'skip' || (choice === 'culled' && !input.classList.contains('population-input'));
         });
-        row.classList.toggle('opacity-50', skipped);
-        row.classList.toggle('bg-gray-50', skipped);
+        row.classList.toggle('opacity-50', choice === 'skip');
+        row.classList.toggle('bg-gray-50', choice === 'skip');
+        row.classList.toggle('bg-red-50', choice === 'culled');
         recomputeBuildingRow(row);
         recomputeBuildingTotal();
     }
@@ -367,12 +382,26 @@
             });
         });
 
-        const skipBox = row.querySelector('.skip-checkbox');
-        skipBox?.addEventListener('change', () => setRowSkipped(row, skipBox.checked));
+        row.querySelectorAll('.row-choice').forEach(radio => {
+            // Remember the state before the click so a second click clears it.
+            radio.closest('label').addEventListener('mousedown', () => { radio.dataset.wasChecked = radio.checked ? '1' : ''; });
+            radio.addEventListener('click', () => {
+                if (radio.dataset.wasChecked === '1') {
+                    radio.checked = false;
+                } else if (radio.value === 'culled') {
+                    const msg = 'This marks ' + radio.dataset.label + ' as fully culled as of {{ $date->format('M d, Y') }}. It will stop appearing in Daily Entry.';
+                    if (!confirm(msg)) {
+                        radio.checked = false;
+                    }
+                }
+                radio.dataset.wasChecked = '';
+                setRowState(row);
+            });
+        });
 
         // Restore disabled/greyed state on redisplay after a validation error
-        // elsewhere on the form — old() already restores the checkbox itself.
-        setRowSkipped(row, !!skipBox?.checked);
+        // elsewhere on the form — old() already restores the choice itself.
+        setRowState(row);
     });
     recomputeBuildingTotal();
 

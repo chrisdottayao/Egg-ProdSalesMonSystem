@@ -167,9 +167,9 @@
                 <select name="building_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
                     <option value="">All</option>
                     <option value="farm" {{ $buildingFilter === 'farm' ? 'selected' : '' }}>Farm-wide only</option>
-                    @foreach($buildings as $b)
+                    @foreach($filterBuildings as $b)
                         <option value="{{ $b->id }}" {{ (string) $buildingFilter === (string) $b->id ? 'selected' : '' }}>
-                            {{ $b->display_label }}
+                            {{ $b->display_label }}{{ $b->isEnded() ? ' (culled)' : '' }}
                         </option>
                     @endforeach
                 </select>
