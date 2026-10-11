@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password','google_id', 'role', 'approved_at', 'approved_by'])]
+#[Fillable(['name', 'email', 'password','google_id', 'role', 'approved_at', 'approved_by', 'deactivated_at', 'deactivated_by'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -25,6 +25,12 @@ class User extends Authenticatable
     public function isApproved(): bool
     {
         return $this->approved_at !== null;
+    }
+
+    /** False once deactivated by an admin or manager (Phase 3 item 6). */
+    public function isActive(): bool
+    {
+        return $this->deactivated_at === null;
     }
 
     /**

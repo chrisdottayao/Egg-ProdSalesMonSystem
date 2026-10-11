@@ -152,11 +152,16 @@ Route::middleware('auth')->group(function () {
         Route::get('/reports/export/audit/excel', [ReportsController::class, 'exportAuditExcel'])->name('reports.export.audit.excel');
     });
 
-    // Users (admin only)
-    Route::middleware('role:admin')->group(function () {
+    // Users — admin manages everyone; a manager manages staff accounts only
+    // (Phase 3 item 6, enforced by UserPolicy in the controller).
+    Route::middleware('role:admin,manager')->group(function () {
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::post('/users', [UserController::class, 'store'])->name('users.store');
         Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
+        Route::patch('/users/{user}/deactivate', [UserController::class, 'deactivate'])->name('users.deactivate');
+        Route::patch('/users/{user}/reactivate', [UserController::class, 'reactivate'])->name('users.reactivate');
+    });
+    Route::middleware('role:admin')->group(function () {
         Route::post('/users/{user}/approve', [UserController::class, 'approve'])->name('users.approve');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     });

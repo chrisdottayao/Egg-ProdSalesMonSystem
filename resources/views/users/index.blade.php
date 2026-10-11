@@ -1,7 +1,12 @@
 <x-app-layout>
 <div class="space-y-6" x-data="{ editUser: null, showCreate: false }">
     <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-gray-800">Users Management</h1>
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">{{ auth()->user()->role === 'admin' ? 'Users Management' : 'Staff Accounts' }}</h1>
+            @if(auth()->user()->role !== 'admin')
+                <p class="text-sm text-gray-500">As a manager you can add, edit, deactivate and reset passwords for staff accounts.</p>
+            @endif
+        </div>
         <button @click="showCreate = true"
             class="flex items-center gap-2 bg-[#4CAF50] text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors text-sm font-medium">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
@@ -67,8 +72,8 @@
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Role</label>
                     <select name="role" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]">
-                        @foreach(['Admin','Manager','Staff'] as $r)
-                            <option value="{{ strtolower($r) }}" {{ old('role', 'staff') === strtolower($r) ? 'selected' : '' }}>{{ $r }}</option>
+                        @foreach($assignableRoles as $r)
+                            <option value="{{ $r }}" {{ old('role', 'staff') === $r ? 'selected' : '' }}>{{ ucfirst($r) }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -129,6 +134,9 @@
                                 @unless($user->approved_at)
                                     <span class="px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-700 ml-1">Pending</span>
                                 @endunless
+                                @unless($user->isActive())
+                                    <span class="px-2 py-1 rounded text-xs font-semibold bg-gray-200 text-gray-700 ml-1" title="Deactivated {{ $user->deactivated_at->copy()->setTimezone(\App\Support\ManilaDate::TZ)->format('M d, Y g:i A') }}">Deactivated</span>
+                                @endunless
                             </td>
                             <td class="py-3 text-sm">
                                 <div class="flex items-center justify-center gap-1">
@@ -136,15 +144,24 @@
                                         class="p-2 hover:bg-gray-100 rounded transition-colors" title="Edit">
                                         <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                                     </button>
-                                    @if($user->id !== auth()->id())
-                                        <form method="POST" action="{{ route('users.destroy', $user) }}" class="inline" onsubmit="return confirm('Delete {{ $user->name }}?')">
+                                    @can('deactivate', $user)
+                                        <form method="POST" action="{{ route($user->isActive() ? 'users.deactivate' : 'users.reactivate', $user) }}" class="inline"
+                                              onsubmit="return confirm('{{ $user->isActive() ? 'Deactivate' : 'Reactivate' }} {{ $user->name }}?{{ $user->isActive() ? ' They will be signed out and cannot sign in until reactivated.' : '' }}')">
+                                            @csrf @method('PATCH')
+                                            <button type="submit" class="px-2 py-1 text-xs rounded border {{ $user->isActive() ? 'border-orange-300 text-orange-700 hover:bg-orange-50' : 'border-green-300 text-green-700 hover:bg-green-50' }}">
+                                                {{ $user->isActive() ? 'Deactivate' : 'Reactivate' }}
+                                            </button>
+                                        </form>
+                                    @endcan
+                                    @can('delete', $user)
+                                        <form method="POST" action="{{ route('users.destroy', $user) }}" class="inline" onsubmit="return confirm('Permanently delete {{ $user->name }}?')">
                                             @csrf @method('DELETE')
                                             <button type="submit"
-                                                class="p-2 hover:bg-gray-100 rounded transition-colors" title="Deactivate">
+                                                class="p-2 hover:bg-gray-100 rounded transition-colors" title="Delete">
                                                 <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
                                             </button>
                                         </form>
-                                    @endif
+                                    @endcan
                                 </div>
                             </td>
                         </tr>
@@ -166,7 +183,7 @@
                                     <div>
                                         <label class="block text-xs font-semibold text-gray-600 mb-1">Role</label>
                                         <select name="role" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#4CAF50]">
-                                            @foreach(['staff','manager','admin'] as $r)
+                                            @foreach($assignableRoles as $r)
                                                 <option value="{{ $r }}" {{ $user->role === $r ? 'selected' : '' }}>{{ ucfirst($r) }}</option>
                                             @endforeach
                                         </select>
