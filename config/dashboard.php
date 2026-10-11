@@ -8,6 +8,9 @@
 
 return [
 
+    // Shown at the top of every report and export (Phase 3 items 7 and 11).
+    'farm_name' => env('FARM_NAME', 'SPC Farm Magalang'),
+
     // Production rate = eggs collected ÷ hen population × 100 (hen-day %).
     // Confirmed by the farm: >=80% healthy, the farm's own rule is to
     // consider culling a building around 50%. Editable pending confirmation

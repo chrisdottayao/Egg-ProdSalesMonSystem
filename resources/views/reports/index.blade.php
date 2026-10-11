@@ -162,6 +162,100 @@
         </div>
     </div>
 
+    {{-- === SALES & REVENUE (Phase 3 item 7, S25) === --}}
+    <div class="bg-white rounded-lg shadow-md p-6" id="sales-revenue">
+        @php $salesExportParams = http_build_query(['start_date' => $startDate, 'end_date' => $endDate, 'period' => $period, 'sales_group' => $salesReport->group]); @endphp
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+            <div>
+                <h2 class="text-lg font-bold text-gray-800">Sales &amp; Revenue</h2>
+                <p class="text-sm text-gray-500 mt-0.5">Approved sales from {{ $startDate }} to {{ $endDate }}. 1 tray = 30 pcs, 1 case = 360 pcs.</p>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+                <form method="GET" action="{{ route('reports.index') }}#sales-revenue" class="flex items-center gap-2">
+                    <input type="hidden" name="start_date" value="{{ $startDate }}" />
+                    <input type="hidden" name="end_date" value="{{ $endDate }}" />
+                    <input type="hidden" name="period" value="{{ $period }}" />
+                    <label for="sales_group" class="text-sm text-gray-600">Group by</label>
+                    <select id="sales_group" name="sales_group" onchange="this.form.submit()" class="px-2 py-1.5 border border-gray-300 rounded text-sm">
+                        @foreach(\App\Support\SalesReport::GROUPS as $value => $label)
+                            <option value="{{ $value }}" @selected($salesReport->group === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </form>
+                <a href="{{ route('reports.export.sales.pdf') . '?' . $salesExportParams }}" class="bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 text-sm">PDF</a>
+                <a href="{{ route('reports.export.sales.csv') . '?' . $salesExportParams }}" class="bg-green-700 text-white px-3 py-2 rounded-lg hover:bg-green-800 text-sm">CSV</a>
+                <a href="{{ route('reports.export.sales.excel') . '?' . $salesExportParams }}" class="bg-emerald-700 text-white px-3 py-2 rounded-lg hover:bg-emerald-800 text-sm">Excel</a>
+            </div>
+        </div>
+
+        @if($salesData['rows']->isNotEmpty())
+            <div class="relative h-64 sm:h-72 mb-4"><canvas id="salesRevenueChart"></canvas></div>
+        @endif
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b bg-gray-50">
+                        <th class="text-left py-2 px-2 font-semibold text-gray-700">Period</th>
+                        <th class="text-right py-2 px-2 font-semibold text-gray-700">Eggs sold (pcs)</th>
+                        <th class="text-right py-2 px-2 font-semibold text-gray-700">Trays</th>
+                        <th class="text-right py-2 px-2 font-semibold text-gray-700">Cases</th>
+                        <th class="text-right py-2 px-2 font-semibold text-gray-700">Revenue</th>
+                        <th class="text-right py-2 px-2 font-semibold text-gray-700">Avg price / pc</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($salesData['rows'] as $r)
+                        <tr class="border-b">
+                            <td class="py-2 px-2">{{ $r['label'] }}</td>
+                            <td class="py-2 px-2 text-right">{{ number_format($r['pcs']) }}</td>
+                            <td class="py-2 px-2 text-right">{{ number_format($r['trays'], 1) }}</td>
+                            <td class="py-2 px-2 text-right">{{ number_format($r['cases'], 2) }}</td>
+                            <td class="py-2 px-2 text-right text-[#4CAF50] font-semibold">₱{{ number_format($r['revenue'], 2) }}</td>
+                            <td class="py-2 px-2 text-right">{{ $r['avg_price'] !== null ? '₱' . number_format($r['avg_price'], 2) : '—' }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="6" class="py-6 text-center text-gray-400">No approved sales in this range.</td></tr>
+                    @endforelse
+                    <tr class="bg-gray-50 font-bold border-t-2 border-gray-300" data-sales-total>
+                        <td class="py-2 px-2">Total</td>
+                        <td class="py-2 px-2 text-right">{{ number_format($salesData['totals']['pcs']) }}</td>
+                        <td class="py-2 px-2 text-right">{{ number_format($salesData['totals']['trays'], 1) }}</td>
+                        <td class="py-2 px-2 text-right">{{ number_format($salesData['totals']['cases'], 2) }}</td>
+                        <td class="py-2 px-2 text-right">₱{{ number_format($salesData['totals']['revenue'], 2) }}</td>
+                        <td class="py-2 px-2 text-right">{{ $salesData['totals']['avg_price'] !== null ? '₱' . number_format($salesData['totals']['avg_price'], 2) : '—' }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <details class="mt-4">
+            <summary class="cursor-pointer text-sm font-semibold text-gray-700">Eggs sold by size (pcs)</summary>
+            <div class="overflow-x-auto mt-2">
+                <table class="w-full text-xs">
+                    <thead>
+                        <tr class="border-b bg-gray-50">
+                            <th class="text-left py-2 px-2 font-semibold text-gray-700">Period</th>
+                            @foreach($salesData['sizes'] as $size)<th class="text-right py-2 px-2 font-semibold text-gray-700">{{ $size }}</th>@endforeach
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($salesData['rows'] as $r)
+                            <tr class="border-b">
+                                <td class="py-1.5 px-2">{{ $r['label'] }}</td>
+                                @foreach($salesData['sizes'] as $size)<td class="py-1.5 px-2 text-right">{{ number_format($r['by_size'][$size]) }}</td>@endforeach
+                            </tr>
+                        @endforeach
+                        <tr class="bg-gray-50 font-bold">
+                            <td class="py-1.5 px-2">Total</td>
+                            @foreach($salesData['sizes'] as $size)<td class="py-1.5 px-2 text-right">{{ number_format($salesData['totals']['by_size'][$size]) }}</td>@endforeach
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    </div>
+
     {{-- === SECTION 2: BATCH TRACEABILITY REPORT === --}}
     <div class="bg-white rounded-lg shadow-md p-6">
         <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
@@ -477,6 +571,43 @@
             }
         });
     }
+})();
+</script>
+@endif
+
+{{-- Sales & Revenue chart (Phase 3 item 7). --}}
+@if($salesData['rows']->isNotEmpty())
+@unless($dailyData->isNotEmpty())
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+@endunless
+<script>
+(function () {
+    const rows = @json($salesData['rows']->values());
+    const ctx  = document.getElementById('salesRevenueChart');
+    if (!ctx) return;
+    new Chart(ctx, {
+        data: {
+            labels: rows.map(r => r.label),
+            datasets: [
+                { type: 'bar',  label: 'Revenue (₱)',      data: rows.map(r => r.revenue), backgroundColor: '#4CAF50', borderRadius: 4, yAxisID: 'y' },
+                { type: 'line', label: 'Eggs sold (pcs)', data: rows.map(r => r.pcs), borderColor: '#2196F3', backgroundColor: 'rgba(33,150,243,0.1)', borderWidth: 2, pointRadius: 3, tension: 0.3, yAxisID: 'y1' },
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title:   { display: true, text: 'Sales & Revenue by ' + @json(strtolower(\App\Support\SalesReport::GROUPS[$salesReport->group])) },
+                legend:  { display: true },
+                tooltip: { callbacks: { label: c => c.dataset.yAxisID === 'y' ? '₱' + c.parsed.y.toLocaleString() : c.parsed.y.toLocaleString() + ' pcs' } }
+            },
+            scales: {
+                x:  { title: { display: true, text: 'Period' }, ticks: { font: { size: 11 } }, grid: { display: false } },
+                y:  { title: { display: true, text: 'Revenue (₱)' }, beginAtZero: true, ticks: { callback: v => '₱' + v.toLocaleString(), font: { size: 11 } } },
+                y1: { title: { display: true, text: 'Eggs sold (pcs)' }, beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { font: { size: 11 } } }
+            }
+        }
+    });
 })();
 </script>
 @endif

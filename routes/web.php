@@ -150,6 +150,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/reports/export/audit/pdf', [ReportsController::class, 'exportAuditPdf'])->name('reports.export.audit.pdf');
         Route::get('/reports/export/audit/csv', [ReportsController::class, 'exportAuditCsv'])->name('reports.export.audit.csv');
         Route::get('/reports/export/audit/excel', [ReportsController::class, 'exportAuditExcel'])->name('reports.export.audit.excel');
+        Route::get('/reports/export/sales/pdf', [ReportsController::class, 'exportSalesPdf'])->name('reports.export.sales.pdf');
+        Route::get('/reports/export/sales/csv', [ReportsController::class, 'exportSalesCsv'])->name('reports.export.sales.csv');
+        Route::get('/reports/export/sales/excel', [ReportsController::class, 'exportSalesExcel'])->name('reports.export.sales.excel');
     });
 
     // Users — admin manages everyone; a manager manages staff accounts only
