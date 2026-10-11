@@ -79,6 +79,22 @@ class DailyEntryGradingTest extends TestCase
         $this->assertSame(1390, (int) EggGradingDaily::sum('total_pcs'));
     }
 
+    public function test_grading_section_renders_before_the_buildings_section(): void
+    {
+        $user = User::factory()->create(['role' => 'staff']);
+        HenBatch::create(['batch_id' => 'HB-ORDER', 'batch_size' => 100, 'status' => 'Active', 'entry_date' => '2026-01-01', 'building_no' => 1, 'is_tracked' => true]);
+
+        $html = $this->actingAs($user)->get(route('daily-entry.index'))->assertOk()->getContent();
+
+        $grading   = strpos($html, 'Egg Grading (farm-wide)');
+        $buildings = strpos($html, 'class="border-b last:border-0 building-row"');
+        $this->assertNotFalse($grading);
+        $this->assertNotFalse($buildings);
+        $this->assertLessThan($buildings, $grading);
+        // Still one form with one Save.
+        $this->assertSame(1, substr_count($html, 'id="dailyEntryForm"'));
+    }
+
     public function test_entry_page_prefills_total_pieces_and_shows_match_indicator(): void
     {
         $user = User::factory()->create(['role' => 'staff']);
