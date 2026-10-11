@@ -116,6 +116,7 @@ class AuditLog extends Model
     /** Actions whose headline form would read badly. */
     private const ACTION_LABELS = [
         'sold_gt_produced'        => 'Sold > produced',
+        'auto_approve'            => 'Approved on save',
         'login_failed'            => 'Failed login',
         'remove_building_end'     => 'Removed building (ended)',
         'remove_building_delete'  => 'Removed building (deleted)',

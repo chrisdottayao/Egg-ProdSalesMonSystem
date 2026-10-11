@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\AuditLog;
 use App\Models\EggProduction;
 use App\Models\EggSale;
 
@@ -13,8 +14,9 @@ use App\Models\EggSale;
  * Both sides are in pieces. Production is the approved daily rollup
  * (egg_productions.eggs_collected, which comes from building eggs_house;
  * egg grading's cases/trays use the same 1 tray = 30 pcs, 1 case = 360 pcs).
- * Sold counts every sale recorded for the date that isn't rejected
- * (approved or still pending), plus this entry.
+ * Sold counts the date's approved sales plus this entry (Phase 3B item 7:
+ * pending sales count nowhere). A staff sale is still warned about at
+ * entry, but only flagged once it is approved — the check runs again then.
  */
 class SoldVsProduced
 {
@@ -28,9 +30,8 @@ class SoldVsProduced
             return null; // no approved production recorded yet: nothing to compare against
         }
 
-        $soldBefore = (int) EggSale::withPending()
+        $soldBefore = (int) EggSale::query() // approved only (global scope)
             ->whereDate('date', $date)
-            ->where('approval_status', '!=', EggSale::STATUS_REJECTED)
             ->when($replacing, fn ($q) => $q->where('id', '!=', $replacing->id))
             ->sum('quantity');
 
@@ -40,6 +41,20 @@ class SoldVsProduced
         }
 
         return ['date' => $date, 'produced' => $produced, 'sold_before' => $soldBefore, 'this_entry' => $quantity, 'sold_total' => $total];
+    }
+
+    /** Record the flag on the Audit Log (resolvable by a manager). */
+    public static function flag(EggSale $sale, array $check, int $userId, string $confirmed): void
+    {
+        AuditLog::create([
+            'user_id'               => $userId,
+            'action'                => self::RULE,
+            'model_type'            => 'EggSale',
+            'model_id'              => $sale->id,
+            'details'               => $check + ['egg_size' => $sale->egg_size, 'confirmed' => $confirmed],
+            'inconsistency_flagged' => true,
+            'inconsistency_rule'    => self::RULE,
+        ]);
     }
 
     public static function message(array $c): string

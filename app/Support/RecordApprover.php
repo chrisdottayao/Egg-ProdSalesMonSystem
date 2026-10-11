@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\AuditLog;
 use App\Models\BuildingDaily;
 use App\Models\CullRecord;
+use App\Models\EggSale;
 use App\Models\User;
 use App\Services\ProductionRollupService;
 use Illuminate\Database\Eloquent\Model;
@@ -51,6 +52,12 @@ class RecordApprover
                 }
 
                 self::audit('approve', $record, $by, null);
+
+                // Phase 3B item 7: sold > produced is evaluated again now that
+                // the sale counts (against approved production and sales only).
+                if ($record instanceof EggSale && ($check = SoldVsProduced::check($record->date->toDateString(), (int) $record->quantity, $record))) {
+                    SoldVsProduced::flag($record, $check, $by->id, 'checked at approval');
+                }
             }
 
             // An approved building row now counts: recompute that day's farm total.

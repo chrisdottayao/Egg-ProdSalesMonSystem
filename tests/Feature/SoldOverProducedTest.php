@@ -27,9 +27,9 @@ class SoldOverProducedTest extends TestCase
         EggSale::create(['date' => '2026-10-13', 'egg_size' => 'Small', 'quantity' => 700, 'price_per_unit' => 6, 'total_amount' => 4200]);
     }
 
-    private function sale(int $qty, array $extra = [])
+    private function sale(int $qty, array $extra = [], ?User $as = null)
     {
-        return $this->actingAs($this->staff)->post(route('sales.store'), [
+        return $this->actingAs($as ?? $this->staff)->post(route('sales.store'), [
             'date' => '2026-10-13', 'egg_size' => 'Medium', 'quantity' => $qty, 'price_per_unit' => 7,
         ] + $extra);
     }
@@ -46,7 +46,9 @@ class SoldOverProducedTest extends TestCase
 
     public function test_confirmed_submit_saves_and_flags_with_the_numbers(): void
     {
-        $this->sale(400, ['confirm_sold_gt_produced' => 1])->assertSessionHasNoErrors()->assertSessionMissing('sold_gt_produced');
+        // A manager's sale is approved on save, so it is flagged at once (a
+        // staff sale only once approved — Phase 3B item 7, SoldFlagAtApprovalTest).
+        $this->sale(400, ['confirm_sold_gt_produced' => 1], $this->manager)->assertSessionHasNoErrors()->assertSessionMissing('sold_gt_produced');
 
         $sale = EggSale::withPending()->where('egg_size', 'Medium')->firstOrFail();
         $flag = AuditLog::where('inconsistency_rule', SoldVsProduced::RULE)->firstOrFail();
@@ -64,14 +66,24 @@ class SoldOverProducedTest extends TestCase
     {
         // The PWA treats a redirect as success; bouncing would lose the entry.
         $this->sale(400, ['queued_at' => '2026-10-13T01:00:00Z'])->assertSessionMissing('sold_gt_produced');
-
         $this->assertSame(2, EggSale::withPending()->count());
-        $this->assertSame('no (synced from offline)', AuditLog::where('inconsistency_rule', SoldVsProduced::RULE)->value('details')['confirmed']);
+        // Staff sale: pending, so flagged only once approved (Phase 3B item 7).
+        $this->assertFalse(AuditLog::where('inconsistency_rule', SoldVsProduced::RULE)->exists());
+
+        $sale = EggSale::pending()->sole();
+        $this->actingAs($this->manager)->patch(route('approvals.approve', ['sales', $sale->id]));
+        $this->assertSame('checked at approval', AuditLog::where('inconsistency_rule', SoldVsProduced::RULE)->value('details')['confirmed']);
+
+        // A manager's offline replay is approved on save and flagged at once.
+        EggSale::query()->delete();
+        EggSale::create(['date' => '2026-10-13', 'egg_size' => 'Small', 'quantity' => 700, 'price_per_unit' => 6, 'total_amount' => 4200]);
+        $this->sale(400, ['queued_at' => '2026-10-13T01:00:00Z'], $this->manager);
+        $this->assertSame('no (synced from offline)', AuditLog::where('inconsistency_rule', SoldVsProduced::RULE)->latest('id')->value('details')['confirmed']);
     }
 
     public function test_manager_resolves_the_flag_with_a_note(): void
     {
-        $this->sale(400, ['confirm_sold_gt_produced' => 1]);
+        $this->sale(400, ['confirm_sold_gt_produced' => 1], $this->manager);
         $flag = AuditLog::where('inconsistency_rule', SoldVsProduced::RULE)->firstOrFail();
 
         $this->actingAs($this->staff)->patch(route('audit-flags.resolve', $flag), ['resolution_note' => 'x'])->assertForbidden();

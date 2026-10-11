@@ -213,7 +213,8 @@ class DailyEntryController extends Controller
             $approval = BuildingDaily::approvalFieldsFor($request->user());
 
             $savedValues = []; // per building, for the Audit Log (Phase 3 item 2)
-            BuildingDaily::withoutEvents(function () use ($validated, $date, $validBatchIds, $approval, &$buildingsSaved, &$buildingsSkipped, &$savedValues) {
+            $savedRows   = []; // newly created or newly approved, for the auto-approve audit (3B item 7)
+            BuildingDaily::withoutEvents(function () use ($validated, $date, $validBatchIds, $approval, &$buildingsSaved, &$buildingsSkipped, &$savedValues, &$savedRows) {
                 foreach ($validated['buildings'] as $henBatchId => $row) {
                     if (! $validBatchIds->has($henBatchId)) {
                         continue;
@@ -268,7 +269,7 @@ class DailyEntryController extends Controller
 
                     // The row found above (whereDate, so it matches however the
                     // driver stores the date) is updated; otherwise a new one.
-                    ($existing ?? new BuildingDaily(['date' => $date, 'hen_batch_id' => $henBatchId]))->fill(
+                    $saved = ($existing ?? new BuildingDaily(['date' => $date, 'hen_batch_id' => $henBatchId]))->fill(
                         $approval + [
                             'user_id'      => auth()->id(),
                             'population'   => $population,
@@ -281,7 +282,11 @@ class DailyEntryController extends Controller
                             'age_weeks'    => $ageWeeks,
                             'prod_rate'    => $population > 0 ? round(($eggsHouse / $population) * 100, 2) : 0,
                         ]
-                    )->save();
+                    );
+                    $saved->save();
+                    if ($saved->wasRecentlyCreated || $saved->wasChanged('approval_status')) {
+                        $savedRows[] = $saved;
+                    }
 
                     $savedValues[$henBatchId] = ['population' => $population, 'mortality' => $mortality, 'eggs_house' => $eggsHouse, 'feed_bags' => $feedBags];
                     $buildingsSaved++;
@@ -290,6 +295,12 @@ class DailyEntryController extends Controller
 
             // Phase 3B item 2: the grading sheet saved in the same submit follows
             // the same rule as the building rows — staff rows wait for review.
+            // Events were off for the loop above (AuditLog's own hooks too), so
+            // the building rows' auto-approve entries are written now.
+            foreach ($savedRows as $saved) {
+                BuildingDaily::auditAutoApproval($saved);
+            }
+
             $gradingFields = EggGradingDaily::entryFieldsFor($request->user());
             $gradingSaved = 0;
             foreach ($validated['grading'] ?? [] as $category => $row) {

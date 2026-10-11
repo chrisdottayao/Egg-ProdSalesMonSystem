@@ -26,6 +26,31 @@ trait HasApproval
     public static function bootHasApproval(): void
     {
         static::addGlobalScope('approved', fn (Builder $q) => $q->where($q->qualifyColumn('approval_status'), self::STATUS_APPROVED));
+
+        // Phase 3B item 7: an admin/manager entry approved on save is audited
+        // like any other approval. (RecordApprover saves quietly and writes
+        // its own 'approve' row.)
+        static::created(fn ($m) => static::auditAutoApproval($m));
+        static::updated(fn ($m) => $m->wasChanged('approval_status') ? static::auditAutoApproval($m) : null);
+    }
+
+    /** 'auto_approve' audit row when the signed-in user approved $m by saving it. */
+    public static function auditAutoApproval(self $m): void
+    {
+        if ($m->approval_status !== self::STATUS_APPROVED || ! $m->approved_by || (int) $m->approved_by !== (int) auth()->id()) {
+            return;
+        }
+
+        \App\Models\AuditLog::create([
+            'user_id'    => auth()->id(),
+            'action'     => 'auto_approve',
+            'model_type' => class_basename($m),
+            'model_id'   => $m->id,
+            'details'    => [
+                'record' => \App\Support\ApprovalQueue::label($m),
+                'values' => \App\Support\ApprovalQueue::summary($m),
+            ],
+        ]);
     }
 
     public function initializeHasApproval(): void

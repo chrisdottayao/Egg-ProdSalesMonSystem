@@ -156,22 +156,14 @@ class EggSaleController extends Controller
 
     private function flagSoldOverProduced(Request $request, EggSale $sale, ?array $soldCheck): void
     {
-        if (! $soldCheck) {
+        // Phase 3B item 7: a pending (staff) sale counts nowhere yet, so it is
+        // not flagged now — RecordApprover checks it again when it's approved.
+        if (! $soldCheck || ! $sale->isApproved()) {
             return;
         }
 
-        AuditLog::create([
-            'user_id'               => $request->user()->id,
-            'action'                => 'sold_gt_produced',
-            'model_type'            => 'EggSale',
-            'model_id'              => $sale->id,
-            'details'               => $soldCheck + [
-                'egg_size'  => $sale->egg_size,
-                'confirmed' => $request->boolean('confirm_sold_gt_produced') ? 'yes' : 'no (synced from offline)',
-            ],
-            'inconsistency_flagged' => true,
-            'inconsistency_rule'    => SoldVsProduced::RULE,
-        ]);
+        SoldVsProduced::flag($sale, $soldCheck, $request->user()->id,
+            $request->boolean('confirm_sold_gt_produced') ? 'yes' : 'no (synced from offline)');
     }
 
     // ── Sales CSV Import ──────────────────────────────────────────────────
