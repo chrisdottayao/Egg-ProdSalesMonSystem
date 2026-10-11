@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\AuditFlagController;
+use App\Http\Controllers\BuildingRemovalController;
 use App\Http\Controllers\BulkImportController;
 use App\Http\Controllers\CombinedImportController;
 use App\Http\Controllers\CullController;
@@ -136,6 +137,8 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:admin,manager')->group(function () {
         Route::get('/investment', [BuildingDashboardController::class, 'index'])->name('investment.index');
         Route::get('/dashboard/buildings/{building}/detail', [BuildingDashboardController::class, 'detail'])->name('dashboard.buildings.detail');
+        // Remove (end, or delete if it has no records) a building from the dashboard (Phase 3 item 9)
+        Route::post('/dashboard/buildings/{henBatch}/remove', [BuildingRemovalController::class, 'remove'])->name('dashboard.buildings.remove');
     });
 
     // Reports (admin + manager only)

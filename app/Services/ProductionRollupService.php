@@ -25,8 +25,10 @@ class ProductionRollupService
     {
         $date = Carbon::parse($date)->format('Y-m-d');
 
+        // ->activeOn(): a building removed/ended (Phase 3 item 9) stops counting
+        // after its end date; earlier dates keep their totals.
         $buildings = BuildingDaily::whereDate('date', $date)
-            ->whereIn('hen_batch_id', HenBatch::tracked()->pluck('id'))
+            ->whereIn('hen_batch_id', HenBatch::tracked()->activeOn($date)->pluck('id'))
             ->get();
 
         if ($buildings->isEmpty()) {

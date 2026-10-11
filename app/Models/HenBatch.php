@@ -58,6 +58,25 @@ class HenBatch extends Model
         return $query->where(fn ($q) => $q->whereNull('ended_at')->orWhereDate('ended_at', '>', $date));
     }
 
+    /**
+     * Buildings whose records count on $date: not ended, or ended on/after
+     * it (Phase 3 item 9). Unlike runningOn(), the end date itself counts, so
+     * a building removed today keeps today's already-entered numbers.
+     */
+    public function scopeActiveOn(Builder $query, string $date): Builder
+    {
+        return $query->where(fn ($q) => $q->whereNull('ended_at')->orWhereDate('ended_at', '>=', $date));
+    }
+
+    /** Has any record that a permanent delete would destroy or orphan. */
+    public function hasHistory(): bool
+    {
+        return BuildingDaily::withPending()->where('hen_batch_id', $this->id)->exists()
+            || CullRecord::where('hen_batch_id', $this->id)->exists()
+            || Expense::where('building_id', $this->id)->exists()
+            || FlockAlert::where('hen_batch_id', $this->id)->exists();
+    }
+
     public function isEnded(): bool
     {
         return $this->ended_at !== null;

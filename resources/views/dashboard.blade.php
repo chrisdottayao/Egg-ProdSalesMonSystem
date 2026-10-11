@@ -180,14 +180,22 @@
             'gray'  => ['badge' => 'bg-gray-200 text-gray-600',   'border' => 'border-gray-400'],
         ];
     @endphp
-    <div class="bg-white rounded-lg shadow-md p-6">
+    <div class="bg-white rounded-lg shadow-md p-6" id="per-building" x-data="{ addBuilding: {{ $errors->hasAny(['building_no', 'batch_size', 'placement_date', 'batch_id']) ? 'true' : 'false' }} }">
+        @if(session('success'))
+            <div class="mb-3 text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">{{ session('success') }}</div>
+        @endif
+        @if(session('error'))
+            <div class="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{{ session('error') }}</div>
+        @endif
         @if(in_array(Auth::user()->role, ['admin', 'manager']))
             <div class="flex items-center justify-between mb-1 flex-wrap gap-2">
                 <div>
                     <h2 class="text-lg font-bold text-gray-800">Per-Building Performance</h2>
                     <p class="text-sm text-gray-500">Descriptive only — what has happened, from existing data. Click a building to expand its detail.</p>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex gap-2 flex-wrap items-center">
+                    {{-- Phase 3 item 9: add a building from here (same action as Flock Records). --}}
+                    <button type="button" @click="addBuilding = true" class="px-3 py-1 rounded-lg text-xs font-semibold bg-[#4CAF50] text-white hover:bg-green-600">+ Add Building</button>
                     @foreach(['1' => '1 mo', '2' => '2 mo', '3' => '3 mo', 'this_month' => 'This month'] as $val => $label)
                         <a href="{{ route('dashboard', ['window' => $val]) }}"
                            class="px-3 py-1 rounded-lg text-xs font-medium {{ $window === $val ? 'bg-[#4CAF50] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">
@@ -232,10 +240,6 @@
                     </span>
                 @endif
             </div>
-
-            @if(session('success'))
-                <div class="mb-3 text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">{{ session('success') }}</div>
-            @endif
 
             @if($anomalyAlerts->count() > 0)
                 <div class="space-y-2">
@@ -303,7 +307,13 @@
                             <th class="w-8"></th>
                         </tr>
                     </thead>
-                    @forelse($farmOverview['leaderboard'] as $row)
+                    @php
+                        // Removed (ended) buildings move to their own list below; their
+                        // history still counts in the farm figures above.
+                        $activeRows  = collect($farmOverview['leaderboard'])->reject(fn ($r) => $r['building']->isEnded());
+                        $removedRows = collect($farmOverview['leaderboard'])->filter(fn ($r) => $r['building']->isEnded());
+                    @endphp
+                    @forelse($activeRows as $row)
                         @php $rowLabel = $row['building']->display_label; @endphp
                         {{-- x-data lives on the <tbody> (a real ancestor of both rows below)
                         so the detail row can see `expanded`/`toggle()` — putting it on the
@@ -343,6 +353,7 @@
                                         <div class="flex items-center gap-4">
                                             {{-- S4: this building's own daily records (edit/delete from there). --}}
                                             <a href="{{ route('productions.index', ['building_id' => $row['building']->id]) }}" class="text-xs font-semibold text-[#4CAF50] hover:underline">Production records &rarr;</a>
+                                            <x-remove-building :building="$row['building']" />
                                             <button type="button" @click.stop="toggle()" class="text-xs text-gray-400 hover:text-gray-600">Collapse</button>
                                         </div>
                                     </div>
@@ -359,6 +370,31 @@
                     @endforelse
                 </table>
             </div>
+
+            @if($removedRows->isNotEmpty())
+                <div class="mt-4 border-t pt-3">
+                    <h3 class="text-sm font-bold text-gray-700 mb-2">Removed buildings</h3>
+                    <p class="text-xs text-gray-500 mb-2">No longer in Daily Entry. Their history stays in reports and past totals.</p>
+                    <ul class="space-y-1">
+                        @foreach($removedRows as $row)
+                            <li class="flex items-center gap-3 text-sm flex-wrap">
+                                <span class="font-medium text-gray-700">{{ $row['building']->display_label }}</span>
+                                <span class="text-xs px-2 py-0.5 rounded-full font-semibold bg-gray-200 text-gray-600">{{ $row['band']['label'] ?? ('Removed — ' . $row['building']->ended_at->format('M d, Y')) }}</span>
+                                <a href="{{ route('productions.index', ['building_id' => $row['building']->id]) }}" class="text-xs text-[#4CAF50] hover:underline">Production records</a>
+                                @if(auth()->user()->role === 'admin')
+                                    <form method="POST" action="{{ route('flock-records.hens.reopen', $row['building']) }}" onsubmit="return confirm('Reopen {{ $row['building']->display_label }}? It will appear in Daily Entry again.')">
+                                        @csrf @method('PATCH')
+                                        <input type="hidden" name="return_to" value="dashboard" />
+                                        <button type="submit" class="text-xs text-blue-600 hover:underline">Reopen</button>
+                                    </form>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            <x-add-building-modal />
         @endif
     </div>
 
