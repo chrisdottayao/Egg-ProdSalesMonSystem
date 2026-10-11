@@ -117,9 +117,16 @@ class AuditLogFilter
         return match (true) {
             $v === null   => '—',
             is_bool($v)   => $v ? 'yes' : 'no',
-            is_array($v)  => isset($v['old']) || array_key_exists('old', $v)
-                ? self::scalar($v['old']) . ' → ' . self::scalar($v['new'] ?? null)
-                : json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            is_array($v)  => match (true) {
+                array_key_exists('old', $v)    => self::scalar($v['old']) . ' → ' . self::scalar($v['new'] ?? null),
+                $v === []                      => '—',
+                array_is_list($v)              => implode(', ', array_map(fn ($x) => self::scalar($x), $v)),
+                // e.g. per-building values: "Building 1 (population 4768, eggs_house 4100)"
+                default                        => implode('; ', array_map(
+                    fn ($k, $x) => is_array($x) ? "{$k} (" . str_replace('; ', ', ', self::scalar($x)) . ')' : "{$k}: " . self::scalar($x),
+                    array_keys($v), $v
+                )),
+            },
             default       => (string) $v,
         };
     }

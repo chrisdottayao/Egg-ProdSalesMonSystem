@@ -86,6 +86,11 @@ class AuditLog extends Model
             if (in_array($key, $ignore, true)) {
                 continue;
             }
+            $old = $model->getRawOriginal($key);
+            // "0.00" from the database vs 0 from PHP is not a real change.
+            if (is_numeric($old) && is_numeric($new) && (float) $old === (float) $new) {
+                continue;
+            }
             $changes[$key] = ['old' => $model->getOriginal($key), 'new' => $new];
         }
 
@@ -108,8 +113,16 @@ class AuditLog extends Model
         return Str::headline($this->model_type ?? '—');
     }
 
+    /** Actions whose headline form would read badly. */
+    private const ACTION_LABELS = [
+        'sold_gt_produced'        => 'Sold > produced',
+        'login_failed'            => 'Failed login',
+        'remove_building_end'     => 'Removed building (ended)',
+        'remove_building_delete'  => 'Removed building (deleted)',
+    ];
+
     public function getActionLabelAttribute(): string
     {
-        return Str::headline($this->action ?? '—');
+        return self::ACTION_LABELS[$this->action] ?? Str::headline($this->action ?? '—');
     }
 }

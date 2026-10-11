@@ -100,6 +100,25 @@ class AuditLogTest extends TestCase
         $this->assertContains('reopen_building', $actions);
     }
 
+    public function test_numerically_equal_values_are_not_reported_as_changes(): void
+    {
+        $this->actingAs($this->admin);
+        $e = Expense::create(['date' => '2026-10-13', 'category' => 'electricity', 'description' => 'Bill', 'amount' => 100]);
+        $e = $e->fresh(); // amount now "100.00" from the database
+        $e->update(['amount' => 100, 'description' => 'Bill (Oct)']);
+
+        $changes = AuditLog::where('model_type', 'Expense')->where('action', 'update')->firstOrFail()->details['changes'];
+        $this->assertSame(['description'], array_keys($changes));
+    }
+
+    public function test_readable_action_labels_and_nested_details(): void
+    {
+        $log = AuditLog::create(['action' => 'sold_gt_produced', 'model_type' => 'EggSale', 'details' => ['entries' => ['Building 1' => ['population' => 4768, 'eggs_house' => 4100]]]]);
+
+        $this->assertSame('Sold > produced', $log->action_label);
+        $this->assertSame('entries: Building 1 (population: 4768, eggs_house: 4100)', \App\Support\AuditLogFilter::detailsText($log));
+    }
+
     public function test_audit_rows_are_append_only(): void
     {
         $log = AuditLog::create(['action' => 'test', 'model_type' => 'X', 'details' => []]);
