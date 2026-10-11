@@ -136,6 +136,12 @@ class LivestockController extends Controller
 
     public function destroyHen(HenBatch $henBatch)
     {
+        // Deleting a building with records would destroy or orphan its history
+        // (and building_daily blocks it at the database level).
+        if ($henBatch->hasHistory()) {
+            return redirect()->route('flock-records.index')
+                ->with('success', "{$henBatch->display_label} has recorded history, so it can't be deleted. End it from the dashboard (Remove → End building) instead.");
+        }
         $henBatch->delete();
         return redirect()->route('flock-records.index')->with('success', 'Hen record deleted.');
     }

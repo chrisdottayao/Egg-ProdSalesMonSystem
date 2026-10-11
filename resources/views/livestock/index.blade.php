@@ -114,11 +114,13 @@
                                             <button type="submit" class="text-green-700 hover:underline">Reopen building</button>
                                         </form>
                                     @endif
-                                    <button @click="editHen = {{ $batch->id }}" class="text-blue-600 hover:underline">Edit</button>
-                                    <form method="POST" action="{{ route('flock-records.hens.destroy', $batch) }}" class="inline" onsubmit="return confirm('Delete this batch?')">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="text-red-600 hover:underline">Delete</button>
-                                    </form>
+                                    @if(auth()->user()->canManageRecords())
+                                        <button @click="editHen = {{ $batch->id }}" class="text-blue-600 hover:underline">Edit</button>
+                                        <form method="POST" action="{{ route('flock-records.hens.destroy', $batch) }}" class="inline" onsubmit="return confirm('Delete this batch?')">
+                                            @csrf @method('DELETE')
+                                            <button type="submit" class="text-red-600 hover:underline">Delete</button>
+                                        </form>
+                                    @endif
                                 </td>
                             </tr>
                             {{-- Inline Edit Row --}}

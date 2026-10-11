@@ -93,9 +93,13 @@ Route::middleware('auth')->group(function () {
 
     // Flock Records (hen batches only — cattle tracking removed, out of this system's scope)
     Route::get('/flock-records', [LivestockController::class, 'index'])->name('flock-records.index');
-    Route::post('/flock-records/hens', [LivestockController::class, 'storeHen'])->name('flock-records.hens.store');
-    Route::patch('/flock-records/hens/{henBatch}', [LivestockController::class, 'updateHen'])->name('flock-records.hens.update');
-    Route::delete('/flock-records/hens/{henBatch}', [LivestockController::class, 'destroyHen'])->name('flock-records.hens.destroy');
+    // Changing buildings/flocks is admin + manager only (same as adding or
+    // removing a building); staff can view Flock Records.
+    Route::middleware('role:admin,manager')->group(function () {
+        Route::post('/flock-records/hens', [LivestockController::class, 'storeHen'])->name('flock-records.hens.store');
+        Route::patch('/flock-records/hens/{henBatch}', [LivestockController::class, 'updateHen'])->name('flock-records.hens.update');
+        Route::delete('/flock-records/hens/{henBatch}', [LivestockController::class, 'destroyHen'])->name('flock-records.hens.destroy');
+    });
 
     // Historical CSV imports — the only way to load past-dated data, so
     // admin + manager only (S16: staff record today's entries only).
