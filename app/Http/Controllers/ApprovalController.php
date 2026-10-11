@@ -2,52 +2,51 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AuditLog;
-use App\Models\BuildingDaily;
-use App\Models\EggSale;
-use App\Services\ProductionRollupService;
+use App\Models\User;
+use App\Support\ApprovalQueue;
+use App\Support\RecordApprover;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 /**
- * Phase 3 item 1 (S11, S5): admin/manager review of staff entries. A
- * pending row counts nowhere until approved; a rejected row stays visible
- * to staff with the reviewer's note and can be corrected and resubmitted.
+ * Phase 3 item 1 (S11, S5), extended to every record type in Phase 3B
+ * item 3: admin/manager review of staff entries. A pending row counts
+ * nowhere until approved; a rejected row stays visible to staff with the
+ * reviewer's note and can be corrected and resubmitted.
  */
 class ApprovalController extends Controller
 {
-    private const TYPES = [
-        'building-daily' => BuildingDaily::class,
-        'sales'          => EggSale::class,
-    ];
-
-    public function index()
+    public function index(Request $request)
     {
-        $buildingRows = BuildingDaily::pending()->with(['henBatch', 'user'])->orderBy('date')->orderBy('id')->get();
-        $sales        = EggSale::pending()->with('enteredBy')->orderBy('date')->orderBy('id')->get();
+        [$date, $userId] = $this->filters($request);
 
-        return view('approvals.index', compact('buildingRows', 'sales'));
+        $items = ApprovalQueue::pending($date, $userId);
+        $users = User::whereIn('id', ApprovalQueue::pendingUserIds())->orderBy('name')->get(['id', 'name']);
+
+        return view('approvals.index', compact('items', 'users', 'date', 'userId'));
     }
 
     public function approve(Request $request, string $type, int $id)
     {
         $record = $this->findPending($type, $id);
+        RecordApprover::approve($record, $request->user());
 
-        $record->forceFill([
-            'approval_status' => 'approved',
-            'approved_by'     => $request->user()->id,
-            'approved_at'     => now(),
-            'review_note'     => null,
-        ])->save();
+        return back()->with('success', ApprovalQueue::label($record) . ' approved.');
+    }
 
-        // An approved building row now counts: recompute that day's farm total.
-        if ($record instanceof BuildingDaily) {
-            (new ProductionRollupService)->rollupDate($record->date);
+    /** "Approve all" for the selected date and/or person. */
+    public function approveAll(Request $request)
+    {
+        [$date, $userId] = $this->filters($request);
+        if (! $date && ! $userId) {
+            return back()->withErrors(['bulk' => 'Pick a date or a person first, then approve all of their entries.']);
         }
 
-        $this->audit('approve', $record, null);
+        $records = ApprovalQueue::pending($date, $userId)->pluck('record');
+        $count   = RecordApprover::approveMany($records, $request->user());
 
-        return back()->with('success', $this->label($record) . ' approved.');
+        return back()->with('success', "Approved {$count} " . ($count === 1 ? 'entry' : 'entries') . '.');
     }
 
     public function reject(Request $request, string $type, int $id)
@@ -57,45 +56,32 @@ class ApprovalController extends Controller
             ['review_note.required' => 'Write a note so the staff member knows what to fix.']
         );
         $record = $this->findPending($type, $id);
+        RecordApprover::reject($record, $request->user(), $validated['review_note']);
 
-        $record->forceFill([
-            'approval_status' => 'rejected',
-            'approved_by'     => $request->user()->id, // the reviewer
-            'approved_at'     => now(),
-            'review_note'     => $validated['review_note'],
-        ])->save();
+        return back()->with('success', ApprovalQueue::label($record) . ' rejected and returned to staff.');
+    }
 
-        $this->audit('reject', $record, $validated['review_note']);
+    /** @return array{0: ?string, 1: ?int} */
+    private function filters(Request $request): array
+    {
+        $date = null;
+        if ($request->filled('date')) {
+            try {
+                $date = Carbon::parse($request->input('date'))->toDateString();
+            } catch (\Throwable) {
+                $date = null;
+            }
+        }
+        $userId = $request->filled('user_id') && ctype_digit((string) $request->input('user_id')) ? (int) $request->input('user_id') : null;
 
-        return back()->with('success', $this->label($record) . ' rejected and returned to staff.');
+        return [$date, $userId];
     }
 
     private function findPending(string $type, int $id): Model
     {
-        abort_unless(isset(self::TYPES[$type]), 404);
+        $class = ApprovalQueue::modelFor($type);
+        abort_unless($class, 404);
 
-        return self::TYPES[$type]::pending()->findOrFail($id);
-    }
-
-    private function label(Model $record): string
-    {
-        return $record instanceof BuildingDaily
-            ? ($record->henBatch?->display_label ?? 'Building') . ' entry for ' . $record->date->toDateString()
-            : "Sale of {$record->quantity} {$record->egg_size} on " . $record->date->toDateString();
-    }
-
-    private function audit(string $action, Model $record, ?string $note): void
-    {
-        AuditLog::create([
-            'user_id'    => auth()->id(),
-            'action'     => $action,
-            'model_type' => class_basename($record),
-            'model_id'   => $record->id,
-            'details'    => array_filter([
-                'record'     => $this->label($record),
-                'entered_by' => $record instanceof BuildingDaily ? $record->user_id : $record->entered_by,
-                'note'       => $note,
-            ], fn ($v) => $v !== null),
-        ]);
+        return $class::pending()->findOrFail($id);
     }
 }

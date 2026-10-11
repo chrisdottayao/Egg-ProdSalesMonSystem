@@ -2,7 +2,7 @@
 <div class="space-y-6">
     <div>
         <h1 class="text-2xl font-bold text-gray-800">Pending Approvals</h1>
-        <p class="text-sm text-gray-500 mt-1">Entries recorded by staff. They do not count in totals, reports, alerts or forecasts until approved. Rejecting needs a note; the staff member sees it and can correct and resubmit.</p>
+        <p class="text-sm text-gray-500 mt-1">Everything staff record: daily building entries, egg grading, farm production, sales, utility expenses and culls. Nothing here counts in totals, reports, alerts or forecasts until approved. Rejecting needs a note; the staff member sees it and can correct and resubmit.</p>
     </div>
 
     @if(session('success'))
@@ -14,78 +14,76 @@
 
     @php
         $manila = fn ($t) => $t?->copy()->setTimezone(\App\Support\ManilaDate::TZ)->format('M d, Y g:i A') ?? '—';
+        $filtered = $date || $userId;
     @endphp
 
-    {{-- Building daily entries --}}
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-4">Daily Building Entries ({{ $buildingRows->count() }})</h2>
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="border-b">
-                        <th class="text-left py-2 font-semibold text-gray-700">Date</th>
-                        <th class="text-left py-2 font-semibold text-gray-700">Building</th>
-                        <th class="text-right py-2 font-semibold text-gray-700">Population</th>
-                        <th class="text-right py-2 font-semibold text-gray-700">Mortality</th>
-                        <th class="text-right py-2 font-semibold text-gray-700">Eggs House</th>
-                        <th class="text-right py-2 font-semibold text-gray-700">Prod Rate</th>
-                        <th class="text-left py-2 pl-4 font-semibold text-gray-700">Entered by</th>
-                        <th class="text-left py-2 font-semibold text-gray-700">Entered at</th>
-                        <th class="text-right py-2 font-semibold text-gray-700">Review</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($buildingRows as $row)
-                        <tr class="border-b last:border-0 align-top">
-                            <td class="py-3">{{ $row->date->format('Y-m-d') }}</td>
-                            <td class="py-3">{{ $row->henBatch?->display_label ?? '—' }}</td>
-                            <td class="py-3 text-right">{{ number_format($row->population) }}</td>
-                            <td class="py-3 text-right">{{ $row->mortality }}</td>
-                            <td class="py-3 text-right">{{ number_format($row->eggs_house) }}</td>
-                            <td class="py-3 text-right">{{ number_format($row->prod_rate, 1) }}%</td>
-                            <td class="py-3 pl-4">{{ $row->user?->name ?? '—' }}</td>
-                            <td class="py-3 text-gray-600">{{ $manila($row->updated_at) }}</td>
-                            <td class="py-3"><x-approval-actions type="building-daily" :record="$row" /></td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="9" class="py-6 text-center text-gray-400">Nothing waiting.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
+    {{-- Filter by date / person; "Approve all" acts on exactly what is shown. --}}
+    <div class="bg-white rounded-lg shadow-md p-4">
+        <form method="GET" action="{{ route('approvals.index') }}" class="flex flex-wrap items-end gap-3">
+            <div>
+                <label for="filter_date" class="block text-xs font-semibold text-gray-600 mb-1">Date</label>
+                <input type="date" id="filter_date" name="date" value="{{ $date }}" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+            </div>
+            <div>
+                <label for="filter_user" class="block text-xs font-semibold text-gray-600 mb-1">Entered by</label>
+                <select id="filter_user" name="user_id" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    <option value="">Everyone</option>
+                    @foreach($users as $u)
+                        <option value="{{ $u->id }}" @selected($userId === $u->id)>{{ $u->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <button type="submit" class="px-4 py-2 rounded-lg bg-gray-800 text-white text-sm font-semibold hover:bg-gray-700">Show</button>
+            @if($filtered)
+                <a href="{{ route('approvals.index') }}" class="text-sm text-gray-500 hover:underline py-2">Clear</a>
+            @endif
+
+            <div class="ml-auto">
+                @if($filtered && $items->isNotEmpty())
+                    <button type="submit" form="approve-all-form"
+                            onclick="return confirm('Approve all {{ $items->count() }} entries shown?')"
+                            class="px-4 py-2 rounded-lg bg-[#4CAF50] text-white text-sm font-semibold hover:bg-green-600">Approve all {{ $items->count() }} shown</button>
+                @else
+                    <span class="text-xs text-gray-400">Pick a date or a person to approve their entries all at once.</span>
+                @endif
+            </div>
+        </form>
+        <form id="approve-all-form" method="POST" action="{{ route('approvals.approve-all') }}" class="hidden">
+            @csrf @method('PATCH')
+            <input type="hidden" name="date" value="{{ $date }}">
+            <input type="hidden" name="user_id" value="{{ $userId }}">
+        </form>
     </div>
 
-    {{-- Sales --}}
     <div class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-4">Sales ({{ $sales->count() }})</h2>
+        <h2 class="text-lg font-bold text-gray-800 mb-4">Waiting for review ({{ $items->count() }})</h2>
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b">
+                        <th class="text-left py-2 font-semibold text-gray-700">Type</th>
                         <th class="text-left py-2 font-semibold text-gray-700">Date</th>
-                        <th class="text-left py-2 font-semibold text-gray-700">Size</th>
-                        <th class="text-right py-2 font-semibold text-gray-700">Qty</th>
-                        <th class="text-right py-2 font-semibold text-gray-700">Price/Unit</th>
-                        <th class="text-right py-2 font-semibold text-gray-700">Total</th>
+                        <th class="text-left py-2 font-semibold text-gray-700">Building</th>
+                        <th class="text-left py-2 font-semibold text-gray-700">Values</th>
                         <th class="text-left py-2 pl-4 font-semibold text-gray-700">Entered by</th>
                         <th class="text-left py-2 font-semibold text-gray-700">Entered at</th>
                         <th class="text-right py-2 font-semibold text-gray-700">Review</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($sales as $sale)
-                        <tr class="border-b last:border-0 align-top">
-                            <td class="py-3">{{ $sale->date->format('Y-m-d') }}</td>
-                            <td class="py-3">{{ $sale->egg_size }}</td>
-                            <td class="py-3 text-right">{{ number_format($sale->quantity) }}</td>
-                            <td class="py-3 text-right">₱{{ number_format($sale->price_per_unit, 2) }}</td>
-                            <td class="py-3 text-right font-semibold">₱{{ number_format($sale->total_amount, 2) }}</td>
-                            <td class="py-3 pl-4">{{ $sale->enteredBy?->name ?? '—' }}</td>
-                            <td class="py-3 text-gray-600">{{ $manila($sale->updated_at) }}</td>
-                            <td class="py-3"><x-approval-actions type="sales" :record="$sale" /></td>
+                    @forelse($items as $item)
+                        @php $record = $item['record']; @endphp
+                        <tr class="border-b last:border-0 align-top" data-approval-type="{{ $item['type'] }}">
+                            <td class="py-3 font-medium text-gray-800">{{ $item['label'] }}</td>
+                            <td class="py-3">{{ $record->date->format('Y-m-d') }}</td>
+                            <td class="py-3">{{ \App\Support\ApprovalQueue::building($record) }}</td>
+                            <td class="py-3 text-gray-700">{{ \App\Support\ApprovalQueue::summary($record) }}</td>
+                            <td class="py-3 pl-4">{{ \App\Support\ApprovalQueue::entrant($record)?->name ?? '—' }}</td>
+                            <td class="py-3 text-gray-600">{{ $manila($record->updated_at) }}</td>
+                            <td class="py-3"><x-approval-actions :type="$item['type']" :record="$record" /></td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="py-6 text-center text-gray-400">Nothing waiting.</td></tr>
+                        <tr><td colspan="7" class="py-6 text-center text-gray-400">Nothing waiting{{ $filtered ? ' for this filter' : '' }}.</td></tr>
                     @endforelse
                 </tbody>
             </table>

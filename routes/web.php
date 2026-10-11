@@ -121,6 +121,7 @@ Route::middleware('auth')->group(function () {
     // Record approval queue (admin + manager, Phase 3 item 1)
     Route::middleware('role:admin,manager')->group(function () {
         Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals.index');
+        Route::patch('/approvals/approve-all', [ApprovalController::class, 'approveAll'])->name('approvals.approve-all');
         Route::patch('/approvals/{type}/{id}/approve', [ApprovalController::class, 'approve'])->whereNumber('id')->name('approvals.approve');
         Route::patch('/approvals/{type}/{id}/reject', [ApprovalController::class, 'reject'])->whereNumber('id')->name('approvals.reject');
     });
