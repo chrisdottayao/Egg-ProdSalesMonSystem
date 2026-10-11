@@ -30,7 +30,7 @@ trait HasApproval
 
     public function initializeHasApproval(): void
     {
-        $this->mergeFillable(['approval_status', 'approved_by', 'approved_at', 'review_note']);
+        $this->mergeFillable(['approval_status', 'approved_by', 'approved_at', 'review_note', static::enteredByColumn()]);
         $this->mergeCasts(['approved_at' => 'datetime']);
     }
 
@@ -54,6 +54,42 @@ trait HasApproval
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    /**
+     * Column naming who entered the row. building_daily and egg_productions
+     * already had user_id; the tables given approval later got entered_by.
+     */
+    public static function enteredByColumn(): string
+    {
+        return defined(static::class . '::ENTERED_BY_COLUMN') ? static::ENTERED_BY_COLUMN : 'entered_by';
+    }
+
+    /** Who entered the row, whatever the column is called (Phase 3B). */
+    public function entrant(): BelongsTo
+    {
+        return $this->belongsTo(User::class, static::enteredByColumn());
+    }
+
+    public function isEnteredBy(?User $user): bool
+    {
+        return $user !== null && (int) $this->getAttribute(static::enteredByColumn()) === (int) $user->id;
+    }
+
+    /**
+     * History lists (Phase 3B item 6): admin/manager see every row; staff see
+     * approved rows plus their own pending and rejected ones.
+     */
+    public function scopeVisibleTo(Builder $q, ?User $user): Builder
+    {
+        $q->withoutGlobalScope('approved');
+        if ($user?->canManageRecords()) {
+            return $q;
+        }
+
+        return $q->where(fn (Builder $w) => $w
+            ->where($w->qualifyColumn('approval_status'), self::STATUS_APPROVED)
+            ->orWhere($w->qualifyColumn(static::enteredByColumn()), $user?->id ?? 0));
     }
 
     public function isApproved(): bool

@@ -265,7 +265,7 @@ class EggProductionController extends Controller
         $defaultBatch = HenBatch::where('status', 'Active')->first();
 
         // ── Preload existing keys once, so duplicate checks don't hit the DB per row ──
-        $existingProdDates = EggProduction::pluck('date')
+        $existingProdDates = EggProduction::withPending()->pluck('date')
             ->map(fn ($d) => $d->format('Y-m-d'))
             ->flip()->all();
 
@@ -273,7 +273,7 @@ class EggProductionController extends Controller
             ->map(fn ($s) => $s->date->format('Y-m-d') . '|' . $s->egg_size)
             ->flip()->all();
 
-        $existingCullDates = CullRecord::pluck('date')
+        $existingCullDates = CullRecord::withPending()->pluck('date')
             ->map(fn ($d) => $d->format('Y-m-d'))
             ->flip()->all();
 

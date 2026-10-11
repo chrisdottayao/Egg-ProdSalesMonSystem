@@ -72,8 +72,8 @@ class HenBatch extends Model
     public function hasHistory(): bool
     {
         return BuildingDaily::withPending()->where('hen_batch_id', $this->id)->exists()
-            || CullRecord::where('hen_batch_id', $this->id)->exists()
-            || Expense::where('building_id', $this->id)->exists()
+            || CullRecord::withPending()->where('hen_batch_id', $this->id)->exists()
+            || Expense::withPending()->where('building_id', $this->id)->exists()
             || FlockAlert::where('hen_batch_id', $this->id)->exists();
     }
 

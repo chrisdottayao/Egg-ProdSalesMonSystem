@@ -3,12 +3,14 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\HasApproval;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CullRecord extends Model
 {
     use Auditable; // Phase 3 item 2
+    use HasApproval; // Phase 3B: staff culls wait for review, and so do their effects (item 5)
 
     protected $fillable = [
         'date', 'hen_batch_id', 'quantity_culled', 'reason', 'notes',

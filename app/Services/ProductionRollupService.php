@@ -40,7 +40,11 @@ class ProductionRollupService
         $mortality     = (int) $buildings->sum('mortality');
         $feedBags      = (float) $buildings->sum('feed_bags');
 
-        $production = EggProduction::whereDate('date', $date)->first();
+        // withPending(): one row per date, whatever its status (Phase 3B).
+        // A staff-entered farm-level row still waiting for review gets the
+        // approved building totals but keeps its own status: its other
+        // fields (spoilage, notes) were never reviewed.
+        $production = EggProduction::withPending()->whereDate('date', $date)->first();
 
         if ($production) {
             $production->update([
@@ -50,7 +54,9 @@ class ProductionRollupService
                 'feed_bags'      => $feedBags,
             ]);
         } else {
+            // Derived only from approved building rows, so approved itself.
             EggProduction::create([
+                'approval_status' => EggProduction::STATUS_APPROVED,
                 'date'           => $date,
                 'eggs_collected' => $eggsCollected,
                 'active_hens'    => $activeHens,

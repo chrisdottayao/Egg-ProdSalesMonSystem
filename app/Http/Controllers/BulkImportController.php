@@ -307,7 +307,7 @@ class BulkImportController extends Controller
         $stats     = ['imported' => 0, 'skipped' => 0, 'errors' => 0, 'total_pcs_mismatches' => 0];
         $errors    = [];
 
-        $existingKeys = EggGradingDaily::get(['date', 'category'])
+        $existingKeys = EggGradingDaily::withPending()->get(['date', 'category'])
             ->map(fn ($r) => $r->date->format('Y-m-d') . '|' . $r->category)
             ->flip()
             ->all();
