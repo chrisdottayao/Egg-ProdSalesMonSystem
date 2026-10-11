@@ -6,6 +6,8 @@ use App\Models\AuditLog;
 use App\Models\EggGradingDaily;
 use App\Models\EggProduction;
 use App\Models\EggSale;
+use App\Support\EggPrices;
+use App\Support\LatestEntry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -41,18 +43,29 @@ class EggSaleController extends Controller
             $producedBySizeAndDate[$key] = $gradingBySizeAndDate[$dateKey][$category] ?? null;
         }
 
-        return view('sales.index', compact('sales', 'producedBySizeAndDate'));
+        $latest = LatestEntry::for(EggSale::class);
+
+        // S13: set prices per size, for the form's price auto-fill.
+        $eggPrices = EggPrices::all();
+
+        return view('sales.index', compact('sales', 'producedBySizeAndDate', 'latest', 'eggPrices'));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'date'           => 'required|date',
+            'date'           => $this->entryDateRules(true, $request->input('queued_at')),
             'egg_size'       => 'required|string',
             'quantity'       => 'required|integer|min:1',
-            'price_per_unit' => 'required|numeric|min:0',
+            'price_per_unit' => 'nullable|numeric|min:0',
             'notes'          => 'nullable|string',
         ]);
+
+        // S13: a blank price takes the admin-set price for that size.
+        $validated['price_per_unit'] = EggPrices::priceOrDefault($validated['price_per_unit'] ?? null, $validated['egg_size']);
+        if ($validated['price_per_unit'] === null) {
+            return back()->withInput()->withErrors(['price_per_unit' => 'Enter a price — no set price exists for this egg size.']);
+        }
 
         // Hard block: sold > produced on that date
         $produced = EggProduction::whereDate('date', $validated['date'])->sum('eggs_collected');
@@ -65,20 +78,26 @@ class EggSaleController extends Controller
 
         $validated['total_amount'] = $validated['quantity'] * $validated['price_per_unit'];
 
-        EggSale::create($validated);
+        $sale = EggSale::create($validated);
 
-        return redirect()->route('sales.index')->with('success', 'Sales entry saved successfully!');
+        return redirect()->route('sales.index')
+            ->with('success', 'Sales entry saved successfully!')
+            ->with('latest_ids', [$sale->id]);
     }
 
     public function edit(EggSale $sale)
     {
+        $this->denyPastRecordChangeForStaff($sale->date);
+
         return view('sales.edit', compact('sale'));
     }
 
     public function update(Request $request, EggSale $sale)
     {
+        $this->denyPastRecordChangeForStaff($sale->date);
+
         $validated = $request->validate([
-            'date'           => 'required|date',
+            'date'           => $this->entryDateRules(false),
             'egg_size'       => 'required|string',
             'quantity'       => 'required|integer|min:1',
             'price_per_unit' => 'required|numeric|min:0',
@@ -93,6 +112,8 @@ class EggSaleController extends Controller
 
     public function destroy(EggSale $sale)
     {
+        $this->denyPastRecordChangeForStaff($sale->date);
+
         $sale->delete();
         return redirect()->route('sales.index')->with('success', 'Sales record deleted.');
     }
@@ -189,8 +210,9 @@ class EggSaleController extends Controller
                 continue;
             }
 
-            // Validate price_per_unit
-            $price = (float) ($data['price_per_unit'] ?? 0);
+            // Validate price_per_unit. S13: a blank price uses the admin-set
+            // price for that size; a price in the CSV is always kept.
+            $price = (float) EggPrices::priceOrDefault($data['price_per_unit'] ?? null, $eggSize);
             if ($price <= 0) {
                 $errors[] = "Row {$rowNumber} ({$date}): price_per_unit must be a positive number.";
                 $failed++;

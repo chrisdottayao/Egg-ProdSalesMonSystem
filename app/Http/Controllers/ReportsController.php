@@ -118,7 +118,7 @@ class ReportsController extends Controller
         $summary   = $data['summary'];
 
         $rows   = [];
-        $rows[] = ['Date', 'Eggs Produced', 'Eggs Sold', 'Mortality', 'Revenue (PHP)', 'Expenses (PHP)', 'Prod Rate (%)', 'Remaining'];
+        $rows[] = ['Date', 'Eggs Produced', 'Eggs Sold', 'Mortality', 'Revenue (PHP)', 'Utility Expenses (PHP)', 'Prod Rate (%)', 'Remaining'];
 
         foreach ($dailyData as $row) {
             $rows[] = [

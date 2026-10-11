@@ -31,7 +31,7 @@
         <th>Total Eggs Sold</th>
         <th>Total Mortality</th>
         <th>Total Revenue</th>
-        <th>Total Expenses</th>
+        <th>Total Utility Expenses</th>
         <th>Net Income</th>
         <th>Avg Production Rate</th>
         <th>Avg Sales Rate</th>
@@ -59,7 +59,7 @@
             <th>Eggs Sold</th>
             <th>Mortality</th>
             <th>Revenue</th>
-            <th>Expenses</th>
+            <th>Utility Expenses</th>
             <th>Prod Rate</th>
             <th>Remaining</th>
         </tr>

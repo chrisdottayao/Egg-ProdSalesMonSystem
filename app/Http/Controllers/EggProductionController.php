@@ -10,6 +10,7 @@ use App\Models\EggSale;
 use App\Models\HenBatch;
 use App\Models\User;
 use App\Models\WeatherDaily;
+use App\Support\LatestEntry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -21,18 +22,64 @@ class EggProductionController extends Controller
     // TODO: calibrate if profiling on real hardware suggests a different size
     private const IMPORT_CHUNK_SIZE = 500;
 
-    public function index()
+    public function index(Request $request)
     {
         $productions = EggProduction::latest('date')->paginate(20);
         $activeHens  = HenBatch::activeHenCount();
 
+        // S4: per-building view. egg_productions is the farm-wide daily rollup
+        // (no building column), so filtering by building lists that building's
+        // own building_daily rows instead. Ended buildings stay selectable so
+        // their history remains reachable.
+        $filterBuildings = HenBatch::tracked()->whereNotNull('building_no')
+            ->orderByRaw('COALESCE(display_no, building_no) ASC')->get();
+        $selectedBuilding = $filterBuildings->firstWhere('id', (int) $request->input('building_id'));
+        $buildingRows = $selectedBuilding
+            ? BuildingDaily::with(['henBatch', 'user'])->where('hen_batch_id', $selectedBuilding->id)
+                ->latest('date')->paginate(20)->withQueryString()
+            : null;
+
         // THI context alongside each row's date — read-only, no prediction here.
-        $dates = $productions->pluck('date')->map(fn ($d) => $d->format('Y-m-d'));
+        $dates = ($buildingRows ?? $productions)->pluck('date')->map(fn ($d) => $d->format('Y-m-d'));
         $weatherByDate = WeatherDaily::whereIn('date', $dates)
             ->get(['date', 'thi'])
             ->keyBy(fn ($w) => $w->date->format('Y-m-d'));
 
-        return view('productions.index', compact('productions', 'activeHens', 'weatherByDate'));
+        $latest = LatestEntry::for(EggProduction::class);
+
+        return view('productions.index', compact(
+            'productions', 'activeHens', 'weatherByDate', 'latest',
+            'filterBuildings', 'selectedBuilding', 'buildingRows'
+        ));
+    }
+
+    /**
+     * S4: delete one building's row for one day from the per-building view.
+     * BuildingDaily's deleted hook re-runs the farm-wide rollup for that date.
+     */
+    public function destroyBuildingRow(BuildingDaily $buildingDaily)
+    {
+        $this->denyPastRecordChangeForStaff($buildingDaily->date);
+
+        $label = $buildingDaily->henBatch?->display_label;
+        $date  = $buildingDaily->date->toDateString();
+        $buildingDaily->delete();
+
+        AuditLog::create([
+            'user_id'    => auth()->id(),
+            'action'     => 'delete',
+            'model_type' => 'BuildingDaily',
+            'model_id'   => $buildingDaily->id,
+            'details'    => [
+                'building'   => $label,
+                'date'       => $date,
+                'population' => $buildingDaily->population,
+                'eggs_house' => $buildingDaily->eggs_house,
+            ],
+        ]);
+
+        return redirect()->route('productions.index', ['building_id' => $buildingDaily->hen_batch_id])
+            ->with('success', "Deleted {$label}'s entry for {$date}.");
     }
 
     public function store(Request $request)
@@ -43,7 +90,7 @@ class EggProductionController extends Controller
         // row just takes the egg_size column's DB default and a null weight;
         // size-level detail belongs to Egg Grading Daily.
         $validated = $request->validate([
-            'date'             => 'required|date',
+            'date'             => $this->entryDateRules(true, $request->input('queued_at')),
             'eggs_collected'   => 'required|integer|min:0|max:200000',
             'active_hens'      => 'required|integer|min:1',
             'mortality'        => 'required|integer|min:0',
@@ -57,23 +104,29 @@ class EggProductionController extends Controller
         $validated['spoilage_count'] = $validated['spoilage_count'] ?? 0;
         $validated['user_id'] = auth()->id();
 
-        EggProduction::create($validated);
+        $production = EggProduction::create($validated);
 
-        return redirect()->route('productions.index')->with('success', 'Production entry saved successfully!');
+        return redirect()->route('productions.index')
+            ->with('success', 'Production entry saved successfully!')
+            ->with('latest_ids', [$production->id]);
     }
 
     public function edit(EggProduction $production)
     {
+        $this->denyPastRecordChangeForStaff($production->date);
+
         return view('productions.edit', compact('production'));
     }
 
     public function update(Request $request, EggProduction $production)
     {
+        $this->denyPastRecordChangeForStaff($production->date);
+
         // Same as store(): egg_size/egg_weight are no longer part of this form,
         // so editing a record never touches those two columns (existing values,
         // if any, are left exactly as they were).
         $validated = $request->validate([
-            'date'             => 'required|date',
+            'date'             => $this->entryDateRules(false),
             'eggs_collected'   => 'required|integer|min:0|max:200000',
             'active_hens'      => 'required|integer|min:1',
             'mortality'        => 'required|integer|min:0',
@@ -94,6 +147,8 @@ class EggProductionController extends Controller
 
     public function destroy(EggProduction $production)
     {
+        $this->denyPastRecordChangeForStaff($production->date);
+
         $production->delete();
         return redirect()->route('productions.index')->with('success', 'Production record deleted.');
     }

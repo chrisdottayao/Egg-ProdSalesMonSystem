@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\BulkImportController;
+use App\Http\Controllers\CombinedImportController;
 use App\Http\Controllers\CullController;
 use App\Http\Controllers\DailyEntryController;
 use App\Http\Controllers\DashboardController;
@@ -58,18 +59,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/production/{production}/edit', [EggProductionController::class, 'edit'])->name('productions.edit');
     Route::patch('/production/{production}', [EggProductionController::class, 'update'])->name('productions.update');
     Route::delete('/production/{production}', [EggProductionController::class, 'destroy'])->name('productions.destroy');
-
-    // Historical CSV import
-    Route::get('/production/import/template', [EggProductionController::class, 'downloadTemplate'])->name('productions.import.template');
-    Route::post('/production/import/historical', [EggProductionController::class, 'importHistorical'])->name('productions.import.historical');
-    Route::get('/production/import/errors/{token}', [EggProductionController::class, 'downloadImportErrors'])->name('productions.import.errors');
+    Route::delete('/production/buildings/{buildingDaily}', [EggProductionController::class, 'destroyBuildingRow'])->name('productions.buildings.destroy');
 
     // Egg Sales
     Route::get('/sales', [EggSaleController::class, 'index'])->name('sales.index');
     Route::post('/sales', [EggSaleController::class, 'store'])->name('sales.store');
-    Route::get('/sales/import/template', [EggSaleController::class, 'downloadSalesTemplate'])->name('sales.import.template');
-    Route::post('/sales/import', [EggSaleController::class, 'importSales'])->name('sales.import');
-    Route::get('/sales/import/errors/{token}', [EggSaleController::class, 'downloadSalesImportErrors'])->name('sales.import.errors');
     Route::get('/sales/{sale}/edit', [EggSaleController::class, 'edit'])->name('sales.edit');
     Route::patch('/sales/{sale}', [EggSaleController::class, 'update'])->name('sales.update');
     Route::delete('/sales/{sale}', [EggSaleController::class, 'destroy'])->name('sales.destroy');
@@ -83,14 +77,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/daily-entry', [DailyEntryController::class, 'index'])->name('daily-entry.index');
     Route::post('/daily-entry', [DailyEntryController::class, 'store'])->name('daily-entry.store');
 
-    // Bulk imports (building_daily / egg_grading_daily) — historical backfill
-    // The standalone page was retired; the buttons now live on Daily Entry.
+    // The standalone imports page was retired; the buttons now live on Daily Entry.
     Route::redirect('/imports', '/daily-entry')->name('imports.index');
-    Route::get('/imports/building-daily/template', [BulkImportController::class, 'buildingDailyTemplate'])->name('imports.building-daily.template');
-    Route::post('/imports/building-daily', [BulkImportController::class, 'importBuildingDaily'])->name('imports.building-daily.import');
-    Route::get('/imports/egg-grading/template', [BulkImportController::class, 'eggGradingTemplate'])->name('imports.egg-grading.template');
-    Route::post('/imports/egg-grading', [BulkImportController::class, 'importEggGrading'])->name('imports.egg-grading.import');
-    Route::get('/imports/errors/{token}', [BulkImportController::class, 'downloadImportErrors'])->name('imports.errors');
 
     // Expenses (feed kg, medicine, vaccines, restocking, electricity, manpower — farm-wide or per-building)
     Route::get('/expenses', [ExpenseController::class, 'index'])->name('expenses.index');
@@ -106,6 +94,23 @@ Route::middleware('auth')->group(function () {
     Route::patch('/flock-records/hens/{henBatch}', [LivestockController::class, 'updateHen'])->name('flock-records.hens.update');
     Route::delete('/flock-records/hens/{henBatch}', [LivestockController::class, 'destroyHen'])->name('flock-records.hens.destroy');
 
+    // Historical CSV imports — the only way to load past-dated data, so
+    // admin + manager only (S16: staff record today's entries only).
+    Route::middleware('role:admin,manager')->group(function () {
+        Route::get('/production/import/template', [EggProductionController::class, 'downloadTemplate'])->name('productions.import.template');
+        Route::post('/production/import/historical', [EggProductionController::class, 'importHistorical'])->name('productions.import.historical');
+        Route::get('/production/import/errors/{token}', [EggProductionController::class, 'downloadImportErrors'])->name('productions.import.errors');
+        Route::get('/sales/import/template', [EggSaleController::class, 'downloadSalesTemplate'])->name('sales.import.template');
+        Route::post('/sales/import', [EggSaleController::class, 'importSales'])->name('sales.import');
+        Route::get('/sales/import/errors/{token}', [EggSaleController::class, 'downloadSalesImportErrors'])->name('sales.import.errors');
+        Route::get('/imports/building-daily/template', [BulkImportController::class, 'buildingDailyTemplate'])->name('imports.building-daily.template');
+        Route::post('/imports/building-daily', [BulkImportController::class, 'importBuildingDaily'])->name('imports.building-daily.import');
+        Route::get('/imports/egg-grading/template', [BulkImportController::class, 'eggGradingTemplate'])->name('imports.egg-grading.template');
+        Route::post('/imports/egg-grading', [BulkImportController::class, 'importEggGrading'])->name('imports.egg-grading.import');
+        Route::get('/imports/errors/{token}', [BulkImportController::class, 'downloadImportErrors'])->name('imports.errors');
+        // S20: one panel, choose Production and/or Sales
+        Route::post('/imports/combined', [CombinedImportController::class, 'store'])->name('imports.combined');
+    });
     // Anomaly alert actions (admin + manager)
     Route::middleware('role:admin,manager')->group(function () {
         Route::patch('/alerts/{alert}/reviewed', [DashboardController::class, 'markReviewed'])->name('alerts.reviewed');
@@ -140,6 +145,16 @@ Route::middleware('auth')->group(function () {
         Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::post('/users/{user}/approve', [UserController::class, 'approve'])->name('users.approve');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    });
+
+    // Add a building from the UI (admin + manager, S17)
+    Route::middleware('role:admin,manager')->group(function () {
+        Route::post('/flock-records/buildings', [LivestockController::class, 'storeBuilding'])->name('flock-records.buildings.store');
+    });
+
+    // Reopen a building marked culled by mistake (admin only, S3)
+    Route::middleware('role:admin')->group(function () {
+        Route::patch('/flock-records/hens/{henBatch}/reopen', [LivestockController::class, 'reopenHen'])->name('flock-records.hens.reopen');
     });
 
     // Settings — editable expense-estimate defaults (admin only)

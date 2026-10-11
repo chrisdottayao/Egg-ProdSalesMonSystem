@@ -25,14 +25,14 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Date</label>
-                    <input type="date" name="date" id="saleDate" value="{{ old('date', date('Y-m-d')) }}"
+                    <input type="date" name="date" id="saleDate" value="{{ \App\Support\ManilaDate::todayString() }}" min="{{ \App\Support\ManilaDate::todayString() }}" max="{{ \App\Support\ManilaDate::todayString() }}" readonly title="Entries can only be recorded for today"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required />
                     <p class="text-xs text-gray-500 mt-1" id="producedHint"></p>
                 </div>
 
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Egg Size</label>
-                    <select name="egg_size" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]">
+                    <select name="egg_size" id="eggSize" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]">
                         @foreach(['Peewee','Small','Medium','Large','XL','Jumbo','No Value','No Weight','Dirty','Broken','Waste'] as $size)
                             <option value="{{ $size }}" {{ old('egg_size', 'Large') === $size ? 'selected' : '' }}>{{ $size }}</option>
                         @endforeach
@@ -48,8 +48,10 @@
 
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Price per Unit (₱)</label>
-                    <input type="number" name="price_per_unit" id="pricePerUnit" value="{{ old('price_per_unit', '9.00') }}" step="0.01" min="0" placeholder="0.00"
+                    <input type="number" name="price_per_unit" id="pricePerUnit" value="{{ old('price_per_unit', number_format($eggPrices[old('egg_size', 'Large')] ?? 0, 2, '.', '')) }}" step="0.01" min="0" placeholder="0.00"
+                        data-prices='@json($eggPrices)'
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required />
+                    <p class="text-xs text-gray-500 mt-1">Filled from the set price for this size; change it for a special price.</p>
                 </div>
 
                 <div>
@@ -198,13 +200,18 @@
             </div>
         </div>
 
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-bold text-gray-800">Sales History</h2>
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div class="flex items-center gap-3 flex-wrap">
+                <h2 class="text-lg font-bold text-gray-800">Sales History</h2>
+                <x-latest-entry.legend :latest="$latest" />
+            </div>
+            @if(auth()->user()->canManageRecords())
             <button @click="showImport = true"
                 class="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                 Import Sales History
             </button>
+            @endif
         </div>
         <div class="overflow-x-auto">
             <table class="w-full">
@@ -223,8 +230,12 @@
                 </thead>
                 <tbody>
                     @forelse($sales as $sale)
-                        <tr class="border-b last:border-0 hover:bg-gray-50">
-                            <td class="py-3 text-sm">{{ $sale->date->format('Y-m-d') }}</td>
+                        @php $isLatest = $latest->has($sale); @endphp
+                        <tr @class(['border-b last:border-0', 'hover:bg-gray-50' => ! $isLatest, \App\Support\LatestEntry::ROW_CLASSES => $isLatest]) @if($isLatest) data-latest @endif>
+                            <td class="py-3 text-sm">
+                                {{ $sale->date->format('Y-m-d') }}
+                                @if($isLatest)<x-latest-entry.pill :latest="$latest" />@endif
+                            </td>
                             <td class="py-3 text-sm">{{ $sale->egg_size }}</td>
                             <td class="text-right py-3 text-sm">{{ number_format($sale->quantity) }}</td>
                             <td class="text-right py-3 text-sm">₱{{ number_format($sale->price_per_unit, 2) }}</td>
@@ -239,11 +250,13 @@
                             <td class="text-right py-3 text-sm text-gray-600">{{ $remaining !== null ? number_format($remaining) : '—' }}</td>
                             <td class="py-3 text-sm text-gray-600">{{ $sale->notes ?? '—' }}</td>
                             <td class="text-right py-3 text-sm space-x-2">
-                                <a href="{{ route('sales.edit', $sale) }}" class="text-blue-600 hover:underline">Edit</a>
-                                <form method="POST" action="{{ route('sales.destroy', $sale) }}" class="inline" onsubmit="return confirm('Delete this sale?')">
-                                    @csrf @method('DELETE')
-                                    <button type="submit" class="text-red-600 hover:underline">Delete</button>
-                                </form>
+                                <x-past-record-guard :date="$sale->date">
+                                    <a href="{{ route('sales.edit', $sale) }}" class="text-blue-600 hover:underline">Edit</a>
+                                    <form method="POST" action="{{ route('sales.destroy', $sale) }}" class="inline" onsubmit="return confirm('Delete this sale?')">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="text-red-600 hover:underline">Delete</button>
+                                    </form>
+                                </x-past-record-guard>
                             </td>
                         </tr>
                     @empty
@@ -255,6 +268,8 @@
         <div class="mt-3">{{ $sales->links() }}</div>
     </div> {{-- end x-data (Sales History card) --}}
 </div>
+
+<x-latest-entry.scroll />
 
 <script>
     // ── PWA offline intercept ──────────────────────────────────────────
@@ -307,6 +322,17 @@
 
     qtyInput?.addEventListener('input', recalc);
     priceInput?.addEventListener('input', recalc);
+
+    // S13: picking a size fills in its set price (Settings); still editable
+    // afterwards for a special price.
+    const eggPrices = JSON.parse(priceInput?.dataset.prices || '{}');
+    document.getElementById('eggSize')?.addEventListener('change', e => {
+        const price = eggPrices[e.target.value];
+        if (price !== undefined) {
+            priceInput.value = Number(price).toFixed(2);
+            recalc();
+        }
+    });
     recalc();
 </script>
 </x-app-layout>

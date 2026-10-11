@@ -1,7 +1,7 @@
 <x-app-layout>
 <div class="space-y-6">
     <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-gray-800">Farm Expenses</h1>
+        <h1 class="text-2xl font-bold text-gray-800">Utility Expenses</h1>
         <a href="{{ route('expenses.summary') }}" class="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
             View Summary
@@ -14,14 +14,14 @@
 
     {{-- Add Expense Form --}}
     <div class="bg-white rounded-lg shadow-md p-6" x-data="{ category: '{{ old('category', 'feed') }}', isRecurring: {{ old('is_recurring') ? 'true' : 'false' }} }">
-        <h2 class="text-lg font-bold text-gray-800 mb-4">Add Expense</h2>
+        <h2 class="text-lg font-bold text-gray-800 mb-4">Add Utility Expense</h2>
         <form method="POST" action="{{ route('expenses.store') }}" enctype="multipart/form-data" class="space-y-4">
             @csrf
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Date</label>
-                    <input type="date" name="date" value="{{ old('date', date('Y-m-d')) }}"
+                    <input type="date" name="date" value="{{ \App\Support\ManilaDate::todayString() }}" min="{{ \App\Support\ManilaDate::todayString() }}" max="{{ \App\Support\ManilaDate::todayString() }}" readonly title="Entries can only be recorded for today"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required />
                     @error('date')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
                 </div>
@@ -43,7 +43,7 @@
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Category</label>
                     <select name="category" x-model="category" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required>
-                        @foreach(\App\Models\Expense::CATEGORIES as $key => $meta)
+                        @foreach(\App\Models\Expense::activeCategories() as $key => $meta)
                             <option value="{{ $key }}" {{ old('category', 'feed') === $key ? 'selected' : '' }}>{{ $meta['label'] }}</option>
                         @endforeach
                     </select>
@@ -94,7 +94,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Unit</label>
-                    <input type="text" name="unit" value="{{ old('unit') }}" placeholder="e.g. bottle, sack, kWh, dose"
+                    <input type="text" name="unit" value="{{ old('unit') }}" placeholder="e.g. kWh, month"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
                     @error('unit')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
                 </div>
@@ -154,7 +154,7 @@
             </div>
 
             <button type="submit" class="bg-[#4CAF50] text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors font-medium">
-                Save Expense
+                Save Utility Expense
             </button>
         </form>
     </div>
@@ -167,9 +167,9 @@
                 <select name="building_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
                     <option value="">All</option>
                     <option value="farm" {{ $buildingFilter === 'farm' ? 'selected' : '' }}>Farm-wide only</option>
-                    @foreach($buildings as $b)
+                    @foreach($filterBuildings as $b)
                         <option value="{{ $b->id }}" {{ (string) $buildingFilter === (string) $b->id ? 'selected' : '' }}>
-                            {{ $b->display_label }}
+                            {{ $b->display_label }}{{ $b->isEnded() ? ' (culled)' : '' }}
                         </option>
                     @endforeach
                 </select>
@@ -178,7 +178,7 @@
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Category</label>
                 <select name="category" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
                     <option value="">All</option>
-                    @foreach(\App\Models\Expense::CATEGORIES as $key => $meta)
+                    @foreach(\App\Models\Expense::activeCategories() as $key => $meta)
                         <option value="{{ $key }}" {{ $category === $key ? 'selected' : '' }}>{{ $meta['label'] }}</option>
                     @endforeach
                 </select>
@@ -200,7 +200,10 @@
 
     {{-- Expense List --}}
     <div class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-4">Expense Records</h2>
+        <div class="flex items-center gap-3 flex-wrap mb-4">
+            <h2 class="text-lg font-bold text-gray-800">Utility Expense Records</h2>
+            <x-latest-entry.legend :latest="$latest" />
+        </div>
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead>
@@ -226,8 +229,12 @@
                         ];
                     @endphp
                     @forelse($expenses as $expense)
-                        <tr class="border-b last:border-0 hover:bg-gray-50 align-top">
-                            <td class="py-3 text-sm">{{ $expense->date->format('Y-m-d') }}</td>
+                        @php $isLatest = $latest->has($expense); @endphp
+                        <tr @class(['border-b last:border-0 align-top', 'hover:bg-gray-50' => ! $isLatest, \App\Support\LatestEntry::ROW_CLASSES => $isLatest]) @if($isLatest) data-latest @endif>
+                            <td class="py-3 text-sm">
+                                {{ $expense->date->format('Y-m-d') }}
+                                @if($isLatest)<x-latest-entry.pill :latest="$latest" />@endif
+                            </td>
                             <td class="py-3 text-sm">{{ $expense->building ? $expense->building->display_label : 'Farm-wide' }}</td>
                             <td class="py-3 text-sm">
                                 <span class="text-xs px-2 py-1 rounded-full font-semibold {{ $catBadgeColors[$expense->category_color] }}">{{ $expense->category_label }}</span>
@@ -259,15 +266,17 @@
                             </td>
                             <td class="py-3 text-sm text-gray-600">{{ $expense->supplier ?? '—' }}</td>
                             <td class="text-right py-3 text-sm space-x-2 whitespace-nowrap">
-                                <a href="{{ route('expenses.edit', $expense) }}" class="text-blue-600 hover:underline">Edit</a>
-                                <form method="POST" action="{{ route('expenses.destroy', $expense) }}" class="inline" onsubmit="return confirm('Delete this expense?')">
-                                    @csrf @method('DELETE')
-                                    <button type="submit" class="text-red-600 hover:underline">Delete</button>
-                                </form>
+                                <x-past-record-guard :date="$expense->date">
+                                    <a href="{{ route('expenses.edit', $expense) }}" class="text-blue-600 hover:underline">Edit</a>
+                                    <form method="POST" action="{{ route('expenses.destroy', $expense) }}" class="inline" onsubmit="return confirm('Delete this utility expense?')">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="text-red-600 hover:underline">Delete</button>
+                                    </form>
+                                </x-past-record-guard>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="py-8 text-center text-gray-400 text-sm">No expense records yet.</td></tr>
+                        <tr><td colspan="9" class="py-8 text-center text-gray-400 text-sm">No utility expense records yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -308,4 +317,5 @@
         [quantity, unitPrice].forEach(el => el?.addEventListener('input', updateAmount));
     })();
 </script>
+<x-latest-entry.scroll />
 </x-app-layout>

@@ -69,7 +69,7 @@
                 <div class="text-2xl font-bold text-[#4CAF50]">₱{{ number_format($summary['total_revenue'], 0) }}</div>
             </div>
             <div class="p-4 bg-gray-50 rounded-lg">
-                <div class="text-xs text-gray-500 mb-1">Total Expenses</div>
+                <div class="text-xs text-gray-500 mb-1">Total Utility Expenses</div>
                 <div class="text-2xl font-bold text-gray-800">₱{{ number_format($summary['total_expenses'], 0) }}</div>
             </div>
             <div class="p-4 bg-gray-50 rounded-lg">
@@ -98,11 +98,11 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="bg-white rounded-lg shadow-md p-6">
             <h2 class="text-lg font-bold text-gray-800 mb-4">Production Trend</h2>
-            <canvas id="prodTrendChart" height="120"></canvas>
+            <div class="relative h-64 sm:h-72"><canvas id="prodTrendChart"></canvas></div>
         </div>
         <div class="bg-white rounded-lg shadow-md p-6">
             <h2 class="text-lg font-bold text-gray-800 mb-4">Revenue Trend</h2>
-            <canvas id="revTrendChart" height="120"></canvas>
+            <div class="relative h-64 sm:h-72"><canvas id="revTrendChart"></canvas></div>
         </div>
     </div>
     @endif
@@ -119,7 +119,7 @@
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Eggs Sold</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Mortality</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Revenue</th>
-                        <th class="text-right py-3 text-sm font-semibold text-gray-700">Expenses</th>
+                        <th class="text-right py-3 text-sm font-semibold text-gray-700">Utility Expenses</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Prod Rate</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Remaining</th>
                     </tr>
@@ -375,7 +375,7 @@
             data: {
                 labels,
                 datasets: [{
-                    label: 'Eggs',
+                    label: 'Eggs Collected',
                     data: eggs,
                     borderColor: '#4CAF50',
                     backgroundColor: 'rgba(76,175,80,0.1)',
@@ -387,10 +387,14 @@
             },
             options: {
                 responsive: true,
-                plugins: { legend: { display: false } },
+                maintainAspectRatio: false,
+                plugins: {
+                    title:  { display: true, text: 'Egg Production Trend' },
+                    legend: { display: true },
+                },
                 scales: {
-                    x: { ticks: { font: { size: 11 } }, grid: { display: false } },
-                    y: { ticks: { font: { size: 11 } }, beginAtZero: false }
+                    x: { title: { display: true, text: 'Date' }, ticks: { font: { size: 11 } }, grid: { display: false } },
+                    y: { title: { display: true, text: 'Eggs collected' }, ticks: { font: { size: 11 } }, beginAtZero: false }
                 }
             }
         });
@@ -404,7 +408,7 @@
             data: {
                 labels,
                 datasets: [{
-                    label: 'Revenue',
+                    label: 'Revenue (₱)',
                     data: rev,
                     borderColor: '#2196F3',
                     backgroundColor: 'rgba(33,150,243,0.1)',
@@ -416,13 +420,15 @@
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false },
+                    title:   { display: true, text: 'Sales Revenue Trend' },
+                    legend:  { display: true },
                     tooltip: { callbacks: { label: ctx => '₱' + ctx.parsed.y.toLocaleString() } }
                 },
                 scales: {
-                    x: { ticks: { font: { size: 11 } }, grid: { display: false } },
-                    y: { ticks: { callback: v => '₱' + v.toLocaleString(), font: { size: 11 } }, beginAtZero: true }
+                    x: { title: { display: true, text: 'Date' }, ticks: { font: { size: 11 } }, grid: { display: false } },
+                    y: { title: { display: true, text: 'Revenue (₱)' }, ticks: { callback: v => '₱' + v.toLocaleString(), font: { size: 11 } }, beginAtZero: true }
                 }
             }
         });

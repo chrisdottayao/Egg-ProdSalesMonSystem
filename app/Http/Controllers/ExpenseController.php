@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Expense;
 use App\Models\HenBatch;
 use App\Models\Setting;
+use App\Support\LatestEntry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -33,6 +34,11 @@ class ExpenseController extends Controller
             $query->forBuilding((int) $buildingFilter);
         }
 
+        // Only active (Utility Expenses) categories are filterable; an old
+        // link carrying a retired category falls back to "All".
+        if (! in_array($category, Expense::ACTIVE_CATEGORIES, true)) {
+            $category = null;
+        }
         if ($category) {
             $query->category($category);
         }
@@ -44,7 +50,10 @@ class ExpenseController extends Controller
         }
 
         $expenses  = $query->paginate(20)->withQueryString();
-        $buildings = HenBatch::where('status', 'Active')->tracked()->orderBy('batch_id')->get();
+        // Entry form: buildings still running. Filter: every tracked building,
+        // including ended (culled) ones, so their old expenses stay reachable.
+        $buildings       = HenBatch::where('status', 'Active')->tracked()->notEnded()->orderBy('batch_id')->get();
+        $filterBuildings = HenBatch::where('status', 'Active')->tracked()->orderBy('batch_id')->get();
 
         $feedDefaults = [
             'kg_per_bag'   => (float) Setting::get('default_kg_per_bag', config('expenses.default_kg_per_bag')),
@@ -52,8 +61,10 @@ class ExpenseController extends Controller
             'price_per_bag'=> (float) Setting::get('feed_price_per_bag_estimate', config('expenses.feed_price_per_bag_estimate')),
         ];
 
+        $latest = LatestEntry::for(Expense::class);
+
         return view('expenses.index', compact(
-            'expenses', 'buildings', 'buildingFilter', 'category', 'startDate', 'endDate', 'feedDefaults'
+            'expenses', 'buildings', 'filterBuildings', 'buildingFilter', 'category', 'startDate', 'endDate', 'feedDefaults', 'latest'
         ));
     }
 
@@ -66,14 +77,22 @@ class ExpenseController extends Controller
             $data['receipt_path'] = $request->file('receipt')->store('expenses', 'public');
         }
 
-        Expense::create($data);
+        $expense = Expense::create($data);
 
-        return redirect()->route('expenses.index')->with('success', 'Expense recorded.');
+        return redirect()->route('expenses.index')
+            ->with('success', 'Utility expense recorded.')
+            ->with('latest_ids', [$expense->id]);
     }
 
     public function edit(Expense $expense)
     {
-        $buildings = HenBatch::where('status', 'Active')->tracked()->orderBy('batch_id')->get();
+        $this->denyPastRecordChangeForStaff($expense->date);
+
+        // Running buildings, plus this expense's own building even if it has
+        // since been culled, so editing never silently reassigns it.
+        $buildings = HenBatch::where('status', 'Active')->tracked()
+            ->where(fn ($q) => $q->whereNull('ended_at')->orWhere('id', $expense->building_id))
+            ->orderBy('batch_id')->get();
 
         $feedDefaults = [
             'kg_per_bag'   => (float) Setting::get('default_kg_per_bag', config('expenses.default_kg_per_bag')),
@@ -86,7 +105,9 @@ class ExpenseController extends Controller
 
     public function update(Request $request, Expense $expense)
     {
-        $validated = $this->validateExpense($request);
+        $this->denyPastRecordChangeForStaff($expense->date);
+
+        $validated = $this->validateExpense($request, $expense);
         $data      = $this->prepareData($validated, $request);
 
         if ($request->hasFile('receipt')) {
@@ -98,17 +119,19 @@ class ExpenseController extends Controller
 
         $expense->update($data);
 
-        return redirect()->route('expenses.index')->with('success', 'Expense updated.');
+        return redirect()->route('expenses.index')->with('success', 'Utility expense updated.');
     }
 
     public function destroy(Expense $expense)
     {
+        $this->denyPastRecordChangeForStaff($expense->date);
+
         if ($expense->receipt_path) {
             Storage::disk('public')->delete($expense->receipt_path);
         }
         $expense->delete();
 
-        return redirect()->route('expenses.index')->with('success', 'Expense deleted.');
+        return redirect()->route('expenses.index')->with('success', 'Utility expense deleted.');
     }
 
     // ── Farm-wide summary (read-only) ───────────────────────────────────────
@@ -119,8 +142,12 @@ class ExpenseController extends Controller
 
         $expenses = Expense::where('date', '>=', $start)->get();
 
-        $byCategory = collect(Expense::CATEGORIES)->keys()
+        $byCategory = collect(Expense::ACTIVE_CATEGORIES)
             ->mapWithKeys(fn ($cat) => [$cat => (float) $expenses->where('category', $cat)->sum('amount')]);
+
+        // Rows recorded before S19 under now-retired categories are still in
+        // the totals, so show them as one line instead of hiding the gap.
+        $archivedAmount = (float) $expenses->whereNotIn('category', Expense::ACTIVE_CATEGORIES)->sum('amount');
 
         $byMonth = $expenses->groupBy(fn ($e) => $e->date->format('Y-m'))
             ->map(fn ($rows) => [
@@ -151,18 +178,25 @@ class ExpenseController extends Controller
             ->values();
 
         return view('expenses.summary', compact(
-            'byCategory', 'byMonth', 'totalAmount', 'estimatedAmount', 'recurring', 'start'
+            'byCategory', 'archivedAmount', 'byMonth', 'totalAmount', 'estimatedAmount', 'recurring', 'start'
         ));
     }
 
     // ── Shared validation/shaping for store() and update() ──────────────────
 
-    private function validateExpense(Request $request): array
+    private function validateExpense(Request $request, ?Expense $existing = null): array
     {
+        // New records: active categories only. Editing an old row may keep
+        // its retired category (shown read-only in the edit form).
+        $allowedCategories = Expense::ACTIVE_CATEGORIES;
+        if ($existing && $existing->is_archived_category) {
+            $allowedCategories[] = $existing->category;
+        }
+
         $rules = [
-            'date'         => 'required|date',
+            'date'         => $this->entryDateRules($existing === null),
             'building_id'  => 'nullable|exists:hen_batches,id',
-            'category'     => 'required|string|in:' . implode(',', array_keys(Expense::CATEGORIES)),
+            'category'     => 'required|string|in:' . implode(',', $allowedCategories),
             'description'  => 'required|string|max:255',
             'supplier'     => 'nullable|string|max:255',
             'is_estimated' => 'nullable|boolean',

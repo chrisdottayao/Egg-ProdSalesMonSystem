@@ -20,7 +20,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Date</label>
-                    <input type="date" name="date" value="{{ old('date', date('Y-m-d')) }}"
+                    <input type="date" name="date" value="{{ \App\Support\ManilaDate::todayString() }}" min="{{ \App\Support\ManilaDate::todayString() }}" max="{{ \App\Support\ManilaDate::todayString() }}" readonly title="Entries can only be recorded for today"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required />
                     @error('date')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
                 </div>
@@ -96,13 +96,18 @@
 
     {{-- Production History --}}
     <div class="bg-white rounded-lg shadow-md p-6" x-data="{ showHistoricalImport: false, uploading: false }">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-bold text-gray-800">Production History</h2>
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div class="flex items-center gap-3 flex-wrap">
+                <h2 class="text-lg font-bold text-gray-800">Production History</h2>
+                <x-latest-entry.legend :latest="$latest" />
+            </div>
+            @if(auth()->user()->canManageRecords())
             <button @click="showHistoricalImport = true"
                 class="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                 Import Historical Logbooks
             </button>
+            @endif
         </div>
 
         {{-- Historical Logbook Import Modal --}}
@@ -193,6 +198,74 @@
             </div>
         @endif
 
+        {{-- S4: per-building records. Ended (culled) buildings stay listed so
+             their history remains reachable. --}}
+        <form method="GET" action="{{ route('productions.index') }}" class="flex flex-wrap items-end gap-3 mb-4">
+            <div>
+                <label for="building_id" class="block text-sm font-semibold text-gray-700 mb-1">Building</label>
+                <select id="building_id" name="building_id" onchange="this.form.submit()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4CAF50]">
+                    <option value="">All buildings (farm-wide daily totals)</option>
+                    @foreach($filterBuildings as $b)
+                        <option value="{{ $b->id }}" @selected($selectedBuilding?->id === $b->id)>{{ $b->display_label }}{{ $b->isEnded() ? ' (culled ' . $b->ended_at->format('M d, Y') . ')' : '' }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <noscript><button type="submit" class="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm">Filter</button></noscript>
+            @if($selectedBuilding)
+                <a href="{{ route('productions.index') }}" class="text-sm text-gray-600 hover:underline pb-2">Show all buildings</a>
+            @endif
+        </form>
+
+        @if($selectedBuilding)
+            <p class="text-sm text-gray-600 mb-3">
+                Daily entries for <span class="font-semibold text-gray-800">{{ $selectedBuilding->display_label }}</span>.
+                Edit opens that day in Daily Entry; deleting a row also updates that day's farm-wide total.
+            </p>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="border-b">
+                            <th class="text-left py-3 text-sm font-semibold text-gray-700">Date</th>
+                            <th class="text-left py-3 text-sm font-semibold text-gray-700">Building</th>
+                            <th class="text-right py-3 text-sm font-semibold text-gray-700">Population</th>
+                            <th class="text-right py-3 text-sm font-semibold text-gray-700">Mortality</th>
+                            <th class="text-right py-3 text-sm font-semibold text-gray-700">Eggs House</th>
+                            <th class="text-right py-3 text-sm font-semibold text-gray-700">Prod Rate</th>
+                            <th class="text-right py-3 text-sm font-semibold text-gray-700">Feed (sacks)</th>
+                            <th class="text-left py-3 text-sm font-semibold text-gray-700">Recorded by</th>
+                            <th class="text-right py-3 text-sm font-semibold text-gray-700">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($buildingRows as $row)
+                            <tr class="border-b last:border-0 hover:bg-gray-50">
+                                <td class="py-3 text-sm">{{ $row->date->format('Y-m-d') }}</td>
+                                <td class="py-3 text-sm">{{ $row->henBatch?->display_label ?? '—' }}</td>
+                                <td class="text-right py-3 text-sm">{{ number_format($row->population) }}</td>
+                                <td class="text-right py-3 text-sm">{{ $row->mortality }}</td>
+                                <td class="text-right py-3 text-sm">{{ number_format($row->eggs_house) }}</td>
+                                <td class="text-right py-3 text-sm font-semibold text-[#4CAF50]">{{ $row->prod_rate !== null ? number_format($row->prod_rate, 1) . '%' : '—' }}</td>
+                                <td class="text-right py-3 text-sm">{{ $row->feed_bags !== null ? number_format($row->feed_bags, 2) : '—' }}</td>
+                                <td class="py-3 text-sm text-gray-600">{{ $row->user?->name ?? '—' }}</td>
+                                <td class="text-right py-3 text-sm space-x-2 whitespace-nowrap">
+                                    <x-past-record-guard :date="$row->date">
+                                        <a href="{{ route('daily-entry.index', ['date' => $row->date->format('Y-m-d')]) }}" class="text-blue-600 hover:underline">Edit</a>
+                                        <form method="POST" action="{{ route('productions.buildings.destroy', $row) }}" class="inline"
+                                              onsubmit="return confirm('Delete {{ $row->henBatch?->display_label }}\'s entry for {{ $row->date->format('Y-m-d') }}?')">
+                                            @csrf @method('DELETE')
+                                            <button type="submit" class="text-red-600 hover:underline">Delete</button>
+                                        </form>
+                                    </x-past-record-guard>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="9" class="py-8 text-center text-gray-400 text-sm">No entries recorded for this building yet.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-3">{{ $buildingRows->links() }}</div>
+        @else
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead>
@@ -223,8 +296,12 @@
                             $weatherRow = $weatherByDate->get($record->date->format('Y-m-d'));
                             $thiBand    = $weatherRow ? \App\Models\WeatherDaily::band($weatherRow->thi) : null;
                         @endphp
-                        <tr class="border-b last:border-0 hover:bg-gray-50">
-                            <td class="py-3 text-sm">{{ $record->date->format('Y-m-d') }}</td>
+                        @php $isLatest = $latest->has($record); @endphp
+                        <tr @class(['border-b last:border-0', 'hover:bg-gray-50' => ! $isLatest, \App\Support\LatestEntry::ROW_CLASSES => $isLatest]) @if($isLatest) data-latest @endif>
+                            <td class="py-3 text-sm">
+                                {{ $record->date->format('Y-m-d') }}
+                                @if($isLatest)<x-latest-entry.pill :latest="$latest" />@endif
+                            </td>
                             <td class="text-right py-3 text-sm">{{ number_format($record->eggs_collected) }}</td>
                             <td class="text-right py-3 text-sm">{{ number_format($record->active_hens) }}</td>
                             <td class="text-right py-3 text-sm">{{ $record->mortality }}</td>
@@ -242,11 +319,13 @@
                             </td>
                             <td class="py-3 text-sm text-gray-600">{{ $record->notes ?? '—' }}</td>
                             <td class="text-right py-3 text-sm space-x-2">
-                                <a href="{{ route('productions.edit', $record) }}" class="text-blue-600 hover:underline">Edit</a>
-                                <form method="POST" action="{{ route('productions.destroy', $record) }}" class="inline" onsubmit="return confirm('Delete this record?')">
-                                    @csrf @method('DELETE')
-                                    <button type="submit" class="text-red-600 hover:underline">Delete</button>
-                                </form>
+                                <x-past-record-guard :date="$record->date">
+                                    <a href="{{ route('productions.edit', $record) }}" class="text-blue-600 hover:underline">Edit</a>
+                                    <form method="POST" action="{{ route('productions.destroy', $record) }}" class="inline" onsubmit="return confirm('Delete this record?')">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="text-red-600 hover:underline">Delete</button>
+                                    </form>
+                                </x-past-record-guard>
                             </td>
                         </tr>
                     @empty
@@ -258,8 +337,11 @@
 
         <p class="text-sm italic text-gray-500 mt-4">Active hen count syncs automatically with the Flock Records module.</p>
         <div class="mt-3">{{ $productions->links() }}</div>
+        @endif
     </div> {{-- end x-data="{ showImport }" --}}
 </div>
+
+<x-latest-entry.scroll />
 
 <script>
     const eggsInput = document.querySelector('[name="eggs_collected"]');

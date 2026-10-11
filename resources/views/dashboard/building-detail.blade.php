@@ -93,9 +93,9 @@
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {{-- Expenses --}}
+        {{-- Utility Expenses --}}
         <div class="bg-gray-50 rounded-lg p-4">
-            <h3 class="text-sm font-bold text-gray-800 mb-1">Expenses (window)</h3>
+            <h3 class="text-sm font-bold text-gray-800 mb-1">Utility Expenses (window)</h3>
             <p class="text-xs text-gray-500 mb-3">
                 Direct: ₱{{ number_format($expenses['direct_total'], 2) }}
                 @if($expenses['has_estimated_portion'])
@@ -118,7 +118,7 @@
         {{-- Net Contribution --}}
         <div class="bg-gray-50 rounded-lg p-4">
             <h3 class="text-sm font-bold text-gray-800 mb-1">Estimated Net Contribution</h3>
-            <p class="text-xs text-orange-600 mb-3">Estimated Revenue &minus; Total Expenses (both sides carry estimates).</p>
+            <p class="text-xs text-orange-600 mb-3">Estimated Revenue &minus; Total Utility Expenses (both sides carry estimates).</p>
             <div class="text-3xl font-bold {{ $netContribution >= 0 ? 'text-[#4CAF50]' : 'text-red-600' }}">₱{{ number_format($netContribution, 2) }}</div>
         </div>
     </div>

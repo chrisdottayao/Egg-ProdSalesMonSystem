@@ -28,7 +28,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Date</label>
-                    <input type="date" name="date" value="{{ old('date', date('Y-m-d')) }}"
+                    <input type="date" name="date" value="{{ \App\Support\ManilaDate::todayString() }}" min="{{ \App\Support\ManilaDate::todayString() }}" max="{{ \App\Support\ManilaDate::todayString() }}" readonly title="Entries can only be recorded for today"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required />
                     @error('date')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
                 </div>
@@ -111,12 +111,25 @@
 
     {{-- Cull Records Table --}}
     <div class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-4">Cull Records</h2>
+        <div class="flex items-center gap-3 flex-wrap mb-4">
+            <h2 class="text-lg font-bold text-gray-800">Cull Records</h2>
+            <x-latest-entry.legend :latest="$latest" />
+            <form method="GET" action="{{ route('cull.index') }}" class="ml-auto flex items-center gap-2">
+                <label for="cull_building_id" class="text-sm text-gray-600">Building</label>
+                <select id="cull_building_id" name="building_id" onchange="this.form.submit()" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
+                    <option value="">All</option>
+                    @foreach($filterBuildings as $b)
+                        <option value="{{ $b->id }}" @selected($buildingFilter === $b->id)>{{ $b->display_label }}{{ $b->isEnded() ? ' (culled)' : '' }}</option>
+                    @endforeach
+                </select>
+            </form>
+        </div>
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead>
                     <tr class="border-b">
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Date</th>
+                        <th class="text-left py-3 text-sm font-semibold text-gray-700">Building</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Chickens Culled</th>
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Reason</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Heads Sold</th>
@@ -128,8 +141,13 @@
                 </thead>
                 <tbody>
                     @forelse($cullRecords as $record)
-                        <tr class="border-b last:border-0 hover:bg-gray-50">
-                            <td class="py-3 text-sm">{{ $record->date->format('Y-m-d') }}</td>
+                        @php $isLatest = $latest->has($record); @endphp
+                        <tr @class(['border-b last:border-0', 'hover:bg-gray-50' => ! $isLatest, \App\Support\LatestEntry::ROW_CLASSES => $isLatest]) @if($isLatest) data-latest @endif>
+                            <td class="py-3 text-sm">
+                                {{ $record->date->format('Y-m-d') }}
+                                @if($isLatest)<x-latest-entry.pill :latest="$latest" />@endif
+                            </td>
+                            <td class="py-3 text-sm text-gray-700">{{ $record->henBatch?->display_label ?? '—' }}</td>
                             <td class="text-right py-3 text-sm font-semibold text-orange-600">{{ number_format($record->quantity_culled) }}</td>
                             <td class="py-3 text-sm text-gray-700">{{ $record->reason ?? '—' }}</td>
                             <td class="text-right py-3 text-sm">{{ $record->heads_sold ? number_format($record->heads_sold) : '—' }}</td>
@@ -139,14 +157,16 @@
                             <td class="py-3 text-sm text-gray-700">{{ $record->buyer ?? '—' }}</td>
                             <td class="py-3 text-sm text-gray-600">{{ $record->notes ?? '—' }}</td>
                             <td class="text-right py-3 text-sm">
-                                <form method="POST" action="{{ route('cull.destroy', $record) }}" class="inline" onsubmit="return confirm('Delete this cull record?')">
-                                    @csrf @method('DELETE')
-                                    <button type="submit" class="text-red-600 hover:underline">Delete</button>
-                                </form>
+                                <x-past-record-guard :date="$record->date">
+                                    <form method="POST" action="{{ route('cull.destroy', $record) }}" class="inline" onsubmit="return confirm('Delete this cull record?')">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="text-red-600 hover:underline">Delete</button>
+                                    </form>
+                                </x-past-record-guard>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="py-8 text-center text-gray-400 text-sm">No cull records yet.</td></tr>
+                        <tr><td colspan="9" class="py-8 text-center text-gray-400 text-sm">No cull records yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -158,4 +178,5 @@
         </div>
     </div>
 </div>
+<x-latest-entry.scroll />
 </x-app-layout>

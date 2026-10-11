@@ -35,6 +35,26 @@ class HenBatch extends Model
      * ended_at is a separate fact from is_tracked (Prototype 3Q) — a building
      * can be tracked AND ended (fully depopulated, e.g. Building 14) at once.
      */
+    /**
+     * Buildings that can still receive new entries (S3). Entry forms and
+     * dropdowns use this; history/report filters must not, so an ended
+     * building's old records stay reachable.
+     */
+    public function scopeNotEnded(Builder $query): Builder
+    {
+        return $query->whereNull('ended_at');
+    }
+
+    /**
+     * Buildings that were still running on $date: not ended, or ended after
+     * it. Lets an admin correct a past day of a building culled since then;
+     * a building culled on $date itself is excluded from that day on.
+     */
+    public function scopeRunningOn(Builder $query, string $date): Builder
+    {
+        return $query->where(fn ($q) => $q->whereNull('ended_at')->orWhereDate('ended_at', '>', $date));
+    }
+
     public function isEnded(): bool
     {
         return $this->ended_at !== null;

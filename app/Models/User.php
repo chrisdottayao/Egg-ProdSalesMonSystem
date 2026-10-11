@@ -23,6 +23,15 @@ class User extends Authenticatable
     }
 
     /**
+     * Admin and manager may correct past-dated records and run historical
+     * imports (S16); staff may only record and edit today's entries.
+     */
+    public function canManageRecords(): bool
+    {
+        return in_array($this->role, ['admin', 'manager'], true);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>

@@ -4,18 +4,42 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\BuildingDaily;
+use App\Models\CullRecord;
 use App\Models\EggGradingDaily;
+use App\Models\EggProduction;
 use App\Models\HenBatch;
 use App\Services\ProductionRollupService;
+use App\Support\ManilaDate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class DailyEntryController extends Controller
 {
+    // Same packing EggGradingDaily::booted() uses: 1 case = 12 trays = 360 pcs.
+    private const PCS_PER_CASE = 360;
+    private const PCS_PER_TRAY = 30;
+
     public function index(Request $request)
     {
-        $date         = $request->query('date') ? Carbon::parse($request->query('date')) : Carbon::today();
+        // S16: today (Manila) only. Admin/manager may still open a past date to
+        // correct it — Daily Entry is the only editor for per-building rows.
+        $today = ManilaDate::todayString();
+        $requested = $request->query('date');
+        if ($requested) {
+            try {
+                $requestedDay = Carbon::parse($requested)->toDateString();
+            } catch (\Throwable) {
+                $requestedDay = null;
+            }
+            $allowed = $requestedDay === $today
+                || ($requestedDay !== null && $requestedDay < $today && $request->user()->canManageRecords());
+            if (! $allowed) {
+                return redirect()->route('daily-entry.index')->with('date_notice', ManilaDate::MESSAGE);
+            }
+        }
+
+        $date         = Carbon::parse($requested ?: $today);
         $previousDate = $date->copy()->subDay();
 
         // whereNotNull('building_no'): a batch with no building number (e.g. legacy
@@ -24,7 +48,9 @@ class DailyEntryController extends Controller
         // and corrupt the rollup with population/eggs that belong to no building.
         // ->tracked(): only the 3 actively-tracked buildings (3M). Ordered by
         // the DISPLAYED number (3N), not the real building_no.
-        $batches = HenBatch::where('status', 'Active')->whereNotNull('building_no')->tracked()
+        // ->runningOn(): a building marked culled (S3) drops out of the form from
+        // its culling date on (it still shows on earlier dates, for corrections).
+        $batches = HenBatch::where('status', 'Active')->whereNotNull('building_no')->tracked()->runningOn($date->toDateString())
             ->orderByRaw('COALESCE(display_no, building_no) ASC')->get();
 
         $existingRows = BuildingDaily::whereDate('date', $date)
@@ -45,7 +71,10 @@ class DailyEntryController extends Controller
 
             return [
                 'batch'        => $batch,
-                'population'   => $existing->population ?? $previous->net_birds ?? null,
+                // A building with no rows yet (just added, S17) starts from its
+                // starting hen count.
+                'population'   => $existing->population ?? $previous->net_birds
+                    ?? ($batch->buildingDailies()->exists() ? null : $batch->batch_size),
                 'mortality'    => $existing->mortality ?? null,
                 'feed_bags'    => $existing->feed_bags ?? null,
                 'eggs_house'   => $existing->eggs_house ?? null,
@@ -60,10 +89,8 @@ class DailyEntryController extends Controller
         $gradingRows = collect(EggGradingDaily::CATEGORIES)->map(function (string $category) use ($existingGrading) {
             $existing = $existingGrading->get($category);
             return [
-                'category' => $category,
-                'cases'    => $existing->cases ?? null,
-                'trays'    => $existing->trays ?? null,
-                'pieces'   => $existing->pieces ?? null,
+                'category'  => $category,
+                'total_pcs' => $existing->total_pcs ?? null,
             ];
         });
 
@@ -77,9 +104,12 @@ class DailyEntryController extends Controller
     public function store(Request $request)
     {
         $baseRules = [
-            'date'                        => 'required|date',
+            'date'                        => $request->user()->canManageRecords()
+                ? ['required', 'date', 'before_or_equal:' . ManilaDate::todayString()]
+                : $this->entryDateRules(),
             'buildings'                   => 'required|array',
             'buildings.*.skip'            => 'nullable|boolean',
+            'buildings.*.choice'          => 'nullable|in:skip,culled',
             'buildings.*.mortality'       => 'nullable|integer|min:0',
             'buildings.*.feed_bags'       => 'nullable|numeric|min:0',
             'buildings.*.eggs_eggroom'    => 'nullable|integer|min:0',
@@ -89,32 +119,65 @@ class DailyEntryController extends Controller
             'grading.*.cases'             => 'nullable|integer|min:0',
             'grading.*.trays'             => 'nullable|integer|min:0',
             'grading.*.pieces'            => 'nullable|integer|min:0',
+            'grading.*.total_pcs'         => 'nullable|integer|min:0',
         ];
 
         // population/eggs_house are required per row UNLESS that row is marked
         // "no data today" — built per submitted key rather than a wildcard rule,
         // since whether a row is required depends on that same row's own skip
         // flag, not a fixed pattern.
+        // A culled row needs its population (the hens removed); eggs aren't
+        // asked for.
         foreach ($request->input('buildings', []) as $henBatchId => $row) {
-            $skipped = filter_var($row['skip'] ?? false, FILTER_VALIDATE_BOOLEAN);
-            $baseRules["buildings.{$henBatchId}.population"]  = $skipped ? 'nullable|integer|min:0' : 'required|integer|min:0';
-            $baseRules["buildings.{$henBatchId}.eggs_house"]  = $skipped ? 'nullable|integer|min:0' : 'required|integer|min:0';
+            $choice = is_array($row) ? self::rowChoice($row) : null;
+            $baseRules["buildings.{$henBatchId}.population"] = match ($choice) {
+                'skip'   => 'nullable|integer|min:0',
+                'culled' => 'required|integer|min:1',
+                default  => 'required|integer|min:0',
+            };
+            $baseRules["buildings.{$henBatchId}.eggs_house"] = $choice ? 'nullable|integer|min:0' : 'required|integer|min:0';
         }
 
         $validated = $request->validate($baseRules);
 
         $date = Carbon::parse($validated['date'])->format('Y-m-d');
 
-        // Only hen_batch_ids that actually belong to an active, numbered, tracked
-        // building — a stale hidden input can't be used to write an arbitrary
-        // building_daily row.
-        $validBatchIds = HenBatch::where('status', 'Active')->whereNotNull('building_no')->tracked()->pluck('id')->flip();
+        // Only hen_batch_ids that actually belong to an active, numbered, tracked,
+        // not-ended building — a stale hidden input can't be used to write an
+        // arbitrary building_daily row, or a row for a building already culled (S3).
+        $validBatchIds = HenBatch::where('status', 'Active')->whereNotNull('building_no')->tracked()->runningOn($date)->pluck('id')->flip();
 
         DB::beginTransaction();
 
         try {
             $buildingsSaved  = 0;
             $buildingsSkipped = 0;
+
+            // S18/S3: "Culled" ends the building as of this date — one cull
+            // record for the remaining hens, ended_at set, and no normal
+            // building_daily row (an existing one for this date is removed,
+            // like a skip). Handled before the per-row loop so the loop never
+            // sees these buildings.
+            $culledLabels = [];
+            foreach ($validated['buildings'] as $henBatchId => $row) {
+                if (! $validBatchIds->has($henBatchId) || self::rowChoice($row) !== 'culled') {
+                    continue;
+                }
+
+                $batch = HenBatch::find($henBatchId);
+                CullRecord::create([
+                    'date'            => $date,
+                    'hen_batch_id'    => $henBatchId,
+                    'quantity_culled' => (int) $row['population'],
+                    'reason'          => CullRecord::BUILDING_CULLED_REASON,
+                ]);
+                $batch->update(['ended_at' => $date]);
+                BuildingDaily::withoutEvents(fn () => BuildingDaily::where('date', $date)->where('hen_batch_id', $henBatchId)->delete());
+
+                $culledLabels[] = $batch->display_label;
+                $validBatchIds->forget($henBatchId);
+                $buildingsSkipped++; // changes the day's building set, so the rollup below re-runs
+            }
 
             // Suppress BuildingDaily's own saving/saved hooks for this per-row loop —
             // otherwise the model's saved-event rollup fires once per building (41-45
@@ -127,9 +190,7 @@ class DailyEntryController extends Controller
                         continue;
                     }
 
-                    $skipped = filter_var($row['skip'] ?? false, FILTER_VALIDATE_BOOLEAN);
-
-                    if ($skipped) {
+                    if (self::rowChoice($row) === 'skip') {
                         // "No data today" means absence, not a zero row — a zero would
                         // tell the peer-comparison and age-relative rules in
                         // RecommendationService that this building existed and produced
@@ -182,13 +243,29 @@ class DailyEntryController extends Controller
                     continue;
                 }
 
-                $cases  = (int) ($row['cases'] ?? 0);
-                $trays  = (int) ($row['trays'] ?? 0);
-                $pieces = (int) ($row['pieces'] ?? 0);
+                // S10/S22: the form sends one total per size. Never trust the
+                // browser's cases/trays/pieces split — derive it here. A
+                // submission without total_pcs falls back to the old fields.
+                $totalPcs = isset($row['total_pcs']) && $row['total_pcs'] !== ''
+                    ? (int) $row['total_pcs']
+                    : ((int) ($row['cases'] ?? 0)) * self::PCS_PER_CASE
+                        + ((int) ($row['trays'] ?? 0)) * self::PCS_PER_TRAY
+                        + (int) ($row['pieces'] ?? 0);
+
+                // Only sizes with a value are saved; 0/blank means no row
+                // (and clears a row saved earlier for this date).
+                if ($totalPcs <= 0) {
+                    EggGradingDaily::whereDate('date', $date)->where('category', $category)->delete();
+                    continue;
+                }
 
                 EggGradingDaily::updateOrCreate(
                     ['date' => $date, 'category' => $category],
-                    ['cases' => $cases, 'trays' => $trays, 'pieces' => $pieces]
+                    [
+                        'cases'  => intdiv($totalPcs, self::PCS_PER_CASE),
+                        'trays'  => intdiv($totalPcs % self::PCS_PER_CASE, self::PCS_PER_TRAY),
+                        'pieces' => $totalPcs % self::PCS_PER_TRAY,
+                    ]
                 );
 
                 $gradingSaved++;
@@ -197,8 +274,19 @@ class DailyEntryController extends Controller
             // Recompute whenever this submission changed the day's building set at
             // all — including a pure skip that deleted a previously-saved row, which
             // must also shrink the rollup, not just a fresh save growing it.
+            $latestProductionIds = [];
             if ($buildingsSaved > 0 || $buildingsSkipped > 0) {
                 (new ProductionRollupService)->rollupDate($date);
+
+                // S14: the rolled-up egg_productions row is what Production
+                // History highlights as the latest entry. Touch it so a
+                // re-save with unchanged numbers still counts as the newest
+                // (the rollup's update() is a no-op when nothing is dirty).
+                $production = EggProduction::whereDate('date', $date)->first();
+                if ($production) {
+                    $production->touchQuietly();
+                    $latestProductionIds[] = $production->id;
+                }
             }
 
             AuditLog::create([
@@ -209,7 +297,8 @@ class DailyEntryController extends Controller
                 'details'    => [
                     'date'               => $date,
                     'buildings_saved'    => $buildingsSaved,
-                    'buildings_skipped'  => $buildingsSkipped,
+                    'buildings_skipped'  => $buildingsSkipped - count($culledLabels),
+                    'buildings_culled'   => $culledLabels,
                     'grading_saved'      => $gradingSaved,
                 ],
             ]);
@@ -220,7 +309,25 @@ class DailyEntryController extends Controller
             throw $e;
         }
 
+        $skippedOnly = $buildingsSkipped - count($culledLabels);
+        $message     = "Saved {$buildingsSaved} building rows ({$skippedOnly} skipped today) and {$gradingSaved} grading rows for {$date}.";
+        if ($culledLabels) {
+            $message .= ' Marked as culled: ' . implode(', ', $culledLabels) . '.';
+        }
+
         return redirect()->route('daily-entry.index', ['date' => $date])
-            ->with('success', "Saved {$buildingsSaved} building rows ({$buildingsSkipped} marked no data today) and {$gradingSaved} grading rows for {$date}.");
+            ->with('success', $message)
+            ->with('latest_ids', $latestProductionIds);
+    }
+
+    /** 'skip', 'culled' or null for a submitted building row (legacy skip=1 still means skip). */
+    private static function rowChoice(array $row): ?string
+    {
+        $choice = $row['choice'] ?? null;
+        if (in_array($choice, ['skip', 'culled'], true)) {
+            return $choice;
+        }
+
+        return filter_var($row['skip'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 'skip' : null;
     }
 }

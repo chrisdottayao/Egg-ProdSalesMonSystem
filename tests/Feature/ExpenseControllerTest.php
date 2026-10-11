@@ -12,6 +12,13 @@ class ExpenseControllerTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // The entries below are dated 2026-09-19; S16 only accepts today (Manila).
+        $this->travelTo('2026-09-19 02:00:00');
+    }
+
     public function test_feed_entry_computes_kg_total_and_amount_from_bags(): void
     {
         $user = User::factory()->create(['role' => 'staff']);
@@ -77,6 +84,69 @@ class ExpenseControllerTest extends TestCase
         $this->assertSame(8500.0, $expense->amount);
         $this->assertNull($expense->kg_total);
         $this->assertSame($building->id, $expense->building_id);
+    }
+
+    public function test_retired_category_is_rejected_for_new_records(): void
+    {
+        $user = User::factory()->create(['role' => 'staff']);
+
+        $this->actingAs($user)->post(route('expenses.store'), [
+            'date'        => '2026-09-19',
+            'category'    => 'medicine',
+            'description' => 'Antibiotic',
+            'amount'      => 500,
+        ])->assertSessionHasErrors('category');
+
+        $this->assertSame(0, Expense::count());
+    }
+
+    public function test_existing_retired_category_row_can_still_be_viewed_and_edited(): void
+    {
+        $user    = User::factory()->create(['role' => 'staff']);
+        $expense = Expense::create([
+            'building_id' => null, 'date' => '2026-09-19', 'category' => 'medicine',
+            'description' => 'Old medicine row', 'amount' => 500,
+        ]);
+
+        $this->actingAs($user)->get(route('expenses.index'))->assertOk()->assertSee('Old medicine row');
+        $this->actingAs($user)->get(route('expenses.edit', $expense))->assertOk()->assertSee('Medicine');
+
+        $this->actingAs($user)->patch(route('expenses.update', $expense), [
+            'date'        => '2026-09-19',
+            'category'    => 'medicine',
+            'description' => 'Old medicine row (edited)',
+            'amount'      => 600,
+        ])->assertRedirect(route('expenses.index'));
+
+        $this->assertSame(600.0, $expense->fresh()->amount);
+        $this->assertSame('medicine', $expense->fresh()->category);
+    }
+
+    public function test_editing_active_row_cannot_switch_to_retired_category(): void
+    {
+        $user    = User::factory()->create(['role' => 'staff']);
+        $expense = Expense::create([
+            'building_id' => null, 'date' => '2026-09-19', 'category' => 'electricity',
+            'description' => 'Meralco', 'amount' => 500,
+        ]);
+
+        $this->actingAs($user)->patch(route('expenses.update', $expense), [
+            'date' => '2026-09-19', 'category' => 'vaccine', 'description' => 'x', 'amount' => 1,
+        ])->assertSessionHasErrors('category');
+    }
+
+    public function test_screens_use_utility_expenses_label(): void
+    {
+        $user = User::factory()->create(['role' => 'staff']);
+
+        $index = $this->actingAs($user)->get(route('expenses.index'));
+        $index->assertSee('Utility Expenses');
+        $index->assertDontSee('Farm Expenses');
+        // Dropdown offers only the active categories.
+        $index->assertSee('<option value="electricity"', false);
+        $index->assertDontSee('<option value="vaccine"', false);
+
+        $this->actingAs($user)->get(route('expenses.summary'))->assertSee('Utility Expense Summary');
     }
 
     public function test_index_filters_by_building_and_farm_wide(): void

@@ -39,6 +39,21 @@ class Expense extends Model
         'other'        => ['label' => 'Other',              'color' => 'gray'],
     ];
 
+    // Panel revision S19: the module is "Utility Expenses" and only these
+    // categories can be recorded going forward. The rest of CATEGORIES stays
+    // so rows already stored under them still display and can be edited.
+    public const ACTIVE_CATEGORIES = ['feed', 'electricity'];
+
+    public static function activeCategories(): array
+    {
+        return array_intersect_key(self::CATEGORIES, array_flip(self::ACTIVE_CATEGORIES));
+    }
+
+    public function getIsArchivedCategoryAttribute(): bool
+    {
+        return ! in_array($this->category, self::ACTIVE_CATEGORIES, true);
+    }
+
     public function building(): BelongsTo
     {
         return $this->belongsTo(HenBatch::class, 'building_id');

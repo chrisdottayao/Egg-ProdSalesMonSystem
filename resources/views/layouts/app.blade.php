@@ -94,7 +94,7 @@
             <a href="{{ route('expenses.index') }}"
                class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors {{ request()->routeIs('expenses.*') ? 'bg-[#4CAF50] text-white' : 'text-gray-700 hover:bg-gray-100' }}">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3v-3m-3 3v-3m10-8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v13a2 2 0 002 2h4m6-6h.01M5 20h14a2 2 0 002-2v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
-                <span>Expenses</span>
+                <span>Utility Expenses</span>
             </a>
 
             <a href="{{ route('cull.index') }}"

@@ -6,8 +6,39 @@
         <div class="bg-green-50 border-l-4 border-green-500 px-4 py-3 rounded-lg text-sm text-green-800">{{ session('success') }}</div>
     @endif
 
+    {{-- S12: egg prices per size --}}
     <div class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-2">Expense Estimate Defaults</h2>
+        <h2 class="text-lg font-bold text-gray-800 mb-2">Egg Prices per Size (₱ per piece)</h2>
+        <p class="text-sm text-gray-500 mb-4">
+            The Sales form fills in the price from this list when a size is chosen (it can still be changed for a
+            special price), and a sales CSV row with no price uses it too. Changing a price only affects new sales;
+            sales already recorded keep the price they were saved with.
+        </p>
+
+        <form method="POST" action="{{ route('settings.update') }}" class="space-y-4">
+            @csrf
+            @method('PATCH')
+
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                @foreach($eggPrices as $size => $price)
+                    @php $field = \App\Support\EggPrices::fieldKey($size); @endphp
+                    <div>
+                        <label for="egg_price_{{ $field }}" class="block text-sm font-semibold text-gray-700 mb-1">{{ $size }}</label>
+                        <input type="number" id="egg_price_{{ $field }}" name="egg_prices[{{ $field }}]" value="{{ old("egg_prices.{$field}", number_format($price, 2, '.', '')) }}" step="0.01" min="0"
+                            class="w-full px-3 py-2 border {{ $errors->has("egg_prices.{$field}") ? 'border-red-400' : 'border-gray-300' }} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" required />
+                        @error("egg_prices.{$field}")<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                    </div>
+                @endforeach
+            </div>
+
+            <button type="submit" class="bg-[#4CAF50] text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors font-medium">
+                Save Egg Prices
+            </button>
+        </form>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h2 class="text-lg font-bold text-gray-800 mb-2">Utility Expense Estimate Defaults</h2>
         <p class="text-sm text-gray-500 mb-4">
             These are market-reference placeholders, not confirmed farm figures — feed comes through the owner's
             partner (kasosyo) and neither managers nor the production manager currently know the real price, and

@@ -1,10 +1,10 @@
 <x-app-layout>
 <div class="space-y-6">
     <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-gray-800">Expense Summary</h1>
+        <h1 class="text-2xl font-bold text-gray-800">Utility Expense Summary</h1>
         <a href="{{ route('expenses.index') }}" class="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"/></svg>
-            Back to Expenses
+            Back to Utility Expenses
         </a>
     </div>
 
@@ -13,7 +13,7 @@
     {{-- Top stats --}}
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-[#4CAF50]">
-            <div class="text-gray-600 text-sm mb-1">Total Expenses</div>
+            <div class="text-gray-600 text-sm mb-1">Total Utility Expenses</div>
             <div class="text-3xl font-bold text-gray-800">₱{{ number_format($totalAmount, 2) }}</div>
         </div>
         <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-orange-400">
@@ -50,6 +50,13 @@
                             <td class="text-right py-2 text-sm text-gray-500">{{ $totalAmount > 0 ? number_format(($amount / $totalAmount) * 100, 1) : 0 }}%</td>
                         </tr>
                     @endforeach
+                    @if($archivedAmount > 0)
+                        <tr class="border-b last:border-0">
+                            <td class="py-2 text-sm text-gray-500">Older categories (no longer recorded)</td>
+                            <td class="text-right py-2 text-sm font-semibold text-gray-500">₱{{ number_format($archivedAmount, 2) }}</td>
+                            <td class="text-right py-2 text-sm text-gray-500">{{ $totalAmount > 0 ? number_format(($archivedAmount / $totalAmount) * 100, 1) : 0 }}%</td>
+                        </tr>
+                    @endif
                 </tbody>
             </table>
         </div>
@@ -76,7 +83,7 @@
                             <td class="text-right py-2 text-sm text-orange-600">₱{{ number_format($data['estimated'], 2) }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="3" class="py-8 text-center text-gray-400 text-sm">No expense records in this window.</td></tr>
+                        <tr><td colspan="3" class="py-8 text-center text-gray-400 text-sm">No utility expense records in this window.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -145,7 +152,7 @@
             }
         });
     } else if (ctx) {
-        ctx.parentElement.innerHTML += '<p class="text-sm text-gray-400 text-center mt-8">No expense data yet.</p>';
+        ctx.parentElement.innerHTML += '<p class="text-sm text-gray-400 text-center mt-8">No utility expense data yet.</p>';
     }
 })();
 </script>

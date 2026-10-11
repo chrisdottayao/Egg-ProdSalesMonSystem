@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\HenBatch;
+use App\Support\ManilaDate;
 use Illuminate\Http\Request;
 
 class LivestockController extends Controller
@@ -35,6 +37,56 @@ class LivestockController extends Controller
         return redirect()->route('flock-records.index')->with('success', 'Hen record saved! Active hen count synced with Production module.');
     }
 
+    /**
+     * S17: add a building from the UI (admin/manager). Unlike storeHen(),
+     * this sets everything Daily Entry needs (building_no, is_tracked), so
+     * the building can be recorded for immediately.
+     */
+    public function storeBuilding(Request $request)
+    {
+        $validated = $request->validate([
+            'building_no'    => ['required', 'integer', 'min:1', function ($attribute, $value, $fail) {
+                // Clash with a running building's real or displayed number (3N
+                // relabels e.g. real 4 as "Building 1").
+                $taken = HenBatch::where('status', 'Active')->notEnded()
+                    ->where(fn ($q) => $q->where('building_no', $value)->orWhereRaw('COALESCE(display_no, building_no) = ?', [$value]))
+                    ->exists();
+                if ($taken) {
+                    $fail("Building {$value} already exists and is still active. Use another number, or mark the old one culled first.");
+                }
+            }],
+            'batch_id'       => 'nullable|string|max:50|unique:hen_batches,batch_id',
+            'breed'          => 'nullable|string|max:100',
+            'batch_size'     => 'required|integer|min:1',
+            'placement_date' => 'required|date|before_or_equal:' . ManilaDate::todayString(),
+            'notes'          => 'nullable|string',
+        ]);
+
+        $number  = (int) $validated['building_no'];
+        $batchId = $validated['batch_id'] ?: "Building {$number}";
+        if (HenBatch::where('batch_id', $batchId)->exists()) {
+            // The default name is taken by an older (ended) flock in the same house.
+            $batchId = "Building {$number} ({$validated['placement_date']})";
+        }
+
+        $building = HenBatch::create([
+            'batch_id'       => $batchId,
+            'batch_size'     => $validated['batch_size'],
+            'status'         => 'Active',
+            'entry_date'     => $validated['placement_date'],
+            'placement_date' => $validated['placement_date'],
+            'breed'          => $validated['breed'] ?: 'Dekalb White',
+            'building_no'    => $number,
+            'building'       => (string) $number, // read by alert clustering's adjacency note
+            'display_no'     => null,             // label falls back to building_no
+            'is_tracked'     => true,
+            'notes'          => $validated['notes'] ?? null,
+        ]);
+
+        return redirect()->route('flock-records.index')
+            ->with('success', "{$building->display_label} added — it now appears in Daily Entry.");
+    }
+
     public function updateHen(Request $request, HenBatch $henBatch)
     {
         $validated = $request->validate([
@@ -50,6 +102,27 @@ class LivestockController extends Controller
         $henBatch->update($validated);
 
         return redirect()->route('flock-records.index')->with('success', 'Hen record updated.');
+    }
+
+    /**
+     * Undo a "Culled" choice made by mistake in Daily Entry (S3): the
+     * building reappears in Daily Entry. The cull record it created is kept
+     * (it is history, and can be deleted from the Cull page if wrong).
+     */
+    public function reopenHen(HenBatch $henBatch)
+    {
+        $endedAt = $henBatch->ended_at?->toDateString();
+        $henBatch->update(['ended_at' => null]);
+
+        AuditLog::create([
+            'user_id'    => auth()->id(),
+            'action'     => 'reopen_building',
+            'model_type' => 'HenBatch',
+            'model_id'   => $henBatch->id,
+            'details'    => ['building' => $henBatch->display_label, 'previous_ended_at' => $endedAt],
+        ]);
+
+        return redirect()->route('flock-records.index')->with('success', "{$henBatch->display_label} reopened — it appears in Daily Entry again.");
     }
 
     public function destroyHen(HenBatch $henBatch)

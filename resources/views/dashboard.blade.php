@@ -74,7 +74,7 @@
                 <h2 class="text-lg font-bold text-gray-800">Production Trend</h2>
                 <p class="text-sm text-gray-500">Last 30 days{{ $forecast['active'] ? ' + 7-day forecast' : '' }}</p>
             </div>
-            <canvas id="productionChart" height="130"></canvas>
+            <div class="relative h-64 sm:h-72"><canvas id="productionChart"></canvas></div>
             @if($forecast['active'])
                 <div class="mt-3 flex items-center gap-2">
                     <span class="text-xs px-2 py-1 rounded-full font-semibold
@@ -98,7 +98,7 @@
                 <h2 class="text-lg font-bold text-gray-800">Revenue Trend</h2>
                 <p class="text-sm text-green-600">{{ $forecast['active'] ? 'Last 10 days + 30-day forecast' : 'Last 10 days of sales' }}</p>
             </div>
-            <canvas id="revenueChart" height="130"></canvas>
+            <div class="relative h-64 sm:h-72"><canvas id="revenueChart"></canvas></div>
         </div>
     </div>
 
@@ -157,7 +157,7 @@
                 <h2 class="text-lg font-bold text-gray-800">Temperature Trend</h2>
                 <p class="text-sm text-gray-500">Last 7 days + 7-day forecast (dashed, from Open-Meteo) &mdash; heat-stress context, not a prediction by this app</p>
             </div>
-            <canvas id="thiChart" height="90"></canvas>
+            <div class="relative h-56 sm:h-60"><canvas id="thiChart"></canvas></div>
         </div>
     </div>
 
@@ -208,9 +208,9 @@
                     <div class="text-2xl font-bold text-gray-800">₱{{ number_format($farmOverview['farmRevenue'], 2) }}</div>
                 </div>
                 <div class="p-4 rounded-lg border-l-4 {{ $farmOverview['farmNet'] >= 0 ? 'border-[#4CAF50]' : 'border-red-500' }} bg-gray-50">
-                    <div class="text-gray-600 text-sm mb-1">Net (Revenue &minus; Expenses)</div>
+                    <div class="text-gray-600 text-sm mb-1">Net (Revenue &minus; Utility Expenses)</div>
                     <div class="text-2xl font-bold {{ $farmOverview['farmNet'] >= 0 ? 'text-gray-800' : 'text-red-600' }}">₱{{ number_format($farmOverview['farmNet'], 2) }}</div>
-                    <div class="text-xs text-gray-500 mt-1">Expenses: ₱{{ number_format($farmOverview['farmExpenses'], 2) }}</div>
+                    <div class="text-xs text-gray-500 mt-1">Utility Expenses: ₱{{ number_format($farmOverview['farmExpenses'], 2) }}</div>
                 </div>
             </div>
         @endif
@@ -335,7 +335,11 @@
                                 <td colspan="7" class="bg-gray-50 border-b p-4">
                                     <div class="flex items-center justify-between mb-2">
                                         <h3 class="text-sm font-bold text-gray-800">{{ $rowLabel }}</h3>
-                                        <button type="button" @click.stop="toggle()" class="text-xs text-gray-400 hover:text-gray-600">Collapse</button>
+                                        <div class="flex items-center gap-4">
+                                            {{-- S4: this building's own daily records (edit/delete from there). --}}
+                                            <a href="{{ route('productions.index', ['building_id' => $row['building']->id]) }}" class="text-xs font-semibold text-[#4CAF50] hover:underline">Production records &rarr;</a>
+                                            <button type="button" @click.stop="toggle()" class="text-xs text-gray-400 hover:text-gray-600">Collapse</button>
+                                        </div>
                                     </div>
                                     <div x-show="loading" class="text-sm text-gray-400 py-6 text-center">Loading&hellip;</div>
                                     <div x-show="error" x-text="error" class="text-sm text-red-600 py-4"></div>
@@ -493,11 +497,14 @@ window.initBuildingChart = function (container, buildingId) {
         },
         options: {
             responsive: true,
-            plugins: { legend: { display: true, labels: { font: { size: 10 } } } },
+            plugins: {
+                title:  { display: true, text: 'Production Rate Trend' },
+                legend: { display: true, labels: { font: { size: 10 } } },
+            },
             scales: {
-                x: { ticks: { maxTicksLimit: 10, font: { size: 11 } }, grid: { display: false } },
-                y:  { position: 'left', min: 0, max: 100, ticks: { font: { size: 11 }, callback: v => v + '%' } },
-                y1: { position: 'right', min: 60, max: 95, grid: { drawOnChartArea: false }, ticks: { font: { size: 11 } } },
+                x: { title: { display: true, text: 'Date' }, ticks: { maxTicksLimit: 10, font: { size: 11 } }, grid: { display: false } },
+                y:  { title: { display: true, text: 'Production rate (%)' }, position: 'left', min: 0, max: 100, ticks: { font: { size: 11 }, callback: v => v + '%' } },
+                y1: { title: { display: true, text: 'THI' }, position: 'right', min: 60, max: 95, grid: { drawOnChartArea: false }, ticks: { font: { size: 11 } } },
             }
         }
     });
@@ -558,10 +565,14 @@ window.initBuildingChart = function (container, buildingId) {
             data: { labels: allLabels, datasets: prodDatasets },
             options: {
                 responsive: true,
-                plugins: { legend: { display: forecastActive } },
+                maintainAspectRatio: false,
+                plugins: {
+                    title:  { display: true, text: 'Egg Production Trend' },
+                    legend: { display: true },
+                },
                 scales: {
-                    x: { ticks: { maxTicksLimit: 10, font: { size: 11 } }, grid: { display: false } },
-                    y: { ticks: { font: { size: 11 } }, beginAtZero: false }
+                    x: { title: { display: true, text: 'Date' }, ticks: { maxTicksLimit: 10, font: { size: 11 } }, grid: { display: false } },
+                    y: { title: { display: true, text: 'Eggs collected' }, ticks: { font: { size: 11 } }, beginAtZero: false }
                 }
             }
         });
@@ -600,13 +611,15 @@ window.initBuildingChart = function (container, buildingId) {
             data: { labels: allRevLabels, datasets: revDatasets },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: forecastActive },
+                    title:   { display: true, text: 'Sales Revenue Trend' },
+                    legend:  { display: true },
                     tooltip: { callbacks: { label: ctx => '₱' + (ctx.parsed.y ?? 0).toLocaleString() } }
                 },
                 scales: {
-                    x: { ticks: { font: { size: 11 } }, grid: { display: false } },
-                    y: { ticks: { callback: v => '₱' + v.toLocaleString(), font: { size: 11 } }, beginAtZero: true }
+                    x: { title: { display: true, text: 'Date' }, ticks: { font: { size: 11 } }, grid: { display: false } },
+                    y: { title: { display: true, text: 'Revenue (₱)' }, ticks: { callback: v => '₱' + v.toLocaleString(), font: { size: 11 } }, beginAtZero: true }
                 }
             }
         });
@@ -657,10 +670,14 @@ window.initBuildingChart = function (container, buildingId) {
             },
             options: {
                 responsive: true,
-                plugins: { legend: { display: thiForecast.some(v => v !== null), labels: { font: { size: 10 } } } },
+                maintainAspectRatio: false,
+                plugins: {
+                    title:  { display: true, text: 'Temperature Trend' },
+                    legend: { display: true, labels: { font: { size: 10 } } },
+                },
                 scales: {
-                    x: { ticks: { maxTicksLimit: 10, font: { size: 11 } }, grid: { display: false } },
-                    y: { ticks: { font: { size: 11 } }, beginAtZero: false }
+                    x: { title: { display: true, text: 'Date' }, ticks: { maxTicksLimit: 10, font: { size: 11 } }, grid: { display: false } },
+                    y: { title: { display: true, text: 'Temperature (°C)' }, ticks: { font: { size: 11 } }, beginAtZero: false }
                 }
             }
         });

@@ -16,6 +16,13 @@ class CullRecord extends Model
         'date' => 'date',
     ];
 
+    /**
+     * Reason on the record Daily Entry's "Culled" choice writes (S3): the
+     * whole remaining flock of a building, a planned depopulation — not the
+     * day-to-day culling the High Culling anomaly looks for.
+     */
+    public const BUILDING_CULLED_REASON = 'Building culled (daily entry)';
+
     public function henBatch(): BelongsTo
     {
         return $this->belongsTo(HenBatch::class);
