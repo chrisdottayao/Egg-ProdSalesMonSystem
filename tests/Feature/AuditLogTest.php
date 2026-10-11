@@ -143,7 +143,7 @@ class AuditLogTest extends TestCase
         $this->actingAs($this->admin)->get(route('reports.index', $base + ['audit_action' => 'login']))
             ->assertSee('admin-login')->assertDontSee('manager-export');
         $this->actingAs($this->admin)->get(route('reports.index', $base + ['audit_flagged' => 1]))
-            ->assertSee('flagged-sale')->assertDontSee('manager-export')->assertSee('Sold Gt Produced');
+            ->assertSee('flagged-sale')->assertDontSee('manager-export')->assertSee('Sold > produced');
         $this->actingAs($this->admin)->get(route('reports.index', $base))
             ->assertSee('Audit Log')->assertDontSee('Audit Inconsistency Report')->assertSee('Oct 13, 2026 10:00:00 AM');
     }

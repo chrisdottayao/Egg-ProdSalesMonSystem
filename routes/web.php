@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ApprovalController;
+use App\Http\Controllers\AuditFlagController;
 use App\Http\Controllers\BulkImportController;
 use App\Http\Controllers\CombinedImportController;
 use App\Http\Controllers\CullController;
@@ -117,6 +118,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals.index');
         Route::patch('/approvals/{type}/{id}/approve', [ApprovalController::class, 'approve'])->whereNumber('id')->name('approvals.approve');
         Route::patch('/approvals/{type}/{id}/reject', [ApprovalController::class, 'reject'])->whereNumber('id')->name('approvals.reject');
+    });
+
+    // Resolve a flagged audit entry, e.g. sold > produced (admin + manager, Phase 3 item 3)
+    Route::middleware('role:admin,manager')->group(function () {
+        Route::patch('/audit-flags/{auditLog}/resolve', [AuditFlagController::class, 'resolve'])->name('audit-flags.resolve');
     });
 
     // Anomaly alert actions (admin + manager)

@@ -325,9 +325,7 @@
                             <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap">{{ $a->ip_address ?? '—' }}</td>
                             <td class="py-2 px-2 text-sm">
                                 @if($a->inconsistency_flagged)
-                                    <span class="px-2 py-0.5 rounded text-xs font-semibold {{ $a->resolved ? 'bg-gray-100 text-gray-600' : 'bg-red-100 text-red-700' }}" title="{{ $a->inconsistency_rule }}">
-                                        {{ $a->resolved ? 'Resolved' : 'Flagged' }}: {{ \Illuminate\Support\Str::headline($a->inconsistency_rule ?? '') }}
-                                    </span>
+                                    <x-audit-flag :log="$a" />
                                 @else
                                     <span class="text-xs text-gray-300">—</span>
                                 @endif

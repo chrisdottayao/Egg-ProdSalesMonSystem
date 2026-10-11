@@ -22,6 +22,7 @@ class AuditLog extends Model
         'resolved',
         'resolved_by',
         'resolved_at',
+        'resolution_note',
     ];
 
     protected $casts = [
@@ -35,7 +36,7 @@ class AuditLog extends Model
     private const SECRET_KEYS = ['password', 'password_confirmation', 'current_password', 'remember_token', '_token', 'token', 'api_key', 'secret'];
 
     /** The only columns that may change after a row is written: resolving a flag. */
-    private const RESOLUTION_FIELDS = ['resolved', 'resolved_by', 'resolved_at', 'updated_at'];
+    private const RESOLUTION_FIELDS = ['resolved', 'resolved_by', 'resolved_at', 'resolution_note', 'updated_at'];
 
     protected static function booted(): void
     {

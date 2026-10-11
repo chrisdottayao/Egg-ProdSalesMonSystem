@@ -8,6 +8,7 @@ use App\Models\EggProduction;
 use App\Models\EggSale;
 use App\Support\EggPrices;
 use App\Support\LatestEntry;
+use App\Support\SoldVsProduced;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -49,7 +50,13 @@ class EggSaleController extends Controller
         // S13: set prices per size, for the form's price auto-fill.
         $eggPrices = EggPrices::all();
 
-        return view('sales.index', compact('sales', 'producedBySizeAndDate', 'latest', 'eggPrices'));
+        // S24: the latest sold > produced flag for each sale on this page.
+        $soldFlags = AuditLog::with('resolver')
+            ->where('model_type', 'EggSale')->where('inconsistency_rule', SoldVsProduced::RULE)
+            ->whereIn('model_id', $sales->pluck('id'))
+            ->orderBy('id')->get()->keyBy('model_id');
+
+        return view('sales.index', compact('sales', 'producedBySizeAndDate', 'latest', 'eggPrices', 'soldFlags'));
     }
 
     public function store(Request $request)
@@ -68,13 +75,10 @@ class EggSaleController extends Controller
             return back()->withInput()->withErrors(['price_per_unit' => 'Enter a price — no set price exists for this egg size.']);
         }
 
-        // Hard block: sold > produced on that date
-        $produced = EggProduction::whereDate('date', $validated['date'])->sum('eggs_collected');
-        if ($produced > 0 && $validated['quantity'] > $produced) {
-            return back()->withInput()->with(
-                'hard_block',
-                "Entry blocked: Quantity sold ({$validated['quantity']}) exceeds eggs produced on {$validated['date']} ({$produced}). Correct the entry before saving."
-            );
+        // S24: sold > produced is a warning, not a block (stock may carry over).
+        $soldCheck = SoldVsProduced::check($validated['date'], (int) $validated['quantity']);
+        if ($response = $this->requireSoldConfirmation($request, $soldCheck)) {
+            return $response;
         }
 
         $validated['total_amount'] = $validated['quantity'] * $validated['price_per_unit'];
@@ -82,6 +86,7 @@ class EggSaleController extends Controller
 
         // Phase 3 item 1: staff sales wait for manager/admin approval.
         $sale = EggSale::create($validated + EggSale::approvalFieldsFor($request->user()));
+        $this->flagSoldOverProduced($request, $sale, $soldCheck);
 
         return redirect()->route('sales.index')
             ->with('success', $sale->isPending()
@@ -109,10 +114,16 @@ class EggSaleController extends Controller
             'notes'          => 'nullable|string',
         ]);
 
+        $soldCheck = SoldVsProduced::check(Carbon::parse($validated['date'])->toDateString(), (int) $validated['quantity'], $sale);
+        if ($response = $this->requireSoldConfirmation($request, $soldCheck)) {
+            return $response;
+        }
+
         $validated['total_amount'] = $validated['quantity'] * $validated['price_per_unit'];
         // A staff edit (including resubmitting a rejected sale) goes back to
         // pending; an admin/manager edit is approved by them.
         $sale->update($validated + EggSale::approvalFieldsFor($request->user()));
+        $this->flagSoldOverProduced($request, $sale, $soldCheck);
 
         return redirect()->route('sales.index')->with('success', $sale->isPending()
             ? 'Sales record updated and sent for approval.'
@@ -125,6 +136,41 @@ class EggSaleController extends Controller
 
         $sale->delete();
         return redirect()->route('sales.index')->with('success', 'Sales record deleted.');
+    }
+
+    /**
+     * S24: send the user back with a warning until they tick "Continue".
+     * An offline-queued entry (queued_at) is never bounced — the PWA sync
+     * treats any redirect as success and would drop it — it is saved and
+     * flagged as unconfirmed instead.
+     */
+    private function requireSoldConfirmation(Request $request, ?array $soldCheck)
+    {
+        if (! $soldCheck || $request->boolean('confirm_sold_gt_produced') || $request->filled('queued_at')) {
+            return null;
+        }
+
+        return back()->withInput()->with('sold_gt_produced', $soldCheck + ['message' => SoldVsProduced::message($soldCheck)]);
+    }
+
+    private function flagSoldOverProduced(Request $request, EggSale $sale, ?array $soldCheck): void
+    {
+        if (! $soldCheck) {
+            return;
+        }
+
+        AuditLog::create([
+            'user_id'               => $request->user()->id,
+            'action'                => 'sold_gt_produced',
+            'model_type'            => 'EggSale',
+            'model_id'              => $sale->id,
+            'details'               => $soldCheck + [
+                'egg_size'  => $sale->egg_size,
+                'confirmed' => $request->boolean('confirm_sold_gt_produced') ? 'yes' : 'no (synced from offline)',
+            ],
+            'inconsistency_flagged' => true,
+            'inconsistency_rule'    => SoldVsProduced::RULE,
+        ]);
     }
 
     // ── Sales CSV Import ──────────────────────────────────────────────────

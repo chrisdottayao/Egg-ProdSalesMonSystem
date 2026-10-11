@@ -85,13 +85,9 @@ class EggSale extends Model
         $flagged = false;
         $rule = null;
 
-        // Rule: Sales vs. Production
-        $produced = EggProduction::whereDate('date', $model->date)->sum('eggs_collected');
-        $totalSoldOnDate = EggSale::whereDate('date', $model->date)->sum('quantity');
-        if ($produced > 0 && $totalSoldOnDate > $produced) {
-            $flagged = true;
-            $rule = 'Sales vs. Production';
-        }
+        // Sold > produced is no longer flagged here: since Phase 3 item 3 the
+        // sales form warns, asks for confirmation and records its own
+        // 'sold_gt_produced' flag (with the numbers), which can be resolved.
 
         // Rule: Duplicate Sales Entry
         $duplicates = EggSale::whereDate('date', $model->date)
