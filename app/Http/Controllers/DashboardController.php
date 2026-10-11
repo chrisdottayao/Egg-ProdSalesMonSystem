@@ -14,6 +14,8 @@ use App\Services\AiInsightService;
 use App\Services\BuildingPerformanceService;
 use App\Services\ForecastService;
 use App\Services\RecommendationService;
+use App\Support\ManilaDate;
+use App\Support\ProductionAnomalyDetector;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -275,6 +277,12 @@ class DashboardController extends Controller
                     ]);
                 }
             });
+
+        // Production Drop / Production Spike / Mortality Spike (Phase 3 item 4).
+        $today = ManilaDate::todayString();
+        foreach (ProductionAnomalyDetector::detect(ManilaDate::today()->subDays(7)->toDateString(), $today) as $alert) {
+            $this->upsertAlert($alert);
+        }
     }
 
     private function upsertAlert(array $data): void
