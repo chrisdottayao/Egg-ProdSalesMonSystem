@@ -3,9 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\ManilaDate;
-use Closure;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Carbon;
 
 abstract class Controller
 {
@@ -30,30 +28,9 @@ abstract class Controller
         });
     }
 
-    /**
-     * Date rule when editing $record: admin/manager any date; staff today,
-     * or — for a rejected record being corrected — its own date.
-     */
+    /** Date rule when editing a record: admin/manager any date; staff today only (S16). */
     protected function editDateRules(Model $record): array
     {
-        if (auth()->user()?->canManageRecords()) {
-            return ['required', 'date'];
-        }
-        if ($record->isRejected()) {
-            $own = $record->date->toDateString();
-
-            return ['required', 'date', function (string $attribute, mixed $value, Closure $fail) use ($own) {
-                try {
-                    $date = Carbon::parse($value)->toDateString();
-                } catch (\Throwable) {
-                    return;
-                }
-                if ($date !== $own && $date !== ManilaDate::todayString()) {
-                    $fail("A corrected record keeps its own date ({$own}) or today.");
-                }
-            }];
-        }
-
         return $this->entryDateRules(false);
     }
 

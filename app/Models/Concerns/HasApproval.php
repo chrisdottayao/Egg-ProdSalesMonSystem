@@ -105,8 +105,9 @@ trait HasApproval
      * Phase 3B item 4: may $user change or delete this row? Admin/manager:
      * always (every edit is audited old → new). Staff: only their own rows
      * that are still pending or were rejected — never an approved one. A
-     * pending row still follows the today-only rule (S16); a rejected one
-     * can be corrected whatever its date, since the reviewer asked for that.
+     * pending or rejected row still follows the today-only rule (S16) — an
+     * older rejected record is corrected by an admin or manager (adviser's
+     * decision, Phase 3B).
      */
     public function changeableBy(?User $user): bool
     {
@@ -116,7 +117,7 @@ trait HasApproval
 
         return ! $this->isApproved()
             && $this->isEnteredBy($user)
-            && ($this->isRejected() || ! \App\Support\ManilaDate::isPast($this->date));
+            && ! \App\Support\ManilaDate::isPast($this->date);
     }
 
     /**

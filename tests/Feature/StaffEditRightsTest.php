@@ -117,17 +117,28 @@ class StaffEditRightsTest extends TestCase
         $this->assertSame(0, Expense::withPending()->count() + CullRecord::withPending()->count() + BuildingDaily::withPending()->count());
     }
 
-    public function test_a_rejected_record_can_be_corrected_on_its_own_date_but_not_moved(): void
+    public function test_a_rejected_record_from_today_can_be_corrected_and_resubmitted(): void
     {
-        $sale = EggSale::create(['approval_status' => 'rejected', 'review_note' => 'Qty wrong', 'entered_by' => $this->staff->id, 'date' => '2026-10-10', 'egg_size' => 'Medium', 'quantity' => 10, 'price_per_unit' => 7, 'total_amount' => 70]);
-        $this->actingAs($this->staff);
+        $sale = EggSale::create(['approval_status' => 'rejected', 'review_note' => 'Qty wrong', 'entered_by' => $this->staff->id, 'date' => self::TODAY, 'egg_size' => 'Medium', 'quantity' => 10, 'price_per_unit' => 7, 'total_amount' => 70]);
 
-        $this->patch(route('sales.update', $sale), ['date' => '2026-10-08', 'egg_size' => 'Medium', 'quantity' => 12, 'price_per_unit' => 7])->assertSessionHasErrors('date');
-        $this->patch(route('sales.update', $sale), ['date' => '2026-10-10', 'egg_size' => 'Medium', 'quantity' => 12, 'price_per_unit' => 7])->assertSessionHasNoErrors();
+        $this->actingAs($this->staff)->patch(route('sales.update', $sale), ['date' => self::TODAY, 'egg_size' => 'Medium', 'quantity' => 12, 'price_per_unit' => 7])->assertSessionHasNoErrors();
 
         $fresh = EggSale::withPending()->find($sale->id);
         $this->assertSame('pending', $fresh->approval_status); // resubmitted
         $this->assertSame(12, (int) $fresh->quantity);
+    }
+
+    public function test_an_older_rejected_record_is_left_to_a_manager(): void
+    {
+        // Adviser's decision: no exception to the today-only rule for staff.
+        $sale = EggSale::create(['approval_status' => 'rejected', 'review_note' => 'Qty wrong', 'entered_by' => $this->staff->id, 'date' => '2026-10-10', 'egg_size' => 'Medium', 'quantity' => 10, 'price_per_unit' => 7, 'total_amount' => 70]);
+
+        $this->actingAs($this->staff)->patch(route('sales.update', $sale), ['date' => '2026-10-10', 'egg_size' => 'Medium', 'quantity' => 12, 'price_per_unit' => 7])
+            ->assertForbidden()->assertSee("today's records");
+        $this->assertSame(10, (int) EggSale::withPending()->find($sale->id)->quantity);
+
+        $this->actingAs($this->manager)->patch(route('sales.update', $sale), ['date' => '2026-10-10', 'egg_size' => 'Medium', 'quantity' => 12, 'price_per_unit' => 7])->assertSessionHasNoErrors();
+        $this->assertSame('approved', EggSale::find($sale->id)->approval_status); // the manager's correction counts
     }
 
     public function test_a_past_pending_record_still_follows_the_today_only_rule(): void
