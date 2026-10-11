@@ -1,6 +1,7 @@
 <x-app-layout>
 <div class="space-y-6">
     <h1 class="text-2xl font-bold text-gray-800">Reports</h1>
+    @php $exportParams = http_build_query(['start_date' => $startDate, 'end_date' => $endDate, 'period' => $period]); @endphp
 
     {{-- === SECTION 1: DATE FILTER + EXPORTS === --}}
     <div class="bg-white rounded-lg shadow-md p-6">
@@ -27,23 +28,33 @@
                 <button type="submit" class="bg-[#4CAF50] text-white px-5 py-2 rounded-lg hover:bg-green-600 transition-colors font-medium">Apply</button>
                 <a href="{{ route('reports.index') }}" class="text-sm text-gray-500 hover:underline self-center">Reset</a>
             </div>
-            <div class="flex gap-2 flex-wrap">
-                @php $exportParams = http_build_query(['start_date' => $startDate, 'end_date' => $endDate, 'period' => $period]); @endphp
-                <a href="{{ route('reports.export.pdf') . '?' . $exportParams }}"
-                    class="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm font-medium">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    PDF
-                </a>
-                <a href="{{ route('reports.export.csv') . '?' . $exportParams }}"
-                    class="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    CSV
-                </a>
-                <a href="{{ route('reports.export.excel') . '?' . $exportParams }}"
-                    class="flex items-center gap-2 bg-emerald-700 text-white px-4 py-2 rounded-lg hover:bg-emerald-800 transition-colors text-sm font-medium">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    Excel
-                </a>
+        </form>
+
+        {{-- Phase 3 item 11: one complete report per format. Tick what to include;
+             all sections are ticked by default. The full Audit Log is a separate
+             download in its own section below. --}}
+        <form method="GET" action="{{ route('reports.export.pdf') }}" class="mt-5 pt-4 border-t border-gray-200" x-data>
+            <input type="hidden" name="start_date" value="{{ $startDate }}" />
+            <input type="hidden" name="end_date" value="{{ $endDate }}" />
+            <input type="hidden" name="period" value="{{ $period }}" />
+            <fieldset>
+                <legend class="text-sm font-semibold text-gray-700 mb-2">Report contents</legend>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-1.5">
+                    @foreach(\App\Support\FarmReport::SECTIONS as $key => $label)
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" name="sections[]" value="{{ $key }}" checked class="rounded border-gray-300 text-[#4CAF50]" />
+                            {{ $label }}
+                        </label>
+                    @endforeach
+                </div>
+            </fieldset>
+            <div class="flex items-center gap-2 flex-wrap mt-3">
+                <span class="text-sm text-gray-600 mr-1">Download the complete report ({{ $startDate }} to {{ $endDate }}):</span>
+                <button type="submit" formaction="{{ route('reports.export.pdf') }}" class="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm font-medium">PDF</button>
+                <button type="submit" formaction="{{ route('reports.export.csv') }}" class="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">CSV</button>
+                <button type="submit" formaction="{{ route('reports.export.excel') }}" class="flex items-center gap-2 bg-emerald-700 text-white px-4 py-2 rounded-lg hover:bg-emerald-800 transition-colors text-sm font-medium">Excel</button>
+                <button type="button" class="text-xs text-gray-500 hover:underline ml-2" @click="$el.closest('form').querySelectorAll('input[name=\'sections[]\']').forEach(c => c.checked = true)">Tick all</button>
+                <button type="button" class="text-xs text-gray-500 hover:underline" @click="$el.closest('form').querySelectorAll('input[name=\'sections[]\']').forEach(c => c.checked = false)">Untick all</button>
             </div>
         </form>
     </div>

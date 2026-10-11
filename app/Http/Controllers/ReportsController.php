@@ -4,88 +4,38 @@ namespace App\Http\Controllers;
 
 use App\Exports\AuditReportExport;
 use App\Exports\BatchTraceabilityExport;
-use App\Exports\ReportExport;
-use App\Models\EggProduction;
-use App\Models\EggSale;
-use App\Models\Expense;
-use App\Models\ForecastEvaluation;
+use App\Exports\CompleteReportExport;
+use App\Exports\ViewExport;
 use App\Models\AuditLog;
+use App\Models\ForecastEvaluation;
+use App\Support\AuditLogFilter;
+use App\Support\FarmReport;
+use App\Support\FarmReportCsv;
+use App\Support\ManilaDate;
+use App\Support\SalesReport;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
-use App\Exports\ViewExport;
-use App\Support\AuditLogFilter;
-use App\Support\SalesReport;
-use App\Support\ManilaDate;
-use Illuminate\Support\Carbon;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ReportsController extends Controller
 {
+    /**
+     * Page and exports read the same FarmReport (Phase 3 item 11), so the
+     * numbers on screen and in every download cannot drift apart.
+     */
     private function getReportData(Request $request): array
     {
-        $startDate = $request->input('start_date', Carbon::now()->subDays(7)->format('Y-m-d'));
-        $endDate   = $request->input('end_date', Carbon::today()->format('Y-m-d'));
-        $period    = $request->input('period', 'Daily');
+        $report = FarmReport::fromRequest($request);
 
-        $productions = EggProduction::whereBetween('date', [$startDate, $endDate])->get();
-        $sales       = EggSale::whereBetween('date', [$startDate, $endDate])->get();
-
-        $totalProduced = $productions->sum('eggs_collected');
-        $totalSold     = $sales->sum('quantity');
-        $totalSpoiled  = $productions->sum(fn ($p) => $p->spoilage_count ?? 0);
-        $totalMortality = $productions->sum('mortality');
-        // Farm-wide, not per-building — same convention BuildingPerformanceService
-        // uses for revenue/expenses (Expense::building_id is nullable/per-building,
-        // but this report has never scoped to a single building).
-        $totalExpenses = (float) Expense::whereBetween('date', [$startDate, $endDate])->sum('amount');
-        $totalRevenue  = $sales->sum('total_amount');
-
-        $summary = [
-            'total_eggs_produced' => $totalProduced,
-            'total_eggs_sold'     => $totalSold,
-            'total_revenue'       => $totalRevenue,
-            'total_mortality'     => $totalMortality,
-            'total_expenses'      => $totalExpenses,
-            'net_income'          => round($totalRevenue - $totalExpenses, 2),
-            'avg_production_rate' => $productions->count()
-                ? round($productions->avg(fn($p) => $p->production_rate), 1)
-                : 0,
-            'avg_sales_rate'      => $totalProduced > 0
-                ? round(($totalSold / $totalProduced) * 100, 1)
-                : 0,
-            // Remaining = Total Collected - Total Sold - Spoiled. spoilage_count
-            // defaults to 0 in the schema and is rarely populated historically —
-            // that's expected, not an error, so it's coalesced above rather than
-            // left to blow up on a null.
-            'remaining_eggs'      => $totalProduced - $totalSold - $totalSpoiled,
+        return [
+            'report'    => $report,
+            'summary'   => $report->summary(),
+            'dailyData' => $report->dailyData(),
+            'batches'   => $report->batches(),
+            'startDate' => $report->start,
+            'endDate'   => $report->end,
+            'period'    => $report->period,
         ];
-
-        $dailyData = EggProduction::whereBetween('date', [$startDate, $endDate])
-            ->orderBy('date')
-            ->get()
-            ->map(function ($prod) {
-                $sold      = EggSale::whereDate('date', $prod->date)->sum('quantity');
-                $revenue   = EggSale::whereDate('date', $prod->date)->sum('total_amount');
-                $expenses  = Expense::whereDate('date', $prod->date)->sum('amount');
-                return [
-                    'date'      => $prod->date->format('M d'),
-                    'eggs'      => $prod->eggs_collected,
-                    'sold'      => $sold,
-                    'revenue'   => $revenue,
-                    'prod_rate' => $prod->production_rate,
-                    'spoiled'   => $prod->spoilage_count ?? 0,
-                    'mortality' => $prod->mortality ?? 0,
-                    'expenses'  => (float) $expenses,
-                ];
-            });
-
-        // Real batch traceability query
-        $batches = EggProduction::with('eggSales')
-            ->whereBetween('date', [$startDate, $endDate])
-            ->orderBy('date', 'desc')
-            ->get();
-
-        return compact('summary', 'dailyData', 'batches', 'startDate', 'endDate', 'period');
     }
 
     public function index(Request $request)
@@ -195,70 +145,63 @@ class ReportsController extends Controller
         ];
     }
 
+    // ── Complete report (Phase 3 item 11) ────────────────────────────────
+    // One report per format, honoring the ticked sections and date range,
+    // from the same FarmReport the page uses. Route names unchanged.
+
+    private function completeReportData(Request $request): array
+    {
+        $report = FarmReport::fromRequest($request);
+
+        return $report->build() + [
+            'generatedBy' => auth()->user(),
+            'generatedAt' => ManilaDate::now(),
+        ];
+    }
+
+    private function logCompleteExport(string $format, FarmReport $report): void
+    {
+        $this->logExport('Farm Production & Sales Report', $format, [
+            'range'    => "{$report->start} to {$report->end}",
+            'sections' => $report->sectionsText(),
+        ]);
+    }
+
+    private function completeFilename(FarmReport $report, string $ext): string
+    {
+        return "farm_report_{$report->start}_to_{$report->end}.{$ext}";
+    }
+
     public function exportPdf(Request $request)
     {
-        $data = $this->getReportData($request);
-        $this->logExport('Production & Sales Report', 'pdf', ['range' => "{$data['startDate']} to {$data['endDate']}"]);
-        $pdf  = Pdf::loadView('reports.pdf', $data)->setPaper('a4', 'landscape');
+        $data = $this->completeReportData($request);
+        $this->logCompleteExport('pdf', $data['report']);
 
-        $filename = 'report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.pdf';
-        return $pdf->download($filename);
+        return Pdf::loadView('reports.complete.pdf', $data)->setPaper('a4', 'landscape')
+            ->download($this->completeFilename($data['report'], 'pdf'));
     }
 
     public function exportCsv(Request $request)
     {
-        $data      = $this->getReportData($request);
-        $this->logExport('Production & Sales Report', 'csv', ['range' => "{$data['startDate']} to {$data['endDate']}"]);
-        $dailyData = $data['dailyData'];
-        $summary   = $data['summary'];
+        $data = $this->completeReportData($request);
+        $this->logCompleteExport('csv', $data['report']);
+        $rows = FarmReportCsv::rows($data);
 
-        $rows   = [];
-        $rows[] = ['Date', 'Eggs Produced', 'Eggs Sold', 'Mortality', 'Revenue (PHP)', 'Utility Expenses (PHP)', 'Prod Rate (%)', 'Remaining'];
-
-        foreach ($dailyData as $row) {
-            $rows[] = [
-                $row['date'],
-                $row['eggs'],
-                $row['sold'],
-                $row['mortality'],
-                number_format($row['revenue'], 2),
-                number_format($row['expenses'], 2),
-                $row['prod_rate'],
-                $row['eggs'] - $row['sold'] - $row['spoiled'],
-            ];
-        }
-
-        $rows[] = [];
-        $rows[] = ['TOTAL', $summary['total_eggs_produced'], $summary['total_eggs_sold'], $summary['total_mortality'],
-                   number_format($summary['total_revenue'], 2), number_format($summary['total_expenses'], 2),
-                   $summary['avg_production_rate'] . '%', $summary['remaining_eggs']];
-        $rows[] = ['NET INCOME', number_format($summary['net_income'], 2)];
-
-        $filename = 'report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.csv';
-
-        $headers = [
-            'Content-Type'        => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-        ];
-
-        $callback = function () use ($rows) {
-            $handle = fopen('php://output', 'w');
+        return response()->streamDownload(function () use ($rows) {
+            $h = fopen('php://output', 'w');
             foreach ($rows as $row) {
-                fputcsv($handle, $row);
+                fputcsv($h, $row);
             }
-            fclose($handle);
-        };
-
-        return response()->stream($callback, 200, $headers);
+            fclose($h);
+        }, $this->completeFilename($data['report'], 'csv'), ['Content-Type' => 'text/csv']);
     }
 
     public function exportExcel(Request $request)
     {
-        $data = $this->getReportData($request);
-        $this->logExport('Production & Sales Report', 'excel', ['range' => "{$data['startDate']} to {$data['endDate']}"]);
-        $filename = 'report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.xlsx';
+        $data = $this->completeReportData($request);
+        $this->logCompleteExport('excel', $data['report']);
 
-        return Excel::download(new ReportExport($data), $filename);
+        return Excel::download(new CompleteReportExport($data), $this->completeFilename($data['report'], 'xlsx'));
     }
 
     // ── Batch Traceability Exports ──────────────────────────────────────────
