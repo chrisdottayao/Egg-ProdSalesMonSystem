@@ -92,6 +92,11 @@ class DailyEntryController extends Controller
 
         // withPending(): like the building rows, the sheet shows what was
         // entered whether or not it has been approved yet (Phase 3B).
+        // Phase 3B item 5: buildings whose cull is waiting for approval today.
+        $pendingCulls = CullRecord::pending()->whereDate('date', $date)->where('reason', CullRecord::BUILDING_CULLED_REASON)
+            ->pluck('hen_batch_id')->flip();
+        $rows = $rows->map(fn ($r) => $r + ['cull_pending' => $pendingCulls->has($r['batch']->id)]);
+
         $existingGrading = EggGradingDaily::withPending()->whereDate('date', $date)->get()->keyBy('category');
 
         $gradingRows = collect(EggGradingDaily::CATEGORIES)->map(function (string $category) use ($existingGrading) {
@@ -169,24 +174,32 @@ class DailyEntryController extends Controller
             // building_daily row (an existing one for this date is removed,
             // like a skip). Handled before the per-row loop so the loop never
             // sees these buildings.
-            $culledLabels = [];
+            // Phase 3B item 5: a staff cull is pending, and so is its effect —
+            // the building keeps running (and its hens keep counting) until a
+            // manager or admin approves the cull; rejecting changes nothing.
+            $culledLabels        = [];
+            $pendingCullLabels   = [];
             foreach ($validated['buildings'] as $henBatchId => $row) {
                 if (! $validBatchIds->has($henBatchId) || self::rowChoice($row) !== 'culled') {
                     continue;
                 }
 
                 $batch = HenBatch::find($henBatchId);
-                CullRecord::create(CullRecord::entryFieldsFor($request->user()) + [
-                    'date'            => $date,
-                    'hen_batch_id'    => $henBatchId,
-                    'quantity_culled' => (int) $row['population'],
-                    'reason'          => CullRecord::BUILDING_CULLED_REASON,
-                ]);
-                $batch->update(['ended_at' => $date]);
-                BuildingDaily::withoutEvents(fn () => BuildingDaily::withPending()->where('date', $date)->where('hen_batch_id', $henBatchId)->delete());
-
-                $culledLabels[] = $batch->display_label;
+                // Marking the same building culled again the same day updates the
+                // waiting cull rather than queueing a second one.
+                $cull = CullRecord::pending()->whereDate('date', $date)->where('hen_batch_id', $henBatchId)
+                    ->where('reason', CullRecord::BUILDING_CULLED_REASON)->where('entered_by', $request->user()->id)->first()
+                    ?? new CullRecord(['date' => $date, 'hen_batch_id' => $henBatchId, 'reason' => CullRecord::BUILDING_CULLED_REASON]);
+                $cull->fill(CullRecord::entryFieldsFor($request->user()) + ['quantity_culled' => (int) $row['population']])->save();
                 $validBatchIds->forget($henBatchId);
+
+                if ($cull->isPending()) {
+                    $pendingCullLabels[] = $batch->display_label;
+                    continue;
+                }
+
+                $cull->applyBuildingEnd();
+                $culledLabels[] = $batch->display_label;
                 $buildingsSkipped++; // changes the day's building set, so the rollup below re-runs
             }
 
@@ -351,6 +364,7 @@ class DailyEntryController extends Controller
                     'buildings_saved'    => $buildingsSaved,
                     'buildings_skipped'  => $buildingsSkipped - count($culledLabels),
                     'buildings_culled'   => $culledLabels,
+                    'culls_pending'      => $pendingCullLabels,
                     'grading_saved'      => $gradingSaved,
                     'status'             => ($buildingsSaved || $gradingSaved) ? $approval['approval_status'] : null,
                     'entries'            => collect($savedValues)->mapWithKeys(fn ($v, $id) => [HenBatch::find($id)?->display_label ?? "#{$id}" => $v])->all(),
@@ -368,7 +382,10 @@ class DailyEntryController extends Controller
         if ($culledLabels) {
             $message .= ' Marked as culled: ' . implode(', ', $culledLabels) . '.';
         }
-        if (($buildingsSaved > 0 || $gradingSaved > 0 || $culledLabels) && ! $request->user()->canManageRecords()) {
+        if ($pendingCullLabels) {
+            $message .= ' Cull of ' . implode(', ', $pendingCullLabels) . ' recorded; the building stays active until a manager or admin approves it.';
+        }
+        if (($buildingsSaved > 0 || $gradingSaved > 0) && ! $request->user()->canManageRecords()) {
             $message .= ' Everything you saved is waiting for a manager or admin to approve it before it counts in totals.';
         }
 

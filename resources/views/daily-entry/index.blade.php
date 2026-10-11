@@ -140,6 +140,9 @@
                                 <td class="py-1 px-1 font-semibold text-gray-700">{{ $batch->effective_building_no ?? '—' }}</td>
                                 <td class="py-1 px-1 text-gray-500 text-xs">
                                     {{ $batch->batch_id }}
+                                    @if($row['cull_pending'])
+                                        <div class="mt-1 text-xs font-semibold text-red-700">Cull waiting for approval — still counted until approved</div>
+                                    @endif
                                     @if($row['locked'])
                                         {{-- Phase 3B item 4: approved rows are read-only for staff. --}}
                                         <div class="mt-1 text-xs text-green-700">🔒 Approved — ask a manager or admin to correct it</div>

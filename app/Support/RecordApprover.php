@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\AuditLog;
 use App\Models\BuildingDaily;
+use App\Models\CullRecord;
 use App\Models\User;
 use App\Services\ProductionRollupService;
 use Illuminate\Database\Eloquent\Model;
@@ -38,6 +39,14 @@ class RecordApprover
                 ])->saveQuietly();
 
                 if ($record instanceof BuildingDaily) {
+                    $rollupDates[$record->date->toDateString()] = true;
+                }
+
+                // Phase 3B item 5: a staff "Culled" takes effect only now — the
+                // building ends and that day's row goes, as it would have had a
+                // manager entered it.
+                if ($record instanceof CullRecord && $record->endsBuilding()) {
+                    $record->applyBuildingEnd();
                     $rollupDates[$record->date->toDateString()] = true;
                 }
 

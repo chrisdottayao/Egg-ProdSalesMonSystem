@@ -32,4 +32,29 @@ class CullRecord extends Model
     {
         return $this->belongsTo(HenBatch::class);
     }
+
+    public function endsBuilding(): bool
+    {
+        return $this->reason === self::BUILDING_CULLED_REASON && $this->hen_batch_id !== null;
+    }
+
+    /**
+     * S3: a whole-building cull ends the building as of its date — ended_at
+     * set and that day's building row removed (the hens are gone). Applied
+     * when the cull counts: on save for admin/manager, on approval for a
+     * staff cull (Phase 3B item 5). The caller re-runs that day's rollup.
+     */
+    public function applyBuildingEnd(): void
+    {
+        if (! $this->endsBuilding() || ! $this->isApproved()) {
+            return;
+        }
+
+        $batch = $this->henBatch;
+        if ($batch && ! $batch->isEnded()) {
+            $batch->update(['ended_at' => $this->date->toDateString()]);
+        }
+        BuildingDaily::withoutEvents(fn () => BuildingDaily::withPending()
+            ->whereDate('date', $this->date)->where('hen_batch_id', $this->hen_batch_id)->delete());
+    }
 }
