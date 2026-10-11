@@ -91,7 +91,7 @@ class RecordApprover
             'details'    => array_filter([
                 'record'     => ApprovalQueue::label($record),
                 'values'     => ApprovalQueue::summary($record),
-                'entered_by' => $record->getAttribute($record::enteredByColumn()),
+                'entered_by' => ApprovalQueue::entrant($record)?->name,
                 'note'       => $note,
             ], fn ($v) => $v !== null),
         ]);

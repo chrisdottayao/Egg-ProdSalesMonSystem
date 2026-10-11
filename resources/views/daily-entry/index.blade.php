@@ -68,7 +68,7 @@
                              derived (1 case = 360 pcs = 12 trays, 1 tray = 30 pcs) and sent as
                              hidden fields. The server recomputes them from total_pcs anyway. --}}
                         @foreach($gradingRows as $row)
-                            @php $cat = $row['category']; $ro = $row['locked'] ? 'readonly title="Approved — ask a manager or admin to correct it"' : ''; @endphp
+                            @php $cat = $row['category']; $ro = $row['locked'] ? 'readonly style="background:#f3f4f6;color:#4b5563" title="Approved — ask a manager or admin to correct it"' : ''; @endphp
                             <tr class="border-b last:border-0 grading-row">
                                 <td class="py-1 px-1 font-medium text-gray-700">{{ $cat }}
                                     @if($row['locked'])<span class="ml-1 text-xs font-normal text-green-700" title="Approved — ask a manager or admin to correct it">🔒</span>
@@ -135,7 +135,7 @@
                     </thead>
                     <tbody>
                         @foreach($rows as $row)
-                            @php $batch = $row['batch']; $ro = $row['locked'] ? 'readonly' : ''; @endphp
+                            @php $batch = $row['batch']; $ro = $row['locked'] ? 'readonly style=background:#f3f4f6;color:#4b5563' : ''; @endphp
                             <tr class="border-b last:border-0 building-row" data-hen-batch-id="{{ $batch->id }}">
                                 <td class="py-1 px-1 font-semibold text-gray-700">{{ $batch->effective_building_no ?? '—' }}</td>
                                 <td class="py-1 px-1 text-gray-500 text-xs">
@@ -188,7 +188,8 @@
                                 <td class="py-1 px-1 text-center whitespace-nowrap">
                                     <input type="hidden" name="buildings[{{ $batch->id }}][choice]" value="" />
                                     <div class="inline-flex rounded border border-gray-300 overflow-hidden text-xs" role="radiogroup" aria-label="{{ $batch->display_label }}: skip or culled">
-                                        <label class="row-choice-label cursor-pointer px-2 py-1 has-[:checked]:bg-gray-600 has-[:checked]:text-white" title="No data today — this building will not get a row for this date">
+                                        <label class="row-choice-label cursor-pointer px-2 py-1 has-[:checked]:bg-gray-600 has-[:checked]:text-white"
+                                               @if($row['locked']) title="Approved rows can't be skipped by staff" style="opacity:.4;cursor:not-allowed" @else title="No data today — this building will not get a row for this date" @endif>
                                             <input type="radio" class="row-choice sr-only" name="buildings[{{ $batch->id }}][choice]" value="skip" {{ $choice === 'skip' ? 'checked' : '' }} @disabled($row['locked']) />Skip today
                                         </label>
                                         <label class="row-choice-label cursor-pointer px-2 py-1 border-l border-gray-300 has-[:checked]:bg-red-600 has-[:checked]:text-white" title="Building fully culled — it stops appearing in Daily Entry">
