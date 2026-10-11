@@ -175,6 +175,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:admin')->group(function () {
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::patch('/settings', [SettingsController::class, 'update'])->name('settings.update');
+        Route::patch('/settings/thresholds', [SettingsController::class, 'updateThresholds'])->name('settings.thresholds.update');
     });
 });
 

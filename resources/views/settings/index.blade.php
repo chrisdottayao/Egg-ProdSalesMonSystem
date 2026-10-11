@@ -6,6 +6,57 @@
         <div class="bg-green-50 border-l-4 border-green-500 px-4 py-3 rounded-lg text-sm text-green-800">{{ session('success') }}</div>
     @endif
 
+    {{-- Phase 3 item 5 (S1, S2): thresholds and alert rules, each with its basis --}}
+    <div class="bg-white rounded-lg shadow-md p-6" id="thresholds">
+        <h2 class="text-lg font-bold text-gray-800 mb-1">Thresholds &amp; Alert Rules</h2>
+        <p class="text-sm text-gray-500 mb-4">
+            The numbers the system uses to label buildings and raise alerts. "Basis" says where each number comes from;
+            keep it honest. Watch is the range between Cull-consideration and Healthy. Every change is recorded in the Audit Log.
+        </p>
+        @if($errors->has('thresholds.*') || $errors->has('threshold_basis.*'))
+            <div class="bg-red-50 border-l-4 border-red-500 px-4 py-3 rounded-lg text-sm text-red-800 mb-4">
+                <ul class="list-disc list-inside">@foreach($errors->get('thresholds.*') as $msgs)@foreach($msgs as $m)<li>{{ $m }}</li>@endforeach @endforeach</ul>
+            </div>
+        @endif
+
+        <form method="POST" action="{{ route('settings.thresholds.update') }}" class="space-y-6">
+            @csrf
+            @method('PATCH')
+
+            @foreach($thresholds as $group => $items)
+                <fieldset>
+                    <legend class="text-sm font-bold text-gray-700 uppercase tracking-wide mb-2">{{ $group }}</legend>
+                    <div class="divide-y border border-gray-200 rounded-lg">
+                        @foreach($items as $t)
+                            <div class="grid grid-cols-1 md:grid-cols-12 gap-3 p-3 items-start">
+                                <label for="t_{{ $t['key'] }}" class="md:col-span-4 text-sm font-semibold text-gray-700">
+                                    {{ $t['label'] }}
+                                    <span class="block text-xs font-normal text-gray-500">Default {{ rtrim(rtrim(number_format($t['default'], 2, '.', ''), '0'), '.') }} {{ $t['unit'] }}</span>
+                                </label>
+                                <div class="md:col-span-2 flex items-center gap-1">
+                                    <input type="number" step="any" id="t_{{ $t['key'] }}" name="thresholds[{{ $t['key'] }}]"
+                                           value="{{ old("thresholds.{$t['key']}", rtrim(rtrim(number_format($t['value'], 2, '.', ''), '0'), '.')) }}"
+                                           class="w-24 px-2 py-1.5 border {{ $errors->has("thresholds.{$t['key']}") ? 'border-red-400' : 'border-gray-300' }} rounded text-sm" required />
+                                    <span class="text-xs text-gray-500">{{ $t['unit'] === '%' ? '%' : '' }}</span>
+                                </div>
+                                <div class="md:col-span-6">
+                                    <label for="b_{{ $t['key'] }}" class="sr-only">Basis for {{ $t['label'] }}</label>
+                                    <textarea id="b_{{ $t['key'] }}" name="threshold_basis[{{ $t['key'] }}]" rows="2" maxlength="500" required
+                                              class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs text-gray-700" placeholder="Basis">{{ old("threshold_basis.{$t['key']}", $t['basis']) }}</textarea>
+                                    @error("thresholds.{$t['key']}")<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </fieldset>
+            @endforeach
+
+            <button type="submit" class="bg-[#4CAF50] text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors font-medium">
+                Save Thresholds
+            </button>
+        </form>
+    </div>
+
     {{-- S12: egg prices per size --}}
     <div class="bg-white rounded-lg shadow-md p-6">
         <h2 class="text-lg font-bold text-gray-800 mb-2">Egg Prices per Size (₱ per piece)</h2>

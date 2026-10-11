@@ -201,7 +201,7 @@
                     @if($farmOverview['farmBand'])
                         <span class="inline-block mt-1 text-xs px-2 py-1 rounded-full font-semibold {{ $prodBandClasses[$farmOverview['farmBand']['color']]['badge'] }}">{{ $farmOverview['farmBand']['label'] }}</span>
                     @endif
-                    <div class="text-xs text-gray-500 mt-1">Target: &ge; {{ config('dashboard.prod_rate_healthy_min') }}%</div>
+                    <div class="text-xs text-gray-500 mt-1">Target: &ge; {{ \App\Support\Thresholds::get('prod_rate_healthy_min') }}%</div>
                 </div>
                 <div class="p-4 rounded-lg border-l-4 border-[#4CAF50] bg-gray-50">
                     <div class="text-gray-600 text-sm mb-1">Revenue (window)</div>
@@ -356,6 +356,8 @@
             </div>
         @endif
     </div>
+
+    <x-thresholds-in-use />
 
     {{-- AI Insights (farm-wide, all roles) --}}
     <div class="bg-white rounded-lg shadow-md p-6">

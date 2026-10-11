@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\Thresholds;
 use Illuminate\Support\Carbon;
 
 class ProdRateBand
@@ -19,8 +20,10 @@ class ProdRateBand
             return null;
         }
 
-        $healthyMin = (float) config('dashboard.prod_rate_healthy_min');
-        $cullMax    = (float) config('dashboard.prod_rate_cull_max');
+        // Effective values: an admin override (Settings > Thresholds &
+        // Alert Rules) or the config default (Phase 3 item 5).
+        $healthyMin = Thresholds::get('prod_rate_healthy_min');
+        $cullMax    = Thresholds::get('prod_rate_cull_max');
         $bands      = config('dashboard.prod_rate_bands');
 
         if ($rate >= $healthyMin) {
