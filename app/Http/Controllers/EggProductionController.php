@@ -60,7 +60,7 @@ class EggProductionController extends Controller
      */
     public function destroyBuildingRow(BuildingDaily $buildingDaily)
     {
-        $this->denyPastRecordChangeForStaff($buildingDaily->date);
+        $this->denyStaffChange($buildingDaily);
 
         $label = $buildingDaily->henBatch?->display_label;
         $date  = $buildingDaily->date->toDateString();
@@ -117,20 +117,20 @@ class EggProductionController extends Controller
 
     public function edit(EggProduction $production)
     {
-        $this->denyPastRecordChangeForStaff($production->date);
+        $this->denyStaffChange($production);
 
         return view('productions.edit', compact('production'));
     }
 
     public function update(Request $request, EggProduction $production)
     {
-        $this->denyPastRecordChangeForStaff($production->date);
+        $this->denyStaffChange($production);
 
         // Same as store(): egg_size/egg_weight are no longer part of this form,
         // so editing a record never touches those two columns (existing values,
         // if any, are left exactly as they were).
         $validated = $request->validate([
-            'date'             => $this->entryDateRules(false),
+            'date'             => $this->editDateRules($production),
             'eggs_collected'   => 'required|integer|min:0|max:200000',
             'active_hens'      => 'required|integer|min:1',
             'mortality'        => 'required|integer|min:0',
@@ -153,7 +153,7 @@ class EggProductionController extends Controller
 
     public function destroy(EggProduction $production)
     {
-        $this->denyPastRecordChangeForStaff($production->date);
+        $this->denyStaffChange($production);
 
         $production->delete();
         return redirect()->route('productions.index')->with('success', 'Production record deleted.');

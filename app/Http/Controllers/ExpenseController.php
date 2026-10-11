@@ -90,7 +90,7 @@ class ExpenseController extends Controller
 
     public function edit(Expense $expense)
     {
-        $this->denyPastRecordChangeForStaff($expense->date);
+        $this->denyStaffChange($expense);
 
         // Running buildings, plus this expense's own building even if it has
         // since been culled, so editing never silently reassigns it.
@@ -109,7 +109,7 @@ class ExpenseController extends Controller
 
     public function update(Request $request, Expense $expense)
     {
-        $this->denyPastRecordChangeForStaff($expense->date);
+        $this->denyStaffChange($expense);
 
         $validated = $this->validateExpense($request, $expense);
         $data      = $this->prepareData($validated, $request);
@@ -131,7 +131,7 @@ class ExpenseController extends Controller
 
     public function destroy(Expense $expense)
     {
-        $this->denyPastRecordChangeForStaff($expense->date);
+        $this->denyStaffChange($expense);
 
         if ($expense->receipt_path) {
             Storage::disk('public')->delete($expense->receipt_path);
@@ -201,7 +201,7 @@ class ExpenseController extends Controller
         }
 
         $rules = [
-            'date'         => $this->entryDateRules($existing === null),
+            'date'         => $existing ? $this->editDateRules($existing) : $this->entryDateRules(),
             'building_id'  => 'nullable|exists:hen_batches,id',
             'category'     => 'required|string|in:' . implode(',', $allowedCategories),
             'description'  => 'required|string|max:255',

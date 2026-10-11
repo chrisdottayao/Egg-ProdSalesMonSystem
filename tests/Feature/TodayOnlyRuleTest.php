@@ -110,7 +110,8 @@ class TodayOnlyRuleTest extends TestCase
 
     public function test_staff_can_edit_todays_record_but_not_move_it_to_another_day(): void
     {
-        $sale = EggSale::create(['date' => '2026-10-13', 'egg_size' => 'Medium', 'quantity' => 10, 'price_per_unit' => 7, 'total_amount' => 70]);
+        // Their own pending sale (an approved one is locked for staff, Phase 3B item 4).
+        $sale = EggSale::create(['date' => '2026-10-13', 'egg_size' => 'Medium', 'quantity' => 10, 'price_per_unit' => 7, 'total_amount' => 70, 'approval_status' => 'pending', 'entered_by' => $this->staff->id]);
 
         $this->actingAs($this->staff)->patch(route('sales.update', $sale), ['date' => '2026-10-13', 'egg_size' => 'Medium', 'quantity' => 11, 'price_per_unit' => 7])
             ->assertSessionHasNoErrors();

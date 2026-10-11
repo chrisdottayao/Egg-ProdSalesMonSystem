@@ -266,7 +266,7 @@
                             </td>
                             <td class="py-3 text-sm text-gray-600">{{ $expense->supplier ?? '—' }}</td>
                             <td class="text-right py-3 text-sm space-x-2 whitespace-nowrap">
-                                <x-past-record-guard :date="$expense->date">
+                                <x-past-record-guard :record="$expense">
                                     <a href="{{ route('expenses.edit', $expense) }}" class="text-blue-600 hover:underline">Edit</a>
                                     <form method="POST" action="{{ route('expenses.destroy', $expense) }}" class="inline" onsubmit="return confirm('Delete this utility expense?')">
                                         @csrf @method('DELETE')

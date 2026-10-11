@@ -254,7 +254,7 @@
                                 <td class="py-3 pl-3 text-sm text-gray-700">{{ $row->isApproved() ? ($row->approver?->name ?? '—') : '—' }}</td>
                                 <td class="py-3 pl-3 text-sm text-gray-600 whitespace-nowrap">{{ $row->isApproved() && $row->approved_at ? $row->approved_at->copy()->setTimezone(\App\Support\ManilaDate::TZ)->format('M d, Y g:i A') : '—' }}</td>
                                 <td class="text-right py-3 text-sm space-x-2 whitespace-nowrap">
-                                    <x-past-record-guard :date="$row->date">
+                                    <x-past-record-guard :record="$row">
                                         <a href="{{ route('daily-entry.index', ['date' => $row->date->format('Y-m-d')]) }}" class="text-blue-600 hover:underline">Edit</a>
                                         <form method="POST" action="{{ route('productions.buildings.destroy', $row) }}" class="inline"
                                               onsubmit="return confirm('Delete {{ $row->henBatch?->display_label }}\'s entry for {{ $row->date->format('Y-m-d') }}?')">
@@ -325,7 +325,7 @@
                             </td>
                             <td class="py-3 text-sm text-gray-600">{{ $record->notes ?? '—' }}</td>
                             <td class="text-right py-3 text-sm space-x-2">
-                                <x-past-record-guard :date="$record->date">
+                                <x-past-record-guard :record="$record">
                                     <a href="{{ route('productions.edit', $record) }}" class="text-blue-600 hover:underline">Edit</a>
                                     <form method="POST" action="{{ route('productions.destroy', $record) }}" class="inline" onsubmit="return confirm('Delete this record?')">
                                         @csrf @method('DELETE')

@@ -97,17 +97,17 @@ class EggSaleController extends Controller
 
     public function edit(EggSale $sale)
     {
-        $this->denyPastRecordChangeForStaff($sale->date);
+        $this->denyStaffChange($sale);
 
         return view('sales.edit', compact('sale'));
     }
 
     public function update(Request $request, EggSale $sale)
     {
-        $this->denyPastRecordChangeForStaff($sale->date);
+        $this->denyStaffChange($sale);
 
         $validated = $request->validate([
-            'date'           => $this->entryDateRules(false),
+            'date'           => $this->editDateRules($sale),
             'egg_size'       => 'required|string',
             'quantity'       => 'required|integer|min:1',
             'price_per_unit' => 'required|numeric|min:0',
@@ -132,7 +132,7 @@ class EggSaleController extends Controller
 
     public function destroy(EggSale $sale)
     {
-        $this->denyPastRecordChangeForStaff($sale->date);
+        $this->denyStaffChange($sale);
 
         $sale->delete();
         return redirect()->route('sales.index')->with('success', 'Sales record deleted.');

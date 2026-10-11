@@ -252,7 +252,7 @@
                             <td class="py-3 pl-3 text-sm text-gray-700">{{ $sale->isApproved() ? ($sale->approver?->name ?? '—') : '—' }}</td>
                             <td class="py-3 pl-3 text-sm text-gray-600 whitespace-nowrap">{{ $sale->isApproved() && $sale->approved_at ? $sale->approved_at->copy()->setTimezone(\App\Support\ManilaDate::TZ)->format('M d, Y g:i A') : '—' }}</td>
                             <td class="text-right py-3 text-sm space-x-2">
-                                <x-past-record-guard :date="$sale->date">
+                                <x-past-record-guard :record="$sale">
                                     <a href="{{ route('sales.edit', $sale) }}" class="text-blue-600 hover:underline">Edit</a>
                                     <form method="POST" action="{{ route('sales.destroy', $sale) }}" class="inline" onsubmit="return confirm('Delete this sale?')">
                                         @csrf @method('DELETE')

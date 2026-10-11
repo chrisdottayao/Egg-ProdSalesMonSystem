@@ -89,7 +89,7 @@ class CullController extends Controller
 
     public function destroy(CullRecord $cullRecord)
     {
-        $this->denyPastRecordChangeForStaff($cullRecord->date);
+        $this->denyStaffChange($cullRecord);
 
         $cullRecord->delete();
         return redirect()->route('cull.index')->with('success', 'Cull record deleted.');

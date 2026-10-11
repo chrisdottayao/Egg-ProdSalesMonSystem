@@ -85,6 +85,8 @@ class DailyEntryController extends Controller
                 'age_weeks'    => $existing->age_weeks ?? $previous->age_weeks ?? null,
                 'status'       => $existing?->approval_status,
                 'review_note'  => $existing?->review_note,
+                // Phase 3B item 4: staff see an approved (or someone else's) row read-only.
+                'locked'       => $existing !== null && ! $this->staffMayChange($existing),
             ];
         });
 
@@ -99,6 +101,7 @@ class DailyEntryController extends Controller
                 'total_pcs' => $existing->total_pcs ?? null,
                 'status'    => $existing?->approval_status,
                 'review_note' => $existing?->review_note,
+                'locked'    => $existing !== null && ! $this->staffMayChange($existing),
             ];
         });
 
@@ -203,7 +206,15 @@ class DailyEntryController extends Controller
                         continue;
                     }
 
+                    // Phase 3B item 4: staff can't change an approved row (or another
+                    // person's). Resubmitting it unchanged is fine — it is left as is.
+                    $existing = BuildingDaily::withPending()->whereDate('date', $date)->where('hen_batch_id', $henBatchId)->first();
+                    $locked   = $existing !== null && ! $this->staffMayChange($existing);
+
                     if (self::rowChoice($row) === 'skip') {
+                        if ($locked) {
+                            $this->denyStaffChange($existing);
+                        }
                         // "No data today" means absence, not a zero row — a zero would
                         // tell the peer-comparison and age-relative rules in
                         // RecommendationService that this building existed and produced
@@ -211,7 +222,7 @@ class DailyEntryController extends Controller
                         // that day. Delete rather than upsert zeros — also handles the
                         // edit case: a previously-filled row that's now marked skipped
                         // must not leave stale data behind.
-                        BuildingDaily::withPending()->where('date', $date)->where('hen_batch_id', $henBatchId)->delete();
+                        $existing?->delete();
                         $buildingsSkipped++;
                         continue;
                     }
@@ -230,8 +241,21 @@ class DailyEntryController extends Controller
                     $ageWeeks    = isset($row['age_weeks']) && $row['age_weeks'] !== ''
                         ? (int) $row['age_weeks'] : null;
 
-                    BuildingDaily::withPending()->updateOrCreate(
-                        ['date' => $date, 'hen_batch_id' => $henBatchId],
+                    if ($locked) {
+                        $same = (int) $existing->population === $population && (int) $existing->mortality === $mortality
+                            && (int) $existing->eggs_house === $eggsHouse && (int) $existing->eggs_eggroom === $eggsEggroom
+                            && (int) $existing->soft_shell === $softShell
+                            && ($existing->feed_bags === null ? $feedBags === null : (float) $existing->feed_bags === $feedBags)
+                            && ($existing->age_weeks === null ? $ageWeeks === null : (int) $existing->age_weeks === $ageWeeks);
+                        if (! $same) {
+                            $this->denyStaffChange($existing);
+                        }
+                        continue;
+                    }
+
+                    // The row found above (whereDate, so it matches however the
+                    // driver stores the date) is updated; otherwise a new one.
+                    ($existing ?? new BuildingDaily(['date' => $date, 'hen_batch_id' => $henBatchId]))->fill(
                         $approval + [
                             'user_id'      => auth()->id(),
                             'population'   => $population,
@@ -244,7 +268,7 @@ class DailyEntryController extends Controller
                             'age_weeks'    => $ageWeeks,
                             'prod_rate'    => $population > 0 ? round(($eggsHouse / $population) * 100, 2) : 0,
                         ]
-                    );
+                    )->save();
 
                     $savedValues[$henBatchId] = ['population' => $population, 'mortality' => $mortality, 'eggs_house' => $eggsHouse, 'feed_bags' => $feedBags];
                     $buildingsSaved++;
@@ -269,6 +293,16 @@ class DailyEntryController extends Controller
                         + ((int) ($row['trays'] ?? 0)) * self::PCS_PER_TRAY
                         + (int) ($row['pieces'] ?? 0);
 
+                // Phase 3B item 4: an approved size (or someone else's) is read-only
+                // for staff; sending the same total again leaves it as it is.
+                $existingGrade = EggGradingDaily::withPending()->whereDate('date', $date)->where('category', $category)->first();
+                if ($existingGrade && ! $this->staffMayChange($existingGrade)) {
+                    if ((int) $existingGrade->total_pcs !== max(0, $totalPcs)) {
+                        $this->denyStaffChange($existingGrade);
+                    }
+                    continue;
+                }
+
                 // Only sizes with a value are saved; 0/blank means no row
                 // (and clears a row saved earlier for this date).
                 if ($totalPcs <= 0) {
@@ -276,15 +310,15 @@ class DailyEntryController extends Controller
                     continue;
                 }
 
-                // withPending(): (date, category) is unique whatever the status.
-                EggGradingDaily::withPending()->updateOrCreate(
-                    ['date' => $date, 'category' => $category],
+                // (date, category) is unique whatever the status: update the row
+                // found above (withPending, whereDate) or add a new one.
+                ($existingGrade ?? new EggGradingDaily(['date' => $date, 'category' => $category]))->fill(
                     $gradingFields + [
                         'cases'  => intdiv($totalPcs, self::PCS_PER_CASE),
                         'trays'  => intdiv($totalPcs % self::PCS_PER_CASE, self::PCS_PER_TRAY),
                         'pieces' => $totalPcs % self::PCS_PER_TRAY,
                     ]
-                );
+                )->save();
 
                 $gradingSaved++;
             }

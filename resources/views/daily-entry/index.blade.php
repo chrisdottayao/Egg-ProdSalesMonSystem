@@ -68,11 +68,14 @@
                              derived (1 case = 360 pcs = 12 trays, 1 tray = 30 pcs) and sent as
                              hidden fields. The server recomputes them from total_pcs anyway. --}}
                         @foreach($gradingRows as $row)
-                            @php $cat = $row['category']; @endphp
+                            @php $cat = $row['category']; $ro = $row['locked'] ? 'readonly title="Approved — ask a manager or admin to correct it"' : ''; @endphp
                             <tr class="border-b last:border-0 grading-row">
-                                <td class="py-1 px-1 font-medium text-gray-700">{{ $cat }}</td>
+                                <td class="py-1 px-1 font-medium text-gray-700">{{ $cat }}
+                                    @if($row['locked'])<span class="ml-1 text-xs font-normal text-green-700" title="Approved — ask a manager or admin to correct it">🔒</span>
+                                    @elseif(in_array($row['status'], ['pending', 'rejected'], true))<div><x-approval-status :status="$row['status']" :note="$row['review_note']" /></div>@endif
+                                </td>
                                 <td class="py-1 px-1 text-right">
-                                    <input type="number" min="0" step="1" name="grading[{{ $cat }}][total_pcs]" value="{{ old("grading.{$cat}.total_pcs", $row['total_pcs']) }}"
+                                    <input type="number" min="0" step="1" name="grading[{{ $cat }}][total_pcs]" value="{{ old("grading.{$cat}.total_pcs", $row['total_pcs']) }}" {!! $ro !!}
                                            placeholder="0"
                                            class="grading-total-input w-24 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                     <input type="hidden" name="grading[{{ $cat }}][cases]"  class="grading-cases" />
@@ -132,42 +135,45 @@
                     </thead>
                     <tbody>
                         @foreach($rows as $row)
-                            @php $batch = $row['batch']; @endphp
+                            @php $batch = $row['batch']; $ro = $row['locked'] ? 'readonly' : ''; @endphp
                             <tr class="border-b last:border-0 building-row" data-hen-batch-id="{{ $batch->id }}">
                                 <td class="py-1 px-1 font-semibold text-gray-700">{{ $batch->effective_building_no ?? '—' }}</td>
                                 <td class="py-1 px-1 text-gray-500 text-xs">
                                     {{ $batch->batch_id }}
-                                    @if(in_array($row['status'], ['pending', 'rejected'], true))
+                                    @if($row['locked'])
+                                        {{-- Phase 3B item 4: approved rows are read-only for staff. --}}
+                                        <div class="mt-1 text-xs text-green-700">🔒 Approved — ask a manager or admin to correct it</div>
+                                    @elseif(in_array($row['status'], ['pending', 'rejected'], true))
                                         <div class="mt-1"><x-approval-status :status="$row['status']" :note="$row['review_note']" /></div>
                                     @endif
                                 </td>
                                 <td class="py-1 px-1">
-                                    <input type="number" min="0" name="buildings[{{ $batch->id }}][age_weeks]" value="{{ old("buildings.{$batch->id}.age_weeks", $row['age_weeks']) }}"
+                                    <input type="number" min="0" name="buildings[{{ $batch->id }}][age_weeks]" value="{{ old("buildings.{$batch->id}.age_weeks", $row['age_weeks']) }}" {{ $ro }}
                                            class="row-field w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
-                                    <input type="number" min="0" required name="buildings[{{ $batch->id }}][population]" value="{{ old("buildings.{$batch->id}.population", $row['population']) }}"
+                                    <input type="number" min="0" required name="buildings[{{ $batch->id }}][population]" value="{{ old("buildings.{$batch->id}.population", $row['population']) }}" {{ $ro }}
                                            class="row-field population-input w-20 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
-                                    <input type="number" min="0" name="buildings[{{ $batch->id }}][mortality]" value="{{ old("buildings.{$batch->id}.mortality", $row['mortality']) }}"
+                                    <input type="number" min="0" name="buildings[{{ $batch->id }}][mortality]" value="{{ old("buildings.{$batch->id}.mortality", $row['mortality']) }}" {{ $ro }}
                                            class="row-field w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
-                                    <input type="number" min="0" step="0.01" name="buildings[{{ $batch->id }}][feed_bags]" value="{{ old("buildings.{$batch->id}.feed_bags", $row['feed_bags']) }}"
+                                    <input type="number" min="0" step="0.01" name="buildings[{{ $batch->id }}][feed_bags]" value="{{ old("buildings.{$batch->id}.feed_bags", $row['feed_bags']) }}" {{ $ro }}
                                            class="row-field w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
-                                    <input type="number" min="0" required name="buildings[{{ $batch->id }}][eggs_house]" value="{{ old("buildings.{$batch->id}.eggs_house", $row['eggs_house']) }}"
+                                    <input type="number" min="0" required name="buildings[{{ $batch->id }}][eggs_house]" value="{{ old("buildings.{$batch->id}.eggs_house", $row['eggs_house']) }}" {{ $ro }}
                                            class="row-field eggs-house-input w-20 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
-                                    <input type="number" min="0" name="buildings[{{ $batch->id }}][eggs_eggroom]" value="{{ old("buildings.{$batch->id}.eggs_eggroom", $row['eggs_eggroom']) }}"
+                                    <input type="number" min="0" name="buildings[{{ $batch->id }}][eggs_eggroom]" value="{{ old("buildings.{$batch->id}.eggs_eggroom", $row['eggs_eggroom']) }}" {{ $ro }}
                                            placeholder="= house"
                                            class="row-field w-20 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
-                                    <input type="number" min="0" name="buildings[{{ $batch->id }}][soft_shell]" value="{{ old("buildings.{$batch->id}.soft_shell", $row['soft_shell']) }}"
+                                    <input type="number" min="0" name="buildings[{{ $batch->id }}][soft_shell]" value="{{ old("buildings.{$batch->id}.soft_shell", $row['soft_shell']) }}" {{ $ro }}
                                            class="row-field w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1 text-right">
@@ -180,7 +186,7 @@
                                     <input type="hidden" name="buildings[{{ $batch->id }}][choice]" value="" />
                                     <div class="inline-flex rounded border border-gray-300 overflow-hidden text-xs" role="radiogroup" aria-label="{{ $batch->display_label }}: skip or culled">
                                         <label class="row-choice-label cursor-pointer px-2 py-1 has-[:checked]:bg-gray-600 has-[:checked]:text-white" title="No data today — this building will not get a row for this date">
-                                            <input type="radio" class="row-choice sr-only" name="buildings[{{ $batch->id }}][choice]" value="skip" {{ $choice === 'skip' ? 'checked' : '' }} />Skip today
+                                            <input type="radio" class="row-choice sr-only" name="buildings[{{ $batch->id }}][choice]" value="skip" {{ $choice === 'skip' ? 'checked' : '' }} @disabled($row['locked']) />Skip today
                                         </label>
                                         <label class="row-choice-label cursor-pointer px-2 py-1 border-l border-gray-300 has-[:checked]:bg-red-600 has-[:checked]:text-white" title="Building fully culled — it stops appearing in Daily Entry">
                                             <input type="radio" class="row-choice sr-only" name="buildings[{{ $batch->id }}][choice]" value="culled" data-label="{{ $batch->display_label }}" {{ $choice === 'culled' ? 'checked' : '' }} />Culled

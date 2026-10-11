@@ -157,7 +157,7 @@
                             <td class="py-3 text-sm text-gray-700">{{ $record->buyer ?? '—' }}</td>
                             <td class="py-3 text-sm text-gray-600">{{ $record->notes ?? '—' }}</td>
                             <td class="text-right py-3 text-sm">
-                                <x-past-record-guard :date="$record->date">
+                                <x-past-record-guard :record="$record">
                                     <form method="POST" action="{{ route('cull.destroy', $record) }}" class="inline" onsubmit="return confirm('Delete this cull record?')">
                                         @csrf @method('DELETE')
                                         <button type="submit" class="text-red-600 hover:underline">Delete</button>

@@ -12,6 +12,8 @@ class DailyEntryGradingTest extends TestCase
 {
     use RefreshDatabase;
 
+    private ?User $user = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -21,7 +23,7 @@ class DailyEntryGradingTest extends TestCase
 
     private function postEntry(array $grading, string $date = '2026-09-19')
     {
-        $user  = User::factory()->create(['role' => 'staff']);
+        $user  = $this->user ??= User::factory()->create(['role' => 'staff']);
         $batch = HenBatch::create([
             'batch_id' => 'HB-GRADE-TEST', 'batch_size' => 2000, 'status' => 'Active',
             'entry_date' => '2026-01-01', 'building_no' => 1, 'is_tracked' => true,
@@ -61,7 +63,9 @@ class DailyEntryGradingTest extends TestCase
 
     public function test_setting_a_size_to_zero_removes_the_previously_saved_row(): void
     {
-        EggGradingDaily::create(['date' => '2026-09-19', 'category' => 'Large', 'cases' => 1, 'trays' => 0, 'pieces' => 0]);
+        // The staff member's own row, still pending — they may still clear it (Phase 3B item 4).
+        $this->user = User::factory()->create(['role' => 'staff']);
+        EggGradingDaily::create(['date' => '2026-09-19', 'category' => 'Large', 'cases' => 1, 'trays' => 0, 'pieces' => 0, 'approval_status' => 'pending', 'entered_by' => $this->user->id]);
 
         $this->postEntry(['Large' => ['total_pcs' => 0], 'Medium' => ['total_pcs' => 30]])->assertRedirect();
 
