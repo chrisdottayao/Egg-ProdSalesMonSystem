@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CullRecord extends Model
 {
+    use Auditable; // Phase 3 item 2
+
     protected $fillable = [
         'date', 'hen_batch_id', 'quantity_culled', 'reason', 'notes',
         'heads_sold', 'price_per_head', 'buyer',

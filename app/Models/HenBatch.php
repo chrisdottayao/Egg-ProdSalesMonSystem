@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class HenBatch extends Model
 {
+    use Auditable; // Phase 3 item 2: buildings added, edited, ended, reopened, deleted
+
     protected $fillable = [
         'batch_id', 'batch_size', 'status', 'entry_date', 'notes', 'pen_number', 'building',
         'placement_date', 'breed', 'building_no', 'is_tracked', 'display_no', 'ended_at',

@@ -129,7 +129,7 @@ class EggSale extends Model
                 'quantity' => $model->quantity,
                 'price_per_unit' => $model->price_per_unit,
                 'total_amount' => $model->total_amount,
-            ],
+            ] + ($action === 'update' ? ['changes' => AuditLog::diff($model)] : []),
             'inconsistency_flagged' => $flagged,
             'inconsistency_rule' => $rule,
         ]);

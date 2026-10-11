@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Concerns\Auditable;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -16,6 +17,10 @@ class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
+    use Auditable; // Phase 3 item 2: create, role change, approve, delete
+
+    /** Not worth an audit row on its own (changes on every "remember me" login). */
+    protected array $auditIgnore = ['remember_token'];
 
     public function isApproved(): bool
     {

@@ -192,7 +192,8 @@ class DailyEntryController extends Controller
             // wait for review and stay out of totals until approved.
             $approval = BuildingDaily::approvalFieldsFor($request->user());
 
-            BuildingDaily::withoutEvents(function () use ($validated, $date, $validBatchIds, $approval, &$buildingsSaved, &$buildingsSkipped) {
+            $savedValues = []; // per building, for the Audit Log (Phase 3 item 2)
+            BuildingDaily::withoutEvents(function () use ($validated, $date, $validBatchIds, $approval, &$buildingsSaved, &$buildingsSkipped, &$savedValues) {
                 foreach ($validated['buildings'] as $henBatchId => $row) {
                     if (! $validBatchIds->has($henBatchId)) {
                         continue;
@@ -241,6 +242,7 @@ class DailyEntryController extends Controller
                         ]
                     );
 
+                    $savedValues[$henBatchId] = ['population' => $population, 'mortality' => $mortality, 'eggs_house' => $eggsHouse, 'feed_bags' => $feedBags];
                     $buildingsSaved++;
                 }
             });
@@ -308,6 +310,8 @@ class DailyEntryController extends Controller
                     'buildings_skipped'  => $buildingsSkipped - count($culledLabels),
                     'buildings_culled'   => $culledLabels,
                     'grading_saved'      => $gradingSaved,
+                    'status'             => $buildingsSaved ? $approval['approval_status'] : null,
+                    'entries'            => collect($savedValues)->mapWithKeys(fn ($v, $id) => [HenBatch::find($id)?->display_label ?? "#{$id}" => $v])->all(),
                 ],
             ]);
 

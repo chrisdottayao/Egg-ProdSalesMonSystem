@@ -144,7 +144,7 @@ class EggProduction extends Model
                 'active_hens' => $model->active_hens,
                 'mortality' => $model->mortality,
                 'spoilage_count' => $model->spoilage_count,
-            ],
+            ] + ($action === 'update' ? ['changes' => AuditLog::diff($model)] : []),
             'inconsistency_flagged' => $flagged,
             'inconsistency_rule' => $rule,
         ]);

@@ -231,70 +231,116 @@
         </p>
     </div>
 
-    {{-- === SECTION 3: AUDIT INCONSISTENCY REPORT === --}}
-    <div class="bg-white rounded-lg shadow-md p-6">
+    {{-- === SECTION 3: AUDIT LOG (Phase 3 item 2) ===
+         Replaces the Audit Inconsistency Report: every recorded action, with
+         the old inconsistency flags kept as a badge and a filter. Read-only —
+         audit rows are never edited or deleted. --}}
+    <div class="bg-white rounded-lg shadow-md p-6" id="audit-log">
+        @php $auditExportParams = http_build_query(['start_date' => $startDate, 'end_date' => $endDate, 'period' => $period] + $auditFilter->params()); @endphp
         <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
             <div>
-                <h2 class="text-lg font-bold text-gray-800">Audit Inconsistency Report</h2>
-                <p class="text-sm text-gray-500 mt-0.5">All flagged data integrity violations across production and sales records</p>
+                <h2 class="text-lg font-bold text-gray-800">Audit Log</h2>
+                <p class="text-sm text-gray-500 mt-0.5">Every recorded action in the system: sign-ins, entries, edits, approvals, imports, exports and settings changes. Times are Asia/Manila.</p>
             </div>
             <div class="flex gap-2">
-                <a href="{{ route('reports.export.audit.pdf') . '?' . $exportParams }}"
-                    class="flex items-center gap-1 bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 text-sm">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    PDF
-                </a>
-                <a href="{{ route('reports.export.audit.csv') . '?' . $exportParams }}"
-                    class="flex items-center gap-1 bg-green-700 text-white px-3 py-2 rounded-lg hover:bg-green-800 text-sm">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    CSV
-                </a>
-                <a href="{{ route('reports.export.audit.excel') . '?' . $exportParams }}"
-                    class="flex items-center gap-1 bg-emerald-700 text-white px-3 py-2 rounded-lg hover:bg-emerald-800 text-sm">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    Excel
-                </a>
+                <a href="{{ route('reports.export.audit.pdf') . '?' . $auditExportParams }}" class="flex items-center gap-1 bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 text-sm">PDF</a>
+                <a href="{{ route('reports.export.audit.csv') . '?' . $auditExportParams }}" class="flex items-center gap-1 bg-green-700 text-white px-3 py-2 rounded-lg hover:bg-green-800 text-sm">CSV</a>
+                <a href="{{ route('reports.export.audit.excel') . '?' . $auditExportParams }}" class="flex items-center gap-1 bg-emerald-700 text-white px-3 py-2 rounded-lg hover:bg-emerald-800 text-sm">Excel</a>
             </div>
         </div>
+
+        <form method="GET" action="{{ route('reports.index') }}#audit-log" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 items-end mb-4">
+            <input type="hidden" name="start_date" value="{{ $startDate }}" />
+            <input type="hidden" name="end_date" value="{{ $endDate }}" />
+            <input type="hidden" name="period" value="{{ $period }}" />
+            <div>
+                <label for="audit_from" class="block text-xs font-semibold text-gray-600 mb-1">From</label>
+                <input type="date" id="audit_from" name="audit_from" value="{{ $auditFilter->from }}" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" />
+            </div>
+            <div>
+                <label for="audit_to" class="block text-xs font-semibold text-gray-600 mb-1">To</label>
+                <input type="date" id="audit_to" name="audit_to" value="{{ $auditFilter->to }}" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" />
+            </div>
+            <div>
+                <label for="audit_user" class="block text-xs font-semibold text-gray-600 mb-1">User</label>
+                <select id="audit_user" name="audit_user" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
+                    <option value="">Everyone</option>
+                    @foreach($auditOptions['users'] as $u)
+                        <option value="{{ $u->id }}" @selected($auditFilter->userId === $u->id)>{{ $u->name }} ({{ $u->role }})</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label for="audit_action" class="block text-xs font-semibold text-gray-600 mb-1">Action</label>
+                <select id="audit_action" name="audit_action" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
+                    <option value="">All actions</option>
+                    @foreach($auditOptions['actions'] as $a)
+                        <option value="{{ $a }}" @selected($auditFilter->action === $a)>{{ \Illuminate\Support\Str::headline($a) }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label for="audit_module" class="block text-xs font-semibold text-gray-600 mb-1">Record / Module</label>
+                <select id="audit_module" name="audit_module" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
+                    <option value="">All records</option>
+                    @foreach($auditOptions['modules'] as $m)
+                        <option value="{{ $m }}" @selected($auditFilter->module === $m)>{{ \Illuminate\Support\Str::headline($m) }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <label class="flex items-center gap-2 text-sm text-gray-700 pb-1.5">
+                <input type="checkbox" name="audit_flagged" value="1" @checked($auditFilter->flaggedOnly) class="rounded border-gray-300" />
+                Flagged only
+            </label>
+            <div class="flex gap-2">
+                <button type="submit" class="flex-1 bg-gray-700 text-white px-3 py-1.5 rounded text-sm hover:bg-gray-800">Filter</button>
+                <a href="{{ route('reports.index', ['start_date' => $startDate, 'end_date' => $endDate, 'period' => $period]) }}#audit-log" class="flex-1 text-center bg-gray-100 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-200">Reset</a>
+            </div>
+        </form>
 
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead>
                     <tr class="border-b bg-gray-50">
-                        <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Entry Date</th>
+                        <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">When</th>
                         <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">User</th>
-                        <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Rule Violated / Details</th>
-                        <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Status</th>
+                        <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Action</th>
+                        <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Record / Module</th>
+                        <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Details</th>
+                        <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">IP Address</th>
+                        <th class="text-left py-3 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">Flag</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($auditLogs as $a)
-                        <tr class="{{ $a->inconsistency_flagged ? 'bg-red-50' : '' }} border-b last:border-0">
-                            <td class="py-3 px-2 text-sm">{{ $a->created_at->format('M d, Y H:i') }}</td>
-                            <td class="py-3 px-2 text-sm">{{ $a->user ? $a->user->name : 'System' }}</td>
-                            <td class="py-3 px-2 text-sm text-gray-700 max-w-xs">
-                                @if($a->inconsistency_flagged)
-                                    <span class="font-bold text-red-600 block">[VIOLATION: {{ $a->inconsistency_rule }}]</span>
-                                @endif
-                                {{ json_encode($a->details) }}
+                        <tr @class(['border-b last:border-0 align-top', 'bg-red-50' => $a->inconsistency_flagged && ! $a->resolved])>
+                            <td class="py-2 px-2 text-sm whitespace-nowrap">{{ $a->created_at->copy()->setTimezone(\App\Support\ManilaDate::TZ)->format('M d, Y g:i:s A') }}</td>
+                            <td class="py-2 px-2 text-sm">
+                                {{ $a->user?->name ?? 'Not signed in' }}
+                                @if($a->user)<span class="block text-xs text-gray-500">{{ ucfirst($a->user->role) }}</span>@endif
                             </td>
-                            <td class="py-3 px-2 text-sm">
-                                <span class="px-2 py-1 rounded text-xs font-semibold {{ $a->inconsistency_flagged ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700' }}">
-                                    {{ $a->inconsistency_flagged ? 'Flagged' : 'Clean' }}
-                                </span>
+                            <td class="py-2 px-2 text-sm font-medium text-gray-800">{{ $a->action_label }}</td>
+                            <td class="py-2 px-2 text-sm text-gray-700">{{ $a->module_label }}@if($a->model_id) <span class="text-gray-400">#{{ $a->model_id }}</span>@endif</td>
+                            <td class="py-2 px-2 text-xs text-gray-700 max-w-md break-words">{{ \App\Support\AuditLogFilter::detailsText($a) }}</td>
+                            <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap">{{ $a->ip_address ?? '—' }}</td>
+                            <td class="py-2 px-2 text-sm">
+                                @if($a->inconsistency_flagged)
+                                    <span class="px-2 py-0.5 rounded text-xs font-semibold {{ $a->resolved ? 'bg-gray-100 text-gray-600' : 'bg-red-100 text-red-700' }}" title="{{ $a->inconsistency_rule }}">
+                                        {{ $a->resolved ? 'Resolved' : 'Flagged' }}: {{ \Illuminate\Support\Str::headline($a->inconsistency_rule ?? '') }}
+                                    </span>
+                                @else
+                                    <span class="text-xs text-gray-300">—</span>
+                                @endif
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="4" class="py-8 text-center text-gray-400 text-sm">No audit logs found for the selected period.</td>
-                        </tr>
+                        <tr><td colspan="7" class="py-8 text-center text-gray-400 text-sm">No audit log entries match these filters.</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
-        <p class="text-xs text-gray-400 mt-3 italic">
-            Flagged rows indicate unresolved inconsistencies. Admin can edit flagged records directly. Manager can flag for Admin review.
-        </p>
+        <div class="mt-3">{{ $auditLogs->links() }}</div>
+        <p class="text-xs text-gray-400 mt-3 italic">The audit log is append-only: entries cannot be edited or deleted. Flagged entries (for example, sold more than produced) can be marked resolved with a note by a manager or admin.</p>
     </div>
 
     {{-- === SECTION 4: FORECAST EVALUATION HISTORY === --}}

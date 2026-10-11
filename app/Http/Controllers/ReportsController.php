@@ -12,6 +12,8 @@ use App\Models\ForecastEvaluation;
 use App\Models\AuditLog;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use App\Support\AuditLogFilter;
+use App\Support\ManilaDate;
 use Illuminate\Support\Carbon;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -81,30 +83,53 @@ class ReportsController extends Controller
             ->orderBy('date', 'desc')
             ->get();
 
-        // Audit Inconsistency Report: flagged violations only. audit_logs holds
-        // every action (including clean import summaries) — this query backs
-        // only this specific report (page table + its PDF/CSV/Excel exports),
-        // not a general activity log, so filtering here doesn't affect anything
-        // else that reads audit_logs.
-        $auditLogs = AuditLog::with('user')
-            ->where('inconsistency_flagged', true)
-            ->whereBetween('created_at', [Carbon::parse($startDate)->startOfDay(), Carbon::parse($endDate)->endOfDay()])
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        return compact('summary', 'dailyData', 'batches', 'auditLogs', 'startDate', 'endDate', 'period');
+        return compact('summary', 'dailyData', 'batches', 'startDate', 'endDate', 'period');
     }
 
     public function index(Request $request)
     {
         $data = $this->getReportData($request);
         $data['forecastEvaluations'] = ForecastEvaluation::latest('evaluated_at')->take(10)->get();
+
+        // Audit Log section (Phase 3 item 2) — replaces the inconsistency-only
+        // report; flagged rows remain a badge and a filter.
+        $data['auditFilter']  = AuditLogFilter::fromRequest($request, $data['startDate'], $data['endDate']);
+        $data['auditLogs']    = $data['auditFilter']->query()->paginate(25, ['*'], 'audit_page')->withQueryString()->fragment('audit-log');
+        $data['auditOptions'] = AuditLogFilter::options();
+
         return view('reports.index', $data);
+    }
+
+    /** Phase 3 item 2: every report download is itself recorded in the Audit Log. */
+    private function logExport(string $report, string $format, array $details = []): void
+    {
+        AuditLog::create([
+            'user_id'    => auth()->id(),
+            'action'     => 'export',
+            'model_type' => 'Report',
+            'details'    => ['report' => $report, 'format' => $format] + $details,
+        ]);
+    }
+
+    private function auditExportData(Request $request): array
+    {
+        $range  = $this->getReportData($request);
+        $filter = AuditLogFilter::fromRequest($request, $range['startDate'], $range['endDate']);
+        // Exports cap at 10,000 rows; narrow the filter for more.
+        $logs   = $filter->query()->limit(10000)->get();
+
+        return [
+            'auditLogs'     => $logs,
+            'auditFilter'   => $filter,
+            'generatedBy'   => auth()->user(),
+            'generatedAt'   => ManilaDate::now(),
+        ];
     }
 
     public function exportPdf(Request $request)
     {
         $data = $this->getReportData($request);
+        $this->logExport('Production & Sales Report', 'pdf', ['range' => "{$data['startDate']} to {$data['endDate']}"]);
         $pdf  = Pdf::loadView('reports.pdf', $data)->setPaper('a4', 'landscape');
 
         $filename = 'report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.pdf';
@@ -114,6 +139,7 @@ class ReportsController extends Controller
     public function exportCsv(Request $request)
     {
         $data      = $this->getReportData($request);
+        $this->logExport('Production & Sales Report', 'csv', ['range' => "{$data['startDate']} to {$data['endDate']}"]);
         $dailyData = $data['dailyData'];
         $summary   = $data['summary'];
 
@@ -160,6 +186,7 @@ class ReportsController extends Controller
     public function exportExcel(Request $request)
     {
         $data = $this->getReportData($request);
+        $this->logExport('Production & Sales Report', 'excel', ['range' => "{$data['startDate']} to {$data['endDate']}"]);
         $filename = 'report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.xlsx';
 
         return Excel::download(new ReportExport($data), $filename);
@@ -170,6 +197,7 @@ class ReportsController extends Controller
     public function exportBatchPdf(Request $request)
     {
         $data = $this->getReportData($request);
+        $this->logExport('Batch Traceability', 'pdf', ['range' => "{$data['startDate']} to {$data['endDate']}"]);
         $pdf  = Pdf::loadView('reports.batch_pdf', $data)->setPaper('a4', 'landscape');
 
         $filename = 'batch_traceability_' . $data['startDate'] . '_to_' . $data['endDate'] . '.pdf';
@@ -179,6 +207,7 @@ class ReportsController extends Controller
     public function exportBatchCsv(Request $request)
     {
         $data    = $this->getReportData($request);
+        $this->logExport('Batch Traceability', 'csv', ['range' => "{$data['startDate']} to {$data['endDate']}"]);
         $batches = $data['batches'];
 
         $rows   = [];
@@ -218,6 +247,7 @@ class ReportsController extends Controller
     public function exportBatchExcel(Request $request)
     {
         $data = $this->getReportData($request);
+        $this->logExport('Batch Traceability', 'excel', ['range' => "{$data['startDate']} to {$data['endDate']}"]);
         $filename = 'batch_traceability_' . $data['startDate'] . '_to_' . $data['endDate'] . '.xlsx';
 
         return Excel::download(new BatchTraceabilityExport($data), $filename);
@@ -227,34 +257,43 @@ class ReportsController extends Controller
 
     public function exportAuditPdf(Request $request)
     {
-        $data = $this->getReportData($request);
+        $data = $this->auditExportData($request);
+        $this->logExport('Audit Log', 'pdf', ['filters' => $data['auditFilter']->describe(), 'rows' => $data['auditLogs']->count()]);
         $pdf  = Pdf::loadView('reports.audit_pdf', $data)->setPaper('a4', 'landscape');
 
-        $filename = 'audit_report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.pdf';
-        return $pdf->download($filename);
+        return $pdf->download('audit_log_' . $data['auditFilter']->from . '_to_' . $data['auditFilter']->to . '.pdf');
     }
 
     public function exportAuditCsv(Request $request)
     {
-        $data      = $this->getReportData($request);
+        $data      = $this->auditExportData($request);
         $auditLogs = $data['auditLogs'];
+        $this->logExport('Audit Log', 'csv', ['filters' => $data['auditFilter']->describe(), 'rows' => $auditLogs->count()]);
 
         $rows   = [];
-        $rows[] = ['Entry Date', 'User', 'Action', 'Model Type', 'Model ID', 'Rule Violated / Details', 'Status'];
+        $rows[] = ['SPC Farm Magalang — Audit Log'];
+        $rows[] = ['Filters', $data['auditFilter']->describe()];
+        $rows[] = ['Generated by', $data['generatedBy']->name . ' (' . $data['generatedBy']->role . ')', 'Generated at (Asia/Manila)', $data['generatedAt']->format('Y-m-d H:i')];
+        $rows[] = [];
+        $rows[] = ['When (Asia/Manila)', 'User', 'Role', 'Action', 'Record / Module', 'Record ID', 'Details', 'IP Address', 'Flagged', 'Rule', 'Resolved'];
 
         foreach ($auditLogs as $a) {
             $rows[] = [
-                $a->created_at->format('Y-m-d H:i'),
-                $a->user ? $a->user->name : 'System',
-                strtoupper($a->action),
-                $a->model_type,
+                $a->created_at->copy()->setTimezone(ManilaDate::TZ)->format('Y-m-d H:i:s'),
+                $a->user?->name ?? 'System / not signed in',
+                $a->user?->role ?? '',
+                $a->action_label,
+                $a->module_label,
                 $a->model_id,
-                $a->inconsistency_flagged ? ('[VIOLATION: ' . $a->inconsistency_rule . '] ' . json_encode($a->details)) : json_encode($a->details),
-                $a->inconsistency_flagged ? 'Flagged' : 'Clean',
+                AuditLogFilter::detailsText($a),
+                $a->ip_address,
+                $a->inconsistency_flagged ? 'Yes' : 'No',
+                $a->inconsistency_rule,
+                $a->inconsistency_flagged ? ($a->resolved ? 'Yes' : 'No') : '',
             ];
         }
 
-        $filename = 'audit_report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.csv';
+        $filename = 'audit_log_' . $data['auditFilter']->from . '_to_' . $data['auditFilter']->to . '.csv';
 
         $headers = [
             'Content-Type'        => 'text/csv',
@@ -274,10 +313,10 @@ class ReportsController extends Controller
 
     public function exportAuditExcel(Request $request)
     {
-        $data = $this->getReportData($request);
-        $filename = 'audit_report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.xlsx';
+        $data = $this->auditExportData($request);
+        $this->logExport('Audit Log', 'excel', ['filters' => $data['auditFilter']->describe(), 'rows' => $data['auditLogs']->count()]);
 
-        return Excel::download(new AuditReportExport($data), $filename);
+        return Excel::download(new AuditReportExport($data), 'audit_log_' . $data['auditFilter']->from . '_to_' . $data['auditFilter']->to . '.xlsx');
     }
 }
 

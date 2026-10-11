@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AnomalyAlert;
+use App\Models\AuditLog;
 use App\Models\CullRecord;
 use App\Models\EggProduction;
 use App\Models\EggSale;
@@ -163,18 +164,40 @@ class DashboardController extends Controller
 
     public function markReviewed(AnomalyAlert $alert)
     {
+        $old = $alert->status;
         $alert->update(['status' => 'reviewed']);
+        $this->auditAlert($alert, $old);
+
         return back()->with('success', 'Alert marked as reviewed.');
     }
 
     public function markResolved(AnomalyAlert $alert)
     {
+        $old = $alert->status;
         $alert->update([
             'status'      => 'resolved',
             'resolved_by' => Auth::id(),
             'resolved_at' => now(),
         ]);
+        $this->auditAlert($alert, $old);
+
         return back()->with('success', 'Alert resolved.');
+    }
+
+    /** Phase 3 item 2: anomaly alert status changes go to the Audit Log. */
+    private function auditAlert(AnomalyAlert $alert, ?string $oldStatus): void
+    {
+        AuditLog::create([
+            'user_id'    => Auth::id(),
+            'action'     => 'alert_' . $alert->status,
+            'model_type' => 'AnomalyAlert',
+            'model_id'   => $alert->id,
+            'details'    => [
+                'type'       => $alert->type,
+                'alert_date' => Carbon::parse($alert->alert_date)->toDateString(),
+                'status'     => ['old' => $oldStatus, 'new' => $alert->status],
+            ],
+        ]);
     }
 
     // ── Detection engine ──────────────────────────────────────────────────

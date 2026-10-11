@@ -63,7 +63,8 @@ class LivestockController extends Controller
         ]);
 
         $number  = (int) $validated['building_no'];
-        $batchId = $validated['batch_id'] ?: "Building {$number}";
+        // Optional fields may be absent altogether (e.g. the dashboard form).
+        $batchId = ($validated['batch_id'] ?? null) ?: "Building {$number}";
         if (HenBatch::where('batch_id', $batchId)->exists()) {
             // The default name is taken by an older (ended) flock in the same house.
             $batchId = "Building {$number} ({$validated['placement_date']})";
@@ -75,7 +76,7 @@ class LivestockController extends Controller
             'status'         => 'Active',
             'entry_date'     => $validated['placement_date'],
             'placement_date' => $validated['placement_date'],
-            'breed'          => $validated['breed'] ?: 'Dekalb White',
+            'breed'          => ($validated['breed'] ?? null) ?: 'Dekalb White',
             'building_no'    => $number,
             'building'       => (string) $number, // read by alert clustering's adjacency note
             'display_no'     => null,             // label falls back to building_no
