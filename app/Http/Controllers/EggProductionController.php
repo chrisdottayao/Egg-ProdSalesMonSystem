@@ -25,7 +25,7 @@ class EggProductionController extends Controller
     public function index(Request $request)
     {
         // Phase 3B: staff also see their own pending/rejected entries here.
-        $productions = EggProduction::visibleTo($request->user())->with(['user', 'approver'])->latest('date')->paginate(20);
+        $productions = EggProduction::visibleTo($request->user())->with(['user', 'entrant', 'approver'])->latest('date')->paginate(20);
         $activeHens  = HenBatch::activeHenCount();
 
         // S4: per-building view. egg_productions is the farm-wide daily rollup
@@ -36,7 +36,7 @@ class EggProductionController extends Controller
             ->orderByRaw('COALESCE(display_no, building_no) ASC')->get();
         $selectedBuilding = $filterBuildings->firstWhere('id', (int) $request->input('building_id'));
         $buildingRows = $selectedBuilding
-            ? BuildingDaily::withPending()->with(['henBatch', 'user', 'approver'])->where('hen_batch_id', $selectedBuilding->id)
+            ? BuildingDaily::visibleTo($request->user())->with(['henBatch', 'user', 'approver'])->where('hen_batch_id', $selectedBuilding->id)
                 ->latest('date')->paginate(20)->withQueryString()
             : null;
 
@@ -169,7 +169,7 @@ class EggProductionController extends Controller
         $contributor  = $request->input('contributor'); // 'none' = unattributed, numeric = user id, else free-text name
 
         $productionsQuery = EggProduction::visibleTo($request->user())->with('user')->orderByDesc('date');
-        $buildingsQuery   = BuildingDaily::withPending()->with(['user', 'henBatch'])->orderByDesc('date');
+        $buildingsQuery   = BuildingDaily::visibleTo($request->user())->with(['user', 'henBatch'])->orderByDesc('date');
 
         if ($startDate) {
             $productionsQuery->whereDate('date', '>=', $startDate);

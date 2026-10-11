@@ -136,6 +136,7 @@
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Spent Hen Income</th>
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Buyer</th>
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Notes</th>
+                        <x-approval-headers />
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                 </thead>
@@ -156,6 +157,7 @@
                             </td>
                             <td class="py-3 text-sm text-gray-700">{{ $record->buyer ?? '—' }}</td>
                             <td class="py-3 text-sm text-gray-600">{{ $record->notes ?? '—' }}</td>
+                            <x-approval-cells :record="$record" />
                             <td class="text-right py-3 text-sm">
                                 <x-past-record-guard :record="$record">
                                     <form method="POST" action="{{ route('cull.destroy', $record) }}" class="inline" onsubmit="return confirm('Delete this cull record?')">
@@ -166,7 +168,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="py-8 text-center text-gray-400 text-sm">No cull records yet.</td></tr>
+                        <tr><td colspan="13" class="py-8 text-center text-gray-400 text-sm">No cull records yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

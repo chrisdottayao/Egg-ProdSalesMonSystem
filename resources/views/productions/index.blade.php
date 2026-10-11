@@ -285,6 +285,7 @@
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Feed g/bird</th>
                         <th class="text-center py-3 text-sm font-semibold text-gray-700">THI</th>
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Notes</th>
+                        <x-approval-headers />
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                 </thead>
@@ -324,6 +325,7 @@
                                 @endif
                             </td>
                             <td class="py-3 text-sm text-gray-600">{{ $record->notes ?? '—' }}</td>
+                            <x-approval-cells :record="$record" />
                             <td class="text-right py-3 text-sm space-x-2">
                                 <x-past-record-guard :record="$record">
                                     <a href="{{ route('productions.edit', $record) }}" class="text-blue-600 hover:underline">Edit</a>
@@ -335,7 +337,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="10" class="py-8 text-center text-gray-400 text-sm">No production records yet.</td></tr>
+                        <tr><td colspan="14" class="py-8 text-center text-gray-400 text-sm">No production records yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

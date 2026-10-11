@@ -19,10 +19,11 @@ class EggSaleController extends Controller
 {
     private const IMPORT_CHUNK_SIZE = 500;
 
-    public function index()
+    public function index(Request $request)
     {
-        // History shows every row, approved or not (Phase 3 item 1).
-        $sales = EggSale::withPending()->with(['enteredBy', 'approver'])->latest('date')->paginate(20);
+        // History: approved rows plus, for staff, their own pending/rejected
+        // ones; admin/manager see everything (Phase 3 item 1, 3B item 6).
+        $sales = EggSale::visibleTo($request->user())->with(['enteredBy', 'approver'])->latest('date')->paginate(20);
 
         // Sales Rate / Remaining must compare each row against THAT SIZE's own
         // daily production (egg_grading_daily), not the whole farm's total —
