@@ -86,7 +86,9 @@ class LatestEntryHighlightTest extends TestCase
             'entry_date' => '2026-01-01', 'building_no' => 1, 'is_tracked' => true,
         ]);
 
-        $this->actingAs($this->user)->post(route('daily-entry.store'), [
+        // Saved by an admin, so approved and rolled up (staff rows wait for approval).
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($admin)->post(route('daily-entry.store'), [
             'date'      => '2026-10-10',
             'buildings' => [$batch->id => ['population' => 1500, 'eggs_house' => 1234, 'skip' => '0']],
         ])->assertSessionHas('latest_ids');

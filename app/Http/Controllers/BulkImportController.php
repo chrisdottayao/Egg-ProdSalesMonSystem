@@ -195,7 +195,7 @@ class BulkImportController extends Controller
             }
 
             // ── Preload existing (date, hen_batch_id) keys — no per-row exists() ──
-            $existingKeys = BuildingDaily::whereIn('hen_batch_id', $batchIdByBuildingNo)
+            $existingKeys = BuildingDaily::withPending()->whereIn('hen_batch_id', $batchIdByBuildingNo)
                 ->get(['date', 'hen_batch_id'])
                 ->map(fn ($r) => $r->date->format('Y-m-d') . '|' . $r->hen_batch_id)
                 ->flip()
@@ -238,6 +238,11 @@ class BulkImportController extends Controller
                         'soft_shell'   => $row['soft_shell'],
                         'age_weeks'    => $row['age_weeks'],
                         'prod_rate'    => $prodRate,
+                        'user_id'      => auth()->id(),
+                        // Imports are admin/manager only (S16): rows land approved.
+                        'approval_status' => BuildingDaily::STATUS_APPROVED,
+                        'approved_by'  => auth()->id(),
+                        'approved_at'  => now(),
                         'created_at'   => now(),
                         'updated_at'   => now(),
                     ];

@@ -35,7 +35,7 @@ class EggProductionController extends Controller
             ->orderByRaw('COALESCE(display_no, building_no) ASC')->get();
         $selectedBuilding = $filterBuildings->firstWhere('id', (int) $request->input('building_id'));
         $buildingRows = $selectedBuilding
-            ? BuildingDaily::with(['henBatch', 'user'])->where('hen_batch_id', $selectedBuilding->id)
+            ? BuildingDaily::withPending()->with(['henBatch', 'user', 'approver'])->where('hen_batch_id', $selectedBuilding->id)
                 ->latest('date')->paginate(20)->withQueryString()
             : null;
 
@@ -163,7 +163,7 @@ class EggProductionController extends Controller
         $contributor  = $request->input('contributor'); // 'none' = unattributed, numeric = user id, else free-text name
 
         $productionsQuery = EggProduction::query()->with('user')->orderByDesc('date');
-        $buildingsQuery   = BuildingDaily::query()->with(['user', 'henBatch'])->orderByDesc('date');
+        $buildingsQuery   = BuildingDaily::withPending()->with(['user', 'henBatch'])->orderByDesc('date');
 
         if ($startDate) {
             $productionsQuery->whereDate('date', '>=', $startDate);
@@ -269,7 +269,7 @@ class EggProductionController extends Controller
             ->map(fn ($d) => $d->format('Y-m-d'))
             ->flip()->all();
 
-        $existingSaleKeys = EggSale::get(['date', 'egg_size'])
+        $existingSaleKeys = EggSale::withPending()->get(['date', 'egg_size'])
             ->map(fn ($s) => $s->date->format('Y-m-d') . '|' . $s->egg_size)
             ->flip()->all();
 
@@ -479,7 +479,9 @@ class EggProductionController extends Controller
     {
         if (empty($rows)) return;
 
-        EggSale::insert($rows);
+        // Imports are admin/manager only (S16), so rows land approved (Phase 3 item 1).
+        $approval = ['entered_by' => auth()->id(), 'approval_status' => EggSale::STATUS_APPROVED, 'approved_by' => auth()->id(), 'approved_at' => now()];
+        EggSale::insert(array_map(fn ($r) => $r + $approval, $rows));
 
         $rows = [];
     }

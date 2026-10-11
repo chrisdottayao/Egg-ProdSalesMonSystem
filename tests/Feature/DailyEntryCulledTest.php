@@ -48,7 +48,8 @@ class DailyEntryCulledTest extends TestCase
 
         $this->assertSame('2026-10-13', $this->b2->fresh()->ended_at->toDateString());
         $this->assertSame(0, BuildingDaily::where('hen_batch_id', $this->b2->id)->count());
-        $this->assertSame(1, BuildingDaily::where('hen_batch_id', $this->b1->id)->count());
+        // Saved by staff, so pending until approved (Phase 3 item 1).
+        $this->assertSame(1, BuildingDaily::withPending()->where('hen_batch_id', $this->b1->id)->count());
 
         $page = $this->actingAs($this->staff)->get(route('daily-entry.index'));
         $page->assertSee('data-hen-batch-id="' . $this->b1->id . '"', false);

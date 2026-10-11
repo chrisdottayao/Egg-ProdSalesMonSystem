@@ -20,7 +20,8 @@ class EggSaleController extends Controller
 
     public function index()
     {
-        $sales = EggSale::latest('date')->paginate(20);
+        // History shows every row, approved or not (Phase 3 item 1).
+        $sales = EggSale::withPending()->with(['enteredBy', 'approver'])->latest('date')->paginate(20);
 
         // Sales Rate / Remaining must compare each row against THAT SIZE's own
         // daily production (egg_grading_daily), not the whole farm's total —
@@ -77,11 +78,15 @@ class EggSaleController extends Controller
         }
 
         $validated['total_amount'] = $validated['quantity'] * $validated['price_per_unit'];
+        $validated['entered_by']   = $request->user()->id;
 
-        $sale = EggSale::create($validated);
+        // Phase 3 item 1: staff sales wait for manager/admin approval.
+        $sale = EggSale::create($validated + EggSale::approvalFieldsFor($request->user()));
 
         return redirect()->route('sales.index')
-            ->with('success', 'Sales entry saved successfully!')
+            ->with('success', $sale->isPending()
+                ? 'Sales entry saved. It is waiting for a manager or admin to approve it before it counts in totals.'
+                : 'Sales entry saved successfully!')
             ->with('latest_ids', [$sale->id]);
     }
 
@@ -105,9 +110,13 @@ class EggSaleController extends Controller
         ]);
 
         $validated['total_amount'] = $validated['quantity'] * $validated['price_per_unit'];
-        $sale->update($validated);
+        // A staff edit (including resubmitting a rejected sale) goes back to
+        // pending; an admin/manager edit is approved by them.
+        $sale->update($validated + EggSale::approvalFieldsFor($request->user()));
 
-        return redirect()->route('sales.index')->with('success', 'Sales record updated.');
+        return redirect()->route('sales.index')->with('success', $sale->isPending()
+            ? 'Sales record updated and sent for approval.'
+            : 'Sales record updated.');
     }
 
     public function destroy(EggSale $sale)
@@ -232,7 +241,7 @@ class EggSaleController extends Controller
         fclose($handle);
 
         // ── Preload existing (date, egg_size) keys — no per-row exists() query ──
-        $existingKeys = EggSale::get(['date', 'egg_size'])
+        $existingKeys = EggSale::withPending()->get(['date', 'egg_size'])
             ->map(fn($s) => $s->date->format('Y-m-d') . '|' . $s->egg_size)
             ->flip()->all();
 
@@ -273,6 +282,11 @@ class EggSaleController extends Controller
                     'total_amount'   => $row['quantity'] * $row['price'],
                     'production_id'  => null, // backfilled after import via a single join query
                     'notes'          => $row['notes'],
+                    'entered_by'     => auth()->id(),
+                    // Imports are admin/manager only, so rows land approved.
+                    'approval_status' => EggSale::STATUS_APPROVED,
+                    'approved_by'    => auth()->id(),
+                    'approved_at'    => now(),
                     'created_at'     => now(),
                     'updated_at'     => now(),
                 ];

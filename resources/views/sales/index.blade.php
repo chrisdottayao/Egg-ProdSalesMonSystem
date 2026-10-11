@@ -224,7 +224,11 @@
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Total</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Sales Rate</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Remaining</th>
-                        <th class="text-left py-3 text-sm font-semibold text-gray-700">Notes</th>
+                        <th class="text-left py-3 pl-4 text-sm font-semibold text-gray-700">Notes</th>
+                        <th class="text-left py-3 pl-3 text-sm font-semibold text-gray-700">Entered by</th>
+                        <th class="text-left py-3 pl-3 text-sm font-semibold text-gray-700">Status</th>
+                        <th class="text-left py-3 pl-3 text-sm font-semibold text-gray-700">Approved by</th>
+                        <th class="text-left py-3 pl-3 text-sm font-semibold text-gray-700">Approved at</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                 </thead>
@@ -248,7 +252,11 @@
                             @endphp
                             <td class="text-right py-3 text-sm font-semibold text-[#4CAF50]">{{ $salesRate !== null ? $salesRate . '%' : '—' }}</td>
                             <td class="text-right py-3 text-sm text-gray-600">{{ $remaining !== null ? number_format($remaining) : '—' }}</td>
-                            <td class="py-3 text-sm text-gray-600">{{ $sale->notes ?? '—' }}</td>
+                            <td class="py-3 pl-4 text-sm text-gray-600">{{ $sale->notes ?? '—' }}</td>
+                            <td class="py-3 pl-3 text-sm text-gray-700">{{ $sale->enteredBy?->name ?? '—' }}</td>
+                            <td class="py-3 pl-3 text-sm"><x-approval-status :status="$sale->approval_status" :note="$sale->review_note" /></td>
+                            <td class="py-3 pl-3 text-sm text-gray-700">{{ $sale->isApproved() ? ($sale->approver?->name ?? '—') : '—' }}</td>
+                            <td class="py-3 pl-3 text-sm text-gray-600 whitespace-nowrap">{{ $sale->isApproved() && $sale->approved_at ? $sale->approved_at->copy()->setTimezone(\App\Support\ManilaDate::TZ)->format('M d, Y g:i A') : '—' }}</td>
                             <td class="text-right py-3 text-sm space-x-2">
                                 <x-past-record-guard :date="$sale->date">
                                     <a href="{{ route('sales.edit', $sale) }}" class="text-blue-600 hover:underline">Edit</a>
@@ -260,7 +268,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="py-8 text-center text-gray-400 text-sm">No sales records yet.</td></tr>
+                        <tr><td colspan="13" class="py-8 text-center text-gray-400 text-sm">No sales records yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

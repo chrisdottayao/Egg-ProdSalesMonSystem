@@ -74,7 +74,12 @@
                             @php $batch = $row['batch']; @endphp
                             <tr class="border-b last:border-0 building-row" data-hen-batch-id="{{ $batch->id }}">
                                 <td class="py-1 px-1 font-semibold text-gray-700">{{ $batch->effective_building_no ?? '—' }}</td>
-                                <td class="py-1 px-1 text-gray-500 text-xs">{{ $batch->batch_id }}</td>
+                                <td class="py-1 px-1 text-gray-500 text-xs">
+                                    {{ $batch->batch_id }}
+                                    @if(in_array($row['status'], ['pending', 'rejected'], true))
+                                        <div class="mt-1"><x-approval-status :status="$row['status']" :note="$row['review_note']" /></div>
+                                    @endif
+                                </td>
                                 <td class="py-1 px-1">
                                     <input type="number" min="0" name="buildings[{{ $batch->id }}][age_weeks]" value="{{ old("buildings.{$batch->id}.age_weeks", $row['age_weeks']) }}"
                                            class="row-field w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />

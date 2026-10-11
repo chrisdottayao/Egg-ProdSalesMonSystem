@@ -2,14 +2,22 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasApproval;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EggSale extends Model
 {
+    use HasApproval; // pending/rejected rows excluded by default (Phase 3 item 1)
+
     protected $fillable = [
-        'date', 'egg_size', 'quantity', 'price_per_unit', 'total_amount', 'notes', 'production_id',
+        'date', 'egg_size', 'quantity', 'price_per_unit', 'total_amount', 'notes', 'production_id', 'entered_by',
     ];
+
+    public function enteredBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'entered_by');
+    }
 
     protected $casts = [
         'date' => 'date',

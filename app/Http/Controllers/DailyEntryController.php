@@ -53,11 +53,13 @@ class DailyEntryController extends Controller
         $batches = HenBatch::where('status', 'Active')->whereNotNull('building_no')->tracked()->runningOn($date->toDateString())
             ->orderByRaw('COALESCE(display_no, building_no) ASC')->get();
 
-        $existingRows = BuildingDaily::whereDate('date', $date)
+        // withPending(): the form shows what was entered, approved or not
+        // (Phase 3 item 1) — a staff member sees their own pending/rejected row.
+        $existingRows = BuildingDaily::withPending()->whereDate('date', $date)
             ->get()
             ->keyBy('hen_batch_id');
 
-        $previousRows = BuildingDaily::whereDate('date', $previousDate)
+        $previousRows = BuildingDaily::withPending()->whereDate('date', $previousDate)
             ->get()
             ->keyBy('hen_batch_id');
 
@@ -74,13 +76,15 @@ class DailyEntryController extends Controller
                 // A building with no rows yet (just added, S17) starts from its
                 // starting hen count.
                 'population'   => $existing->population ?? $previous->net_birds
-                    ?? ($batch->buildingDailies()->exists() ? null : $batch->batch_size),
+                    ?? ($batch->buildingDailies()->withoutGlobalScope('approved')->exists() ? null : $batch->batch_size),
                 'mortality'    => $existing->mortality ?? null,
                 'feed_bags'    => $existing->feed_bags ?? null,
                 'eggs_house'   => $existing->eggs_house ?? null,
                 'eggs_eggroom' => $existing->eggs_eggroom ?? null,
                 'soft_shell'   => $existing->soft_shell ?? null,
                 'age_weeks'    => $existing->age_weeks ?? $previous->age_weeks ?? null,
+                'status'       => $existing?->approval_status,
+                'review_note'  => $existing?->review_note,
             ];
         });
 
@@ -172,7 +176,7 @@ class DailyEntryController extends Controller
                     'reason'          => CullRecord::BUILDING_CULLED_REASON,
                 ]);
                 $batch->update(['ended_at' => $date]);
-                BuildingDaily::withoutEvents(fn () => BuildingDaily::where('date', $date)->where('hen_batch_id', $henBatchId)->delete());
+                BuildingDaily::withoutEvents(fn () => BuildingDaily::withPending()->where('date', $date)->where('hen_batch_id', $henBatchId)->delete());
 
                 $culledLabels[] = $batch->display_label;
                 $validBatchIds->forget($henBatchId);
@@ -184,7 +188,11 @@ class DailyEntryController extends Controller
             // times) instead of once for the whole submission. prod_rate is computed
             // here with the exact same formula the model uses, so nothing is lost by
             // suppressing the saving hook that would otherwise compute it.
-            BuildingDaily::withoutEvents(function () use ($validated, $date, $validBatchIds, &$buildingsSaved, &$buildingsSkipped) {
+            // Phase 3 item 1: admin/manager rows are approved on save; staff rows
+            // wait for review and stay out of totals until approved.
+            $approval = BuildingDaily::approvalFieldsFor($request->user());
+
+            BuildingDaily::withoutEvents(function () use ($validated, $date, $validBatchIds, $approval, &$buildingsSaved, &$buildingsSkipped) {
                 foreach ($validated['buildings'] as $henBatchId => $row) {
                     if (! $validBatchIds->has($henBatchId)) {
                         continue;
@@ -198,7 +206,7 @@ class DailyEntryController extends Controller
                         // that day. Delete rather than upsert zeros — also handles the
                         // edit case: a previously-filled row that's now marked skipped
                         // must not leave stale data behind.
-                        BuildingDaily::where('date', $date)->where('hen_batch_id', $henBatchId)->delete();
+                        BuildingDaily::withPending()->where('date', $date)->where('hen_batch_id', $henBatchId)->delete();
                         $buildingsSkipped++;
                         continue;
                     }
@@ -217,9 +225,9 @@ class DailyEntryController extends Controller
                     $ageWeeks    = isset($row['age_weeks']) && $row['age_weeks'] !== ''
                         ? (int) $row['age_weeks'] : null;
 
-                    BuildingDaily::updateOrCreate(
+                    BuildingDaily::withPending()->updateOrCreate(
                         ['date' => $date, 'hen_batch_id' => $henBatchId],
-                        [
+                        $approval + [
                             'user_id'      => auth()->id(),
                             'population'   => $population,
                             'mortality'    => $mortality,
@@ -313,6 +321,9 @@ class DailyEntryController extends Controller
         $message     = "Saved {$buildingsSaved} building rows ({$skippedOnly} skipped today) and {$gradingSaved} grading rows for {$date}.";
         if ($culledLabels) {
             $message .= ' Marked as culled: ' . implode(', ', $culledLabels) . '.';
+        }
+        if ($buildingsSaved > 0 && ! $request->user()->canManageRecords()) {
+            $message .= ' Building rows are waiting for a manager or admin to approve them before they count in totals.';
         }
 
         return redirect()->route('daily-entry.index', ['date' => $date])

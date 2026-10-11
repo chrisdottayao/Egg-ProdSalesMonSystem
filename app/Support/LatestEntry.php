@@ -54,7 +54,9 @@ class LatestEntry
      */
     public static function for(string $modelClass, ?callable $scope = null, string $dateColumn = 'date'): self
     {
-        $query = $modelClass::query()
+        // Includes a staff member's own pending entry (Phase 3 item 1) — the
+        // scope is a no-op on models without approval.
+        $query = $modelClass::query()->withoutGlobalScope('approved')
             ->whereDate($dateColumn, '>=', Carbon::today()->subDays(self::RECENT_DAYS))
             ->whereNotNull('updated_at');
 

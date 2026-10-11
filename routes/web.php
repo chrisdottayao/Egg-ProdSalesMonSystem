@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\BulkImportController;
 use App\Http\Controllers\CombinedImportController;
 use App\Http\Controllers\CullController;
@@ -111,6 +112,13 @@ Route::middleware('auth')->group(function () {
         // S20: one panel, choose Production and/or Sales
         Route::post('/imports/combined', [CombinedImportController::class, 'store'])->name('imports.combined');
     });
+    // Record approval queue (admin + manager, Phase 3 item 1)
+    Route::middleware('role:admin,manager')->group(function () {
+        Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals.index');
+        Route::patch('/approvals/{type}/{id}/approve', [ApprovalController::class, 'approve'])->whereNumber('id')->name('approvals.approve');
+        Route::patch('/approvals/{type}/{id}/reject', [ApprovalController::class, 'reject'])->whereNumber('id')->name('approvals.reject');
+    });
+
     // Anomaly alert actions (admin + manager)
     Route::middleware('role:admin,manager')->group(function () {
         Route::patch('/alerts/{alert}/reviewed', [DashboardController::class, 'markReviewed'])->name('alerts.reviewed');

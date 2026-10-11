@@ -232,7 +232,10 @@
                             <th class="text-right py-3 text-sm font-semibold text-gray-700">Eggs House</th>
                             <th class="text-right py-3 text-sm font-semibold text-gray-700">Prod Rate</th>
                             <th class="text-right py-3 text-sm font-semibold text-gray-700">Feed (sacks)</th>
-                            <th class="text-left py-3 text-sm font-semibold text-gray-700">Recorded by</th>
+                            <th class="text-left py-3 pl-3 text-sm font-semibold text-gray-700">Entered by</th>
+                            <th class="text-left py-3 pl-3 text-sm font-semibold text-gray-700">Status</th>
+                            <th class="text-left py-3 pl-3 text-sm font-semibold text-gray-700">Approved by</th>
+                            <th class="text-left py-3 pl-3 text-sm font-semibold text-gray-700">Approved at</th>
                             <th class="text-right py-3 text-sm font-semibold text-gray-700">Actions</th>
                         </tr>
                     </thead>
@@ -246,7 +249,10 @@
                                 <td class="text-right py-3 text-sm">{{ number_format($row->eggs_house) }}</td>
                                 <td class="text-right py-3 text-sm font-semibold text-[#4CAF50]">{{ $row->prod_rate !== null ? number_format($row->prod_rate, 1) . '%' : '—' }}</td>
                                 <td class="text-right py-3 text-sm">{{ $row->feed_bags !== null ? number_format($row->feed_bags, 2) : '—' }}</td>
-                                <td class="py-3 text-sm text-gray-600">{{ $row->user?->name ?? '—' }}</td>
+                                <td class="py-3 pl-3 text-sm text-gray-600">{{ $row->user?->name ?? '—' }}</td>
+                                <td class="py-3 pl-3 text-sm"><x-approval-status :status="$row->approval_status" :note="$row->review_note" /></td>
+                                <td class="py-3 pl-3 text-sm text-gray-700">{{ $row->isApproved() ? ($row->approver?->name ?? '—') : '—' }}</td>
+                                <td class="py-3 pl-3 text-sm text-gray-600 whitespace-nowrap">{{ $row->isApproved() && $row->approved_at ? $row->approved_at->copy()->setTimezone(\App\Support\ManilaDate::TZ)->format('M d, Y g:i A') : '—' }}</td>
                                 <td class="text-right py-3 text-sm space-x-2 whitespace-nowrap">
                                     <x-past-record-guard :date="$row->date">
                                         <a href="{{ route('daily-entry.index', ['date' => $row->date->format('Y-m-d')]) }}" class="text-blue-600 hover:underline">Edit</a>
@@ -259,7 +265,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="9" class="py-8 text-center text-gray-400 text-sm">No entries recorded for this building yet.</td></tr>
+                            <tr><td colspan="12" class="py-8 text-center text-gray-400 text-sm">No entries recorded for this building yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
