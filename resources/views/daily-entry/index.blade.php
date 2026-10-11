@@ -43,6 +43,70 @@
         @csrf
         <input type="hidden" name="date" value="{{ $date->format('Y-m-d') }}" />
 
+        {{-- Phase 3 item 10: the farm-wide grading sheet comes first, then the
+             per-building rows. Layout only: same single form, fields and Save. --}}
+        {{-- Egg Grading Daily table --}}
+        {{-- S9: the totals caption sits beside the grading table (right column)
+             at lg widths and stacks below it on smaller screens. --}}
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-lg font-bold text-gray-800 mb-4">Egg Grading (farm-wide)</h2>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            <div class="overflow-x-auto lg:col-span-2">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b">
+                            <th class="text-left py-2 px-1 font-semibold text-gray-700">Category</th>
+                            <th class="text-right py-2 px-1 font-semibold text-gray-700">Total Pieces</th>
+                            <th class="text-right py-2 px-1 font-semibold text-gray-500">Cases</th>
+                            <th class="text-right py-2 px-1 font-semibold text-gray-500">Trays</th>
+                            <th class="text-right py-2 px-1 font-semibold text-gray-500">Pieces</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{-- S10/S22: staff type one number per size; cases/trays/pieces are
+                             derived (1 case = 360 pcs = 12 trays, 1 tray = 30 pcs) and sent as
+                             hidden fields. The server recomputes them from total_pcs anyway. --}}
+                        @foreach($gradingRows as $row)
+                            @php $cat = $row['category']; $ro = $row['locked'] ? 'readonly style="background:#f3f4f6;color:#4b5563" title="Approved — ask a manager or admin to correct it"' : ''; @endphp
+                            <tr class="border-b last:border-0 grading-row">
+                                <td class="py-1 px-1 font-medium text-gray-700">{{ $cat }}
+                                    @if($row['locked'])<span class="ml-1 text-xs font-normal text-green-700" title="Approved — ask a manager or admin to correct it">🔒</span>
+                                    @elseif(in_array($row['status'], ['pending', 'rejected'], true))<div><x-approval-status :status="$row['status']" :note="$row['review_note']" /></div>@endif
+                                </td>
+                                <td class="py-1 px-1 text-right">
+                                    <input type="number" min="0" step="1" name="grading[{{ $cat }}][total_pcs]" value="{{ old("grading.{$cat}.total_pcs", $row['total_pcs']) }}" {!! $ro !!}
+                                           placeholder="0"
+                                           class="grading-total-input w-24 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
+                                    <input type="hidden" name="grading[{{ $cat }}][cases]"  class="grading-cases" />
+                                    <input type="hidden" name="grading[{{ $cat }}][trays]"  class="grading-trays" />
+                                    <input type="hidden" name="grading[{{ $cat }}][pieces]" class="grading-pieces" />
+                                </td>
+                                <td class="py-1 px-1 text-right"><span class="grading-cases-display text-gray-400">—</span></td>
+                                <td class="py-1 px-1 text-right"><span class="grading-trays-display text-gray-400">—</span></td>
+                                <td class="py-1 px-1 text-right"><span class="grading-pieces-display text-gray-400">—</span></td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+                <p class="text-xs text-gray-500 mt-3">Type the total pieces for each size. Cases and trays are computed automatically (1 case = 12 trays = 360 pcs; 1 tray = 30 pcs). Sizes left blank or 0 are not saved.</p>
+            </div>
+
+            <aside class="lg:col-span-1 lg:sticky lg:top-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3 text-sm">
+                <div class="flex items-baseline justify-between gap-2">
+                    <span class="text-gray-600">Grading total</span>
+                    <span id="gradingTotal" class="text-xl font-bold text-[#4CAF50]">0</span>
+                </div>
+                <div class="flex items-baseline justify-between gap-2">
+                    <span class="text-gray-600">Eggs House total</span>
+                    <span id="buildingEggsTotalEcho" class="text-xl font-bold text-gray-700">0</span>
+                </div>
+                <div id="gradingMatch" class="rounded px-2 py-1 text-xs font-semibold bg-gray-100 text-gray-500">—</div>
+                <p class="text-xs text-gray-500 border-t border-gray-200 pt-3">Farm-level grading output by category — no building column, since grading happens once for the whole farm at the egg room. The grading total is compared against the Eggs House total from the Buildings table below.</p>
+            </aside>
+            </div>
+        </div>
+
         {{-- Building Daily table --}}
         <div class="bg-white rounded-lg shadow-md p-6 mb-6">
             <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -71,37 +135,48 @@
                     </thead>
                     <tbody>
                         @foreach($rows as $row)
-                            @php $batch = $row['batch']; @endphp
+                            @php $batch = $row['batch']; $ro = $row['locked'] ? 'readonly style=background:#f3f4f6;color:#4b5563' : ''; @endphp
                             <tr class="border-b last:border-0 building-row" data-hen-batch-id="{{ $batch->id }}">
                                 <td class="py-1 px-1 font-semibold text-gray-700">{{ $batch->effective_building_no ?? '—' }}</td>
-                                <td class="py-1 px-1 text-gray-500 text-xs">{{ $batch->batch_id }}</td>
+                                <td class="py-1 px-1 text-gray-500 text-xs">
+                                    {{ $batch->batch_id }}
+                                    @if($row['cull_pending'])
+                                        <div class="mt-1 text-xs font-semibold text-red-700">Cull waiting for approval — still counted until approved</div>
+                                    @endif
+                                    @if($row['locked'])
+                                        {{-- Phase 3B item 4: approved rows are read-only for staff. --}}
+                                        <div class="mt-1 text-xs text-green-700">🔒 Approved — ask a manager or admin to correct it</div>
+                                    @elseif(in_array($row['status'], ['pending', 'rejected'], true))
+                                        <div class="mt-1"><x-approval-status :status="$row['status']" :note="$row['review_note']" /></div>
+                                    @endif
+                                </td>
                                 <td class="py-1 px-1">
-                                    <input type="number" min="0" name="buildings[{{ $batch->id }}][age_weeks]" value="{{ old("buildings.{$batch->id}.age_weeks", $row['age_weeks']) }}"
+                                    <input type="number" min="0" name="buildings[{{ $batch->id }}][age_weeks]" value="{{ old("buildings.{$batch->id}.age_weeks", $row['age_weeks']) }}" {{ $ro }}
                                            class="row-field w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
-                                    <input type="number" min="0" required name="buildings[{{ $batch->id }}][population]" value="{{ old("buildings.{$batch->id}.population", $row['population']) }}"
+                                    <input type="number" min="0" required name="buildings[{{ $batch->id }}][population]" value="{{ old("buildings.{$batch->id}.population", $row['population']) }}" {{ $ro }}
                                            class="row-field population-input w-20 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
-                                    <input type="number" min="0" name="buildings[{{ $batch->id }}][mortality]" value="{{ old("buildings.{$batch->id}.mortality", $row['mortality']) }}"
+                                    <input type="number" min="0" name="buildings[{{ $batch->id }}][mortality]" value="{{ old("buildings.{$batch->id}.mortality", $row['mortality']) }}" {{ $ro }}
                                            class="row-field w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
-                                    <input type="number" min="0" step="0.01" name="buildings[{{ $batch->id }}][feed_bags]" value="{{ old("buildings.{$batch->id}.feed_bags", $row['feed_bags']) }}"
+                                    <input type="number" min="0" step="0.01" name="buildings[{{ $batch->id }}][feed_bags]" value="{{ old("buildings.{$batch->id}.feed_bags", $row['feed_bags']) }}" {{ $ro }}
                                            class="row-field w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
-                                    <input type="number" min="0" required name="buildings[{{ $batch->id }}][eggs_house]" value="{{ old("buildings.{$batch->id}.eggs_house", $row['eggs_house']) }}"
+                                    <input type="number" min="0" required name="buildings[{{ $batch->id }}][eggs_house]" value="{{ old("buildings.{$batch->id}.eggs_house", $row['eggs_house']) }}" {{ $ro }}
                                            class="row-field eggs-house-input w-20 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
-                                    <input type="number" min="0" name="buildings[{{ $batch->id }}][eggs_eggroom]" value="{{ old("buildings.{$batch->id}.eggs_eggroom", $row['eggs_eggroom']) }}"
+                                    <input type="number" min="0" name="buildings[{{ $batch->id }}][eggs_eggroom]" value="{{ old("buildings.{$batch->id}.eggs_eggroom", $row['eggs_eggroom']) }}" {{ $ro }}
                                            placeholder="= house"
                                            class="row-field w-20 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1">
-                                    <input type="number" min="0" name="buildings[{{ $batch->id }}][soft_shell]" value="{{ old("buildings.{$batch->id}.soft_shell", $row['soft_shell']) }}"
+                                    <input type="number" min="0" name="buildings[{{ $batch->id }}][soft_shell]" value="{{ old("buildings.{$batch->id}.soft_shell", $row['soft_shell']) }}" {{ $ro }}
                                            class="row-field w-16 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
                                 </td>
                                 <td class="py-1 px-1 text-right">
@@ -113,8 +188,9 @@
                                 <td class="py-1 px-1 text-center whitespace-nowrap">
                                     <input type="hidden" name="buildings[{{ $batch->id }}][choice]" value="" />
                                     <div class="inline-flex rounded border border-gray-300 overflow-hidden text-xs" role="radiogroup" aria-label="{{ $batch->display_label }}: skip or culled">
-                                        <label class="row-choice-label cursor-pointer px-2 py-1 has-[:checked]:bg-gray-600 has-[:checked]:text-white" title="No data today — this building will not get a row for this date">
-                                            <input type="radio" class="row-choice sr-only" name="buildings[{{ $batch->id }}][choice]" value="skip" {{ $choice === 'skip' ? 'checked' : '' }} />Skip today
+                                        <label class="row-choice-label cursor-pointer px-2 py-1 has-[:checked]:bg-gray-600 has-[:checked]:text-white"
+                                               @if($row['locked']) title="Approved rows can't be skipped by staff" style="opacity:.4;cursor:not-allowed" @else title="No data today — this building will not get a row for this date" @endif>
+                                            <input type="radio" class="row-choice sr-only" name="buildings[{{ $batch->id }}][choice]" value="skip" {{ $choice === 'skip' ? 'checked' : '' }} @disabled($row['locked']) />Skip today
                                         </label>
                                         <label class="row-choice-label cursor-pointer px-2 py-1 border-l border-gray-300 has-[:checked]:bg-red-600 has-[:checked]:text-white" title="Building fully culled — it stops appearing in Daily Entry">
                                             <input type="radio" class="row-choice sr-only" name="buildings[{{ $batch->id }}][choice]" value="culled" data-label="{{ $batch->display_label }}" {{ $choice === 'culled' ? 'checked' : '' }} />Culled
@@ -127,65 +203,6 @@
                 </table>
             </div>
             <p class="text-xs text-gray-500 mt-3">* Required unless "Skip today" or "Culled" is selected (Culled still needs the population — the hens removed). Feed bags and soft shell may be left blank. A row highlighted orange means eggs house exceeds population — not blocked, just worth a second look before you submit. "Skip today" (no data today) skips this building entirely for this date — it will not appear as a zero, matching how a building between flocks or simply not checked is handled everywhere else in the system. "Culled" records the remaining population as culled, marks the building as ended on this date, and removes it from Daily Entry; its history stays available, and an admin can reopen it from Flock Records.</p>
-        </div>
-
-        {{-- Egg Grading Daily table --}}
-        {{-- S9: the totals caption sits beside the grading table (right column)
-             at lg widths and stacks below it on smaller screens. --}}
-        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-lg font-bold text-gray-800 mb-4">Egg Grading (farm-wide)</h2>
-
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            <div class="overflow-x-auto lg:col-span-2">
-                <table class="w-full text-sm">
-                    <thead>
-                        <tr class="border-b">
-                            <th class="text-left py-2 px-1 font-semibold text-gray-700">Category</th>
-                            <th class="text-right py-2 px-1 font-semibold text-gray-700">Total Pieces</th>
-                            <th class="text-right py-2 px-1 font-semibold text-gray-500">Cases</th>
-                            <th class="text-right py-2 px-1 font-semibold text-gray-500">Trays</th>
-                            <th class="text-right py-2 px-1 font-semibold text-gray-500">Pieces</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {{-- S10/S22: staff type one number per size; cases/trays/pieces are
-                             derived (1 case = 360 pcs = 12 trays, 1 tray = 30 pcs) and sent as
-                             hidden fields. The server recomputes them from total_pcs anyway. --}}
-                        @foreach($gradingRows as $row)
-                            @php $cat = $row['category']; @endphp
-                            <tr class="border-b last:border-0 grading-row">
-                                <td class="py-1 px-1 font-medium text-gray-700">{{ $cat }}</td>
-                                <td class="py-1 px-1 text-right">
-                                    <input type="number" min="0" step="1" name="grading[{{ $cat }}][total_pcs]" value="{{ old("grading.{$cat}.total_pcs", $row['total_pcs']) }}"
-                                           placeholder="0"
-                                           class="grading-total-input w-24 px-2 py-1 border border-gray-300 rounded text-right focus:outline-none focus:ring-1 focus:ring-[#4CAF50]" />
-                                    <input type="hidden" name="grading[{{ $cat }}][cases]"  class="grading-cases" />
-                                    <input type="hidden" name="grading[{{ $cat }}][trays]"  class="grading-trays" />
-                                    <input type="hidden" name="grading[{{ $cat }}][pieces]" class="grading-pieces" />
-                                </td>
-                                <td class="py-1 px-1 text-right"><span class="grading-cases-display text-gray-400">—</span></td>
-                                <td class="py-1 px-1 text-right"><span class="grading-trays-display text-gray-400">—</span></td>
-                                <td class="py-1 px-1 text-right"><span class="grading-pieces-display text-gray-400">—</span></td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-                <p class="text-xs text-gray-500 mt-3">Type the total pieces for each size. Cases and trays are computed automatically (1 case = 12 trays = 360 pcs; 1 tray = 30 pcs). Sizes left blank or 0 are not saved.</p>
-            </div>
-
-            <aside class="lg:col-span-1 lg:sticky lg:top-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3 text-sm">
-                <div class="flex items-baseline justify-between gap-2">
-                    <span class="text-gray-600">Grading total</span>
-                    <span id="gradingTotal" class="text-xl font-bold text-[#4CAF50]">0</span>
-                </div>
-                <div class="flex items-baseline justify-between gap-2">
-                    <span class="text-gray-600">Eggs House total</span>
-                    <span id="buildingEggsTotalEcho" class="text-xl font-bold text-gray-700">0</span>
-                </div>
-                <div id="gradingMatch" class="rounded px-2 py-1 text-xs font-semibold bg-gray-100 text-gray-500">—</div>
-                <p class="text-xs text-gray-500 border-t border-gray-200 pt-3">Farm-level grading output by category — no building column, since grading happens once for the whole farm at the egg room. The grading total is compared against the Eggs House total from the buildings table above.</p>
-            </aside>
-            </div>
         </div>
 
         <div class="flex justify-end">

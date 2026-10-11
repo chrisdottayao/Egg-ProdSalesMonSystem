@@ -195,7 +195,7 @@ class BulkImportController extends Controller
             }
 
             // ── Preload existing (date, hen_batch_id) keys — no per-row exists() ──
-            $existingKeys = BuildingDaily::whereIn('hen_batch_id', $batchIdByBuildingNo)
+            $existingKeys = BuildingDaily::withPending()->whereIn('hen_batch_id', $batchIdByBuildingNo)
                 ->get(['date', 'hen_batch_id'])
                 ->map(fn ($r) => $r->date->format('Y-m-d') . '|' . $r->hen_batch_id)
                 ->flip()
@@ -238,6 +238,9 @@ class BulkImportController extends Controller
                         'soft_shell'   => $row['soft_shell'],
                         'age_weeks'    => $row['age_weeks'],
                         'prod_rate'    => $prodRate,
+                        // Imports are admin/manager only (S16): rows land approved
+                        // by the importer; a staff import would land pending (3B).
+                        ...BuildingDaily::entryFieldsFor(auth()->user()),
                         'created_at'   => now(),
                         'updated_at'   => now(),
                     ];
@@ -302,7 +305,7 @@ class BulkImportController extends Controller
         $stats     = ['imported' => 0, 'skipped' => 0, 'errors' => 0, 'total_pcs_mismatches' => 0];
         $errors    = [];
 
-        $existingKeys = EggGradingDaily::get(['date', 'category'])
+        $existingKeys = EggGradingDaily::withPending()->get(['date', 'category'])
             ->map(fn ($r) => $r->date->format('Y-m-d') . '|' . $r->category)
             ->flip()
             ->all();
@@ -369,6 +372,7 @@ class BulkImportController extends Controller
                     'trays'      => $trays,
                     'pieces'     => $pieces,
                     'total_pcs'  => $totalPcs,
+                    ...EggGradingDaily::entryFieldsFor(auth()->user()),
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];

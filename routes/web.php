@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Controllers\ApprovalController;
+use App\Http\Controllers\AuditFlagController;
+use App\Http\Controllers\BuildingRemovalController;
 use App\Http\Controllers\BulkImportController;
 use App\Http\Controllers\CombinedImportController;
 use App\Http\Controllers\CullController;
@@ -90,9 +93,13 @@ Route::middleware('auth')->group(function () {
 
     // Flock Records (hen batches only — cattle tracking removed, out of this system's scope)
     Route::get('/flock-records', [LivestockController::class, 'index'])->name('flock-records.index');
-    Route::post('/flock-records/hens', [LivestockController::class, 'storeHen'])->name('flock-records.hens.store');
-    Route::patch('/flock-records/hens/{henBatch}', [LivestockController::class, 'updateHen'])->name('flock-records.hens.update');
-    Route::delete('/flock-records/hens/{henBatch}', [LivestockController::class, 'destroyHen'])->name('flock-records.hens.destroy');
+    // Changing buildings/flocks is admin + manager only (same as adding or
+    // removing a building); staff can view Flock Records.
+    Route::middleware('role:admin,manager')->group(function () {
+        Route::post('/flock-records/hens', [LivestockController::class, 'storeHen'])->name('flock-records.hens.store');
+        Route::patch('/flock-records/hens/{henBatch}', [LivestockController::class, 'updateHen'])->name('flock-records.hens.update');
+        Route::delete('/flock-records/hens/{henBatch}', [LivestockController::class, 'destroyHen'])->name('flock-records.hens.destroy');
+    });
 
     // Historical CSV imports — the only way to load past-dated data, so
     // admin + manager only (S16: staff record today's entries only).
@@ -111,6 +118,19 @@ Route::middleware('auth')->group(function () {
         // S20: one panel, choose Production and/or Sales
         Route::post('/imports/combined', [CombinedImportController::class, 'store'])->name('imports.combined');
     });
+    // Record approval queue (admin + manager, Phase 3 item 1)
+    Route::middleware('role:admin,manager')->group(function () {
+        Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals.index');
+        Route::patch('/approvals/approve-all', [ApprovalController::class, 'approveAll'])->name('approvals.approve-all');
+        Route::patch('/approvals/{type}/{id}/approve', [ApprovalController::class, 'approve'])->whereNumber('id')->name('approvals.approve');
+        Route::patch('/approvals/{type}/{id}/reject', [ApprovalController::class, 'reject'])->whereNumber('id')->name('approvals.reject');
+    });
+
+    // Resolve a flagged audit entry, e.g. sold > produced (admin + manager, Phase 3 item 3)
+    Route::middleware('role:admin,manager')->group(function () {
+        Route::patch('/audit-flags/{auditLog}/resolve', [AuditFlagController::class, 'resolve'])->name('audit-flags.resolve');
+    });
+
     // Anomaly alert actions (admin + manager)
     Route::middleware('role:admin,manager')->group(function () {
         Route::patch('/alerts/{alert}/reviewed', [DashboardController::class, 'markReviewed'])->name('alerts.reviewed');
@@ -122,6 +142,8 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:admin,manager')->group(function () {
         Route::get('/investment', [BuildingDashboardController::class, 'index'])->name('investment.index');
         Route::get('/dashboard/buildings/{building}/detail', [BuildingDashboardController::class, 'detail'])->name('dashboard.buildings.detail');
+        // Remove (end, or delete if it has no records) a building from the dashboard (Phase 3 item 9)
+        Route::post('/dashboard/buildings/{henBatch}/remove', [BuildingRemovalController::class, 'remove'])->name('dashboard.buildings.remove');
     });
 
     // Reports (admin + manager only)
@@ -136,13 +158,21 @@ Route::middleware('auth')->group(function () {
         Route::get('/reports/export/audit/pdf', [ReportsController::class, 'exportAuditPdf'])->name('reports.export.audit.pdf');
         Route::get('/reports/export/audit/csv', [ReportsController::class, 'exportAuditCsv'])->name('reports.export.audit.csv');
         Route::get('/reports/export/audit/excel', [ReportsController::class, 'exportAuditExcel'])->name('reports.export.audit.excel');
+        Route::get('/reports/export/sales/pdf', [ReportsController::class, 'exportSalesPdf'])->name('reports.export.sales.pdf');
+        Route::get('/reports/export/sales/csv', [ReportsController::class, 'exportSalesCsv'])->name('reports.export.sales.csv');
+        Route::get('/reports/export/sales/excel', [ReportsController::class, 'exportSalesExcel'])->name('reports.export.sales.excel');
     });
 
-    // Users (admin only)
-    Route::middleware('role:admin')->group(function () {
+    // Users — admin manages everyone; a manager manages staff accounts only
+    // (Phase 3 item 6, enforced by UserPolicy in the controller).
+    Route::middleware('role:admin,manager')->group(function () {
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::post('/users', [UserController::class, 'store'])->name('users.store');
         Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
+        Route::patch('/users/{user}/deactivate', [UserController::class, 'deactivate'])->name('users.deactivate');
+        Route::patch('/users/{user}/reactivate', [UserController::class, 'reactivate'])->name('users.reactivate');
+    });
+    Route::middleware('role:admin')->group(function () {
         Route::post('/users/{user}/approve', [UserController::class, 'approve'])->name('users.approve');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     });
@@ -161,6 +191,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:admin')->group(function () {
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::patch('/settings', [SettingsController::class, 'update'])->name('settings.update');
+        Route::patch('/settings/thresholds', [SettingsController::class, 'updateThresholds'])->name('settings.thresholds.update');
     });
 });
 

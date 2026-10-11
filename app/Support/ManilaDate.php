@@ -30,6 +30,12 @@ class ManilaDate
         return Carbon::now(self::TZ)->startOfDay();
     }
 
+    /** Current farm (Manila) time — for "generated at" stamps and display. */
+    public static function now(): Carbon
+    {
+        return Carbon::now(self::TZ);
+    }
+
     public static function todayString(): string
     {
         return self::today()->toDateString();

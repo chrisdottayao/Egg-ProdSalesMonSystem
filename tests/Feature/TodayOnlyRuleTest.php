@@ -63,7 +63,7 @@ class TodayOnlyRuleTest extends TestCase
 
         $this->assertSame(array_fill_keys(array_keys($this->forms()), [ManilaDate::MESSAGE]), $dateErrors);
 
-        $this->assertSame(0, EggSale::count() + Expense::count() + CullRecord::count() + EggProduction::count());
+        $this->assertSame(0, EggSale::withPending()->count() + Expense::withPending()->count() + CullRecord::withPending()->count() + EggProduction::withPending()->count());
     }
 
     public function test_staff_can_post_manila_today_even_while_utc_is_still_yesterday(): void
@@ -73,9 +73,9 @@ class TodayOnlyRuleTest extends TestCase
                 ->assertSessionHasNoErrors()->assertRedirect();
         }
 
-        $this->assertSame(1, EggSale::count());
-        $this->assertSame(1, Expense::count());
-        $this->assertSame(1, CullRecord::count());
+        $this->assertSame(1, EggSale::withPending()->count()); // staff sale: pending until approved
+        $this->assertSame(1, Expense::withPending()->count()); // pending too (Phase 3B)
+        $this->assertSame(1, CullRecord::withPending()->count());
     }
 
     public function test_new_records_are_today_only_for_admin_too(): void
@@ -110,7 +110,8 @@ class TodayOnlyRuleTest extends TestCase
 
     public function test_staff_can_edit_todays_record_but_not_move_it_to_another_day(): void
     {
-        $sale = EggSale::create(['date' => '2026-10-13', 'egg_size' => 'Medium', 'quantity' => 10, 'price_per_unit' => 7, 'total_amount' => 70]);
+        // Their own pending sale (an approved one is locked for staff, Phase 3B item 4).
+        $sale = EggSale::create(['date' => '2026-10-13', 'egg_size' => 'Medium', 'quantity' => 10, 'price_per_unit' => 7, 'total_amount' => 70, 'approval_status' => 'pending', 'entered_by' => $this->staff->id]);
 
         $this->actingAs($this->staff)->patch(route('sales.update', $sale), ['date' => '2026-10-13', 'egg_size' => 'Medium', 'quantity' => 11, 'price_per_unit' => 7])
             ->assertSessionHasNoErrors();
@@ -137,7 +138,7 @@ class TodayOnlyRuleTest extends TestCase
         // Queued 2026-10-12 21:00 Manila (13:00 UTC), syncing now on the 13th.
         $this->actingAs($this->staff)->post(route('sales.store'), $this->forms()['sales'][1]('2026-10-12') + ['queued_at' => '2026-10-12T13:00:00Z'])
             ->assertSessionHasNoErrors();
-        $this->assertSame(1, EggSale::count());
+        $this->assertSame(1, EggSale::withPending()->count()); // staff sale: pending until approved
     }
 
     public function test_offline_entry_cannot_backdate_beyond_its_queued_day_or_grace_window(): void
@@ -154,6 +155,6 @@ class TodayOnlyRuleTest extends TestCase
         $this->actingAs($this->staff)->post(route('expenses.store'), $this->forms()['expenses'][1]('2026-10-12') + ['queued_at' => '2026-10-12T13:00:00Z'])
             ->assertSessionHasErrors('date');
 
-        $this->assertSame(0, EggSale::count() + Expense::count());
+        $this->assertSame(0, EggSale::withPending()->count() + Expense::count());
     }
 }

@@ -53,11 +53,13 @@ class DailyEntryController extends Controller
         $batches = HenBatch::where('status', 'Active')->whereNotNull('building_no')->tracked()->runningOn($date->toDateString())
             ->orderByRaw('COALESCE(display_no, building_no) ASC')->get();
 
-        $existingRows = BuildingDaily::whereDate('date', $date)
+        // withPending(): the form shows what was entered, approved or not
+        // (Phase 3 item 1) — a staff member sees their own pending/rejected row.
+        $existingRows = BuildingDaily::withPending()->whereDate('date', $date)
             ->get()
             ->keyBy('hen_batch_id');
 
-        $previousRows = BuildingDaily::whereDate('date', $previousDate)
+        $previousRows = BuildingDaily::withPending()->whereDate('date', $previousDate)
             ->get()
             ->keyBy('hen_batch_id');
 
@@ -74,23 +76,37 @@ class DailyEntryController extends Controller
                 // A building with no rows yet (just added, S17) starts from its
                 // starting hen count.
                 'population'   => $existing->population ?? $previous->net_birds
-                    ?? ($batch->buildingDailies()->exists() ? null : $batch->batch_size),
+                    ?? ($batch->buildingDailies()->withoutGlobalScope('approved')->exists() ? null : $batch->batch_size),
                 'mortality'    => $existing->mortality ?? null,
                 'feed_bags'    => $existing->feed_bags ?? null,
                 'eggs_house'   => $existing->eggs_house ?? null,
                 'eggs_eggroom' => $existing->eggs_eggroom ?? null,
                 'soft_shell'   => $existing->soft_shell ?? null,
                 'age_weeks'    => $existing->age_weeks ?? $previous->age_weeks ?? null,
+                'status'       => $existing?->approval_status,
+                'review_note'  => $existing?->review_note,
+                // Phase 3B item 4: staff see an approved (or someone else's) row read-only.
+                'locked'       => $existing !== null && ! $this->staffMayChange($existing),
             ];
         });
 
-        $existingGrading = EggGradingDaily::whereDate('date', $date)->get()->keyBy('category');
+        // withPending(): like the building rows, the sheet shows what was
+        // entered whether or not it has been approved yet (Phase 3B).
+        // Phase 3B item 5: buildings whose cull is waiting for approval today.
+        $pendingCulls = CullRecord::pending()->whereDate('date', $date)->where('reason', CullRecord::BUILDING_CULLED_REASON)
+            ->pluck('hen_batch_id')->flip();
+        $rows = $rows->map(fn ($r) => $r + ['cull_pending' => $pendingCulls->has($r['batch']->id)]);
+
+        $existingGrading = EggGradingDaily::withPending()->whereDate('date', $date)->get()->keyBy('category');
 
         $gradingRows = collect(EggGradingDaily::CATEGORIES)->map(function (string $category) use ($existingGrading) {
             $existing = $existingGrading->get($category);
             return [
                 'category'  => $category,
                 'total_pcs' => $existing->total_pcs ?? null,
+                'status'    => $existing?->approval_status,
+                'review_note' => $existing?->review_note,
+                'locked'    => $existing !== null && ! $this->staffMayChange($existing),
             ];
         });
 
@@ -158,24 +174,32 @@ class DailyEntryController extends Controller
             // building_daily row (an existing one for this date is removed,
             // like a skip). Handled before the per-row loop so the loop never
             // sees these buildings.
-            $culledLabels = [];
+            // Phase 3B item 5: a staff cull is pending, and so is its effect —
+            // the building keeps running (and its hens keep counting) until a
+            // manager or admin approves the cull; rejecting changes nothing.
+            $culledLabels        = [];
+            $pendingCullLabels   = [];
             foreach ($validated['buildings'] as $henBatchId => $row) {
                 if (! $validBatchIds->has($henBatchId) || self::rowChoice($row) !== 'culled') {
                     continue;
                 }
 
                 $batch = HenBatch::find($henBatchId);
-                CullRecord::create([
-                    'date'            => $date,
-                    'hen_batch_id'    => $henBatchId,
-                    'quantity_culled' => (int) $row['population'],
-                    'reason'          => CullRecord::BUILDING_CULLED_REASON,
-                ]);
-                $batch->update(['ended_at' => $date]);
-                BuildingDaily::withoutEvents(fn () => BuildingDaily::where('date', $date)->where('hen_batch_id', $henBatchId)->delete());
-
-                $culledLabels[] = $batch->display_label;
+                // Marking the same building culled again the same day updates the
+                // waiting cull rather than queueing a second one.
+                $cull = CullRecord::pending()->whereDate('date', $date)->where('hen_batch_id', $henBatchId)
+                    ->where('reason', CullRecord::BUILDING_CULLED_REASON)->where('entered_by', $request->user()->id)->first()
+                    ?? new CullRecord(['date' => $date, 'hen_batch_id' => $henBatchId, 'reason' => CullRecord::BUILDING_CULLED_REASON]);
+                $cull->fill(CullRecord::entryFieldsFor($request->user()) + ['quantity_culled' => (int) $row['population']])->save();
                 $validBatchIds->forget($henBatchId);
+
+                if ($cull->isPending()) {
+                    $pendingCullLabels[] = $batch->display_label;
+                    continue;
+                }
+
+                $cull->applyBuildingEnd();
+                $culledLabels[] = $batch->display_label;
                 $buildingsSkipped++; // changes the day's building set, so the rollup below re-runs
             }
 
@@ -184,13 +208,27 @@ class DailyEntryController extends Controller
             // times) instead of once for the whole submission. prod_rate is computed
             // here with the exact same formula the model uses, so nothing is lost by
             // suppressing the saving hook that would otherwise compute it.
-            BuildingDaily::withoutEvents(function () use ($validated, $date, $validBatchIds, &$buildingsSaved, &$buildingsSkipped) {
+            // Phase 3 item 1: admin/manager rows are approved on save; staff rows
+            // wait for review and stay out of totals until approved.
+            $approval = BuildingDaily::approvalFieldsFor($request->user());
+
+            $savedValues = []; // per building, for the Audit Log (Phase 3 item 2)
+            $savedRows   = []; // newly created or newly approved, for the auto-approve audit (3B item 7)
+            BuildingDaily::withoutEvents(function () use ($validated, $date, $validBatchIds, $approval, &$buildingsSaved, &$buildingsSkipped, &$savedValues, &$savedRows) {
                 foreach ($validated['buildings'] as $henBatchId => $row) {
                     if (! $validBatchIds->has($henBatchId)) {
                         continue;
                     }
 
+                    // Phase 3B item 4: staff can't change an approved row (or another
+                    // person's). Resubmitting it unchanged is fine — it is left as is.
+                    $existing = BuildingDaily::withPending()->whereDate('date', $date)->where('hen_batch_id', $henBatchId)->first();
+                    $locked   = $existing !== null && ! $this->staffMayChange($existing);
+
                     if (self::rowChoice($row) === 'skip') {
+                        if ($locked) {
+                            $this->denyStaffChange($existing);
+                        }
                         // "No data today" means absence, not a zero row — a zero would
                         // tell the peer-comparison and age-relative rules in
                         // RecommendationService that this building existed and produced
@@ -198,7 +236,7 @@ class DailyEntryController extends Controller
                         // that day. Delete rather than upsert zeros — also handles the
                         // edit case: a previously-filled row that's now marked skipped
                         // must not leave stale data behind.
-                        BuildingDaily::where('date', $date)->where('hen_batch_id', $henBatchId)->delete();
+                        $existing?->delete();
                         $buildingsSkipped++;
                         continue;
                     }
@@ -217,9 +255,22 @@ class DailyEntryController extends Controller
                     $ageWeeks    = isset($row['age_weeks']) && $row['age_weeks'] !== ''
                         ? (int) $row['age_weeks'] : null;
 
-                    BuildingDaily::updateOrCreate(
-                        ['date' => $date, 'hen_batch_id' => $henBatchId],
-                        [
+                    if ($locked) {
+                        $same = (int) $existing->population === $population && (int) $existing->mortality === $mortality
+                            && (int) $existing->eggs_house === $eggsHouse && (int) $existing->eggs_eggroom === $eggsEggroom
+                            && (int) $existing->soft_shell === $softShell
+                            && ($existing->feed_bags === null ? $feedBags === null : (float) $existing->feed_bags === $feedBags)
+                            && ($existing->age_weeks === null ? $ageWeeks === null : (int) $existing->age_weeks === $ageWeeks);
+                        if (! $same) {
+                            $this->denyStaffChange($existing);
+                        }
+                        continue;
+                    }
+
+                    // The row found above (whereDate, so it matches however the
+                    // driver stores the date) is updated; otherwise a new one.
+                    $saved = ($existing ?? new BuildingDaily(['date' => $date, 'hen_batch_id' => $henBatchId]))->fill(
+                        $approval + [
                             'user_id'      => auth()->id(),
                             'population'   => $population,
                             'mortality'    => $mortality,
@@ -232,11 +283,25 @@ class DailyEntryController extends Controller
                             'prod_rate'    => $population > 0 ? round(($eggsHouse / $population) * 100, 2) : 0,
                         ]
                     );
+                    $saved->save();
+                    if ($saved->wasRecentlyCreated || $saved->wasChanged('approval_status')) {
+                        $savedRows[] = $saved;
+                    }
 
+                    $savedValues[$henBatchId] = ['population' => $population, 'mortality' => $mortality, 'eggs_house' => $eggsHouse, 'feed_bags' => $feedBags];
                     $buildingsSaved++;
                 }
             });
 
+            // Phase 3B item 2: the grading sheet saved in the same submit follows
+            // the same rule as the building rows — staff rows wait for review.
+            // Events were off for the loop above (AuditLog's own hooks too), so
+            // the building rows' auto-approve entries are written now.
+            foreach ($savedRows as $saved) {
+                BuildingDaily::auditAutoApproval($saved);
+            }
+
+            $gradingFields = EggGradingDaily::entryFieldsFor($request->user());
             $gradingSaved = 0;
             foreach ($validated['grading'] ?? [] as $category => $row) {
                 if (! in_array($category, EggGradingDaily::CATEGORIES, true)) {
@@ -252,21 +317,32 @@ class DailyEntryController extends Controller
                         + ((int) ($row['trays'] ?? 0)) * self::PCS_PER_TRAY
                         + (int) ($row['pieces'] ?? 0);
 
-                // Only sizes with a value are saved; 0/blank means no row
-                // (and clears a row saved earlier for this date).
-                if ($totalPcs <= 0) {
-                    EggGradingDaily::whereDate('date', $date)->where('category', $category)->delete();
+                // Phase 3B item 4: an approved size (or someone else's) is read-only
+                // for staff; sending the same total again leaves it as it is.
+                $existingGrade = EggGradingDaily::withPending()->whereDate('date', $date)->where('category', $category)->first();
+                if ($existingGrade && ! $this->staffMayChange($existingGrade)) {
+                    if ((int) $existingGrade->total_pcs !== max(0, $totalPcs)) {
+                        $this->denyStaffChange($existingGrade);
+                    }
                     continue;
                 }
 
-                EggGradingDaily::updateOrCreate(
-                    ['date' => $date, 'category' => $category],
-                    [
+                // Only sizes with a value are saved; 0/blank means no row
+                // (and clears a row saved earlier for this date).
+                if ($totalPcs <= 0) {
+                    EggGradingDaily::withPending()->whereDate('date', $date)->where('category', $category)->delete();
+                    continue;
+                }
+
+                // (date, category) is unique whatever the status: update the row
+                // found above (withPending, whereDate) or add a new one.
+                ($existingGrade ?? new EggGradingDaily(['date' => $date, 'category' => $category]))->fill(
+                    $gradingFields + [
                         'cases'  => intdiv($totalPcs, self::PCS_PER_CASE),
                         'trays'  => intdiv($totalPcs % self::PCS_PER_CASE, self::PCS_PER_TRAY),
                         'pieces' => $totalPcs % self::PCS_PER_TRAY,
                     ]
-                );
+                )->save();
 
                 $gradingSaved++;
             }
@@ -282,7 +358,7 @@ class DailyEntryController extends Controller
                 // History highlights as the latest entry. Touch it so a
                 // re-save with unchanged numbers still counts as the newest
                 // (the rollup's update() is a no-op when nothing is dirty).
-                $production = EggProduction::whereDate('date', $date)->first();
+                $production = EggProduction::withPending()->whereDate('date', $date)->first();
                 if ($production) {
                     $production->touchQuietly();
                     $latestProductionIds[] = $production->id;
@@ -299,7 +375,10 @@ class DailyEntryController extends Controller
                     'buildings_saved'    => $buildingsSaved,
                     'buildings_skipped'  => $buildingsSkipped - count($culledLabels),
                     'buildings_culled'   => $culledLabels,
+                    'culls_pending'      => $pendingCullLabels,
                     'grading_saved'      => $gradingSaved,
+                    'status'             => ($buildingsSaved || $gradingSaved) ? $approval['approval_status'] : null,
+                    'entries'            => collect($savedValues)->mapWithKeys(fn ($v, $id) => [HenBatch::find($id)?->display_label ?? "#{$id}" => $v])->all(),
                 ],
             ]);
 
@@ -313,6 +392,12 @@ class DailyEntryController extends Controller
         $message     = "Saved {$buildingsSaved} building rows ({$skippedOnly} skipped today) and {$gradingSaved} grading rows for {$date}.";
         if ($culledLabels) {
             $message .= ' Marked as culled: ' . implode(', ', $culledLabels) . '.';
+        }
+        if ($pendingCullLabels) {
+            $message .= ' Cull of ' . implode(', ', $pendingCullLabels) . ' recorded; the building stays active until a manager or admin approves it.';
+        }
+        if (($buildingsSaved > 0 || $gradingSaved > 0) && ! $request->user()->canManageRecords()) {
+            $message .= ' Everything you saved is waiting for a manager or admin to approve it before it counts in totals.';
         }
 
         return redirect()->route('daily-entry.index', ['date' => $date])

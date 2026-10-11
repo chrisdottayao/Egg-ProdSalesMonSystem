@@ -14,6 +14,7 @@ class DailyEntryCulledTest extends TestCase
     use RefreshDatabase;
 
     private User $staff;
+    private User $manager;
     private HenBatch $b1;
     private HenBatch $b2;
 
@@ -22,26 +23,29 @@ class DailyEntryCulledTest extends TestCase
         parent::setUp();
         $this->travelTo('2026-10-13 02:00:00'); // 10:00 Manila
         $this->staff = User::factory()->create(['role' => 'staff']);
+        $this->manager = User::factory()->create(['role' => 'manager']);
         $this->b1 = HenBatch::create(['batch_id' => 'HB-C1', 'batch_size' => 2000, 'status' => 'Active', 'entry_date' => '2026-01-01', 'building_no' => 1, 'is_tracked' => true]);
         $this->b2 = HenBatch::create(['batch_id' => 'HB-C2', 'batch_size' => 2000, 'status' => 'Active', 'entry_date' => '2026-01-01', 'building_no' => 2, 'is_tracked' => true]);
     }
 
-    private function postEntry(array $buildings)
+    private function postEntry(array $buildings, ?User $as = null)
     {
-        return $this->actingAs($this->staff)->post(route('daily-entry.store'), [
+        return $this->actingAs($as ?? $this->staff)->post(route('daily-entry.store'), [
             'date' => '2026-10-13', 'buildings' => $buildings,
         ]);
     }
 
     public function test_culled_creates_one_cull_record_sets_ended_at_and_hides_the_building(): void
     {
+        // Entered by a manager, so it takes effect at once (a staff cull waits
+        // for approval — Phase 3B item 5, CullApprovalEffectsTest).
         $this->postEntry([
             $this->b1->id => ['population' => 1500, 'eggs_house' => 1200, 'choice' => ''],
             $this->b2->id => ['population' => 1750, 'choice' => 'culled'],
-        ])->assertRedirect()->assertSessionHasNoErrors();
+        ], $this->manager)->assertRedirect()->assertSessionHasNoErrors();
 
-        $this->assertSame(1, CullRecord::count());
-        $cull = CullRecord::first();
+        $this->assertSame(1, CullRecord::withPending()->count());
+        $cull = CullRecord::withPending()->first();
         $this->assertSame($this->b2->id, $cull->hen_batch_id);
         $this->assertSame(1750, (int) $cull->quantity_culled);
         $this->assertSame('Building culled (daily entry)', $cull->reason);
@@ -114,7 +118,8 @@ class DailyEntryCulledTest extends TestCase
         foreach (['2026-10-10', '2026-10-11', '2026-10-12'] as $d) {
             CullRecord::create(['date' => $d, 'hen_batch_id' => $this->b1->id, 'quantity_culled' => 2]);
         }
-        $this->postEntry([$this->b2->id => ['population' => 1750, 'choice' => 'culled']]);
+        $this->postEntry([$this->b2->id => ['population' => 1750, 'choice' => 'culled']], $this->manager);
+        $this->assertNotNull($this->b2->fresh()->ended_at); // the cull counted
 
         $admin = User::factory()->create(['role' => 'admin']);
         $this->actingAs($admin)->get(route('dashboard'))->assertOk();

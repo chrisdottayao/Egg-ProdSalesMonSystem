@@ -8,6 +8,7 @@
     <div class="bg-white rounded-lg shadow-md p-6">
         <form method="POST" action="{{ route('sales.update', $sale) }}" class="space-y-4">
             @csrf @method('PATCH')
+            <x-sold-gt-produced-confirm />
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>

@@ -2,10 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
+use App\Models\Concerns\HasApproval;
 use Illuminate\Database\Eloquent\Model;
 
 class EggGradingDaily extends Model
 {
+    use Auditable; // Phase 3 item 2
+    use HasApproval; // Phase 3B: staff grading waits for review
+
     protected $table = 'egg_grading_daily';
 
     // 1 case = 12 trays = 360 pieces

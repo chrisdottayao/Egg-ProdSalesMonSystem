@@ -39,7 +39,9 @@ class SyncConflictController extends Controller
             'model_id'              => null,
             'details'               => [
                 'http_status' => $validated['status'],
-                'payload'     => $validated['payload'] ?? null,
+                // The queued form body, parsed so its CSRF token is dropped
+                // (Phase 3 item 2: no tokens in the Audit Log).
+                'payload'     => self::parsePayload($validated['payload'] ?? null),
                 'synced_at'   => now()->toIso8601String(),
             ],
             'inconsistency_flagged' => true,
@@ -48,5 +50,16 @@ class SyncConflictController extends Controller
         ]);
 
         return response()->json(['logged' => true]);
+    }
+
+    private static function parsePayload(?string $payload): ?array
+    {
+        if ($payload === null || $payload === '') {
+            return null;
+        }
+        parse_str($payload, $fields);
+        unset($fields['_token']);
+
+        return $fields;
     }
 }

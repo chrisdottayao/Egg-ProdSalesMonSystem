@@ -20,7 +20,8 @@ class CullController extends Controller
         // Tracked-only (3N) — the dropdown above already used .tracked(), but
         // the list and monthly stats below it didn't, so they still showed
         // all 45 buildings' history even though only 3 were selectable.
-        $cullRecords = CullRecord::with('henBatch')
+        // Phase 3B: staff also see their own pending/rejected records here.
+        $cullRecords = CullRecord::visibleTo($request->user())->with(['henBatch', 'entrant', 'approver'])
             ->whereHas('henBatch', fn ($q) => $q->tracked())
             ->when($buildingFilter, fn ($q) => $q->where('hen_batch_id', $buildingFilter))
             ->latest('date')->paginate(20)->withQueryString();
@@ -76,16 +77,19 @@ class CullController extends Controller
             'buyer'           => 'nullable|string|max:255',
         ]);
 
-        $record = CullRecord::create($validated);
+        // Phase 3B item 2: staff culls wait for review; admin/manager's are approved on save.
+        $record = CullRecord::create($validated + CullRecord::entryFieldsFor($request->user()));
 
         return redirect()->route('cull.index')
-            ->with('success', 'Cull record saved successfully.')
+            ->with('success', $record->isPending()
+                ? 'Cull record saved. It is waiting for a manager or admin to approve it before it counts.'
+                : 'Cull record saved successfully.')
             ->with('latest_ids', [$record->id]);
     }
 
     public function destroy(CullRecord $cullRecord)
     {
-        $this->denyPastRecordChangeForStaff($cullRecord->date);
+        $this->denyStaffChange($cullRecord);
 
         $cullRecord->delete();
         return redirect()->route('cull.index')->with('success', 'Cull record deleted.');

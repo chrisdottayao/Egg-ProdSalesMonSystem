@@ -24,7 +24,8 @@ class EggProductionController extends Controller
 
     public function index(Request $request)
     {
-        $productions = EggProduction::latest('date')->paginate(20);
+        // Phase 3B: staff also see their own pending/rejected entries here.
+        $productions = EggProduction::visibleTo($request->user())->with(['user', 'entrant', 'approver'])->latest('date')->paginate(20);
         $activeHens  = HenBatch::activeHenCount();
 
         // S4: per-building view. egg_productions is the farm-wide daily rollup
@@ -35,7 +36,7 @@ class EggProductionController extends Controller
             ->orderByRaw('COALESCE(display_no, building_no) ASC')->get();
         $selectedBuilding = $filterBuildings->firstWhere('id', (int) $request->input('building_id'));
         $buildingRows = $selectedBuilding
-            ? BuildingDaily::with(['henBatch', 'user'])->where('hen_batch_id', $selectedBuilding->id)
+            ? BuildingDaily::visibleTo($request->user())->with(['henBatch', 'user', 'approver'])->where('hen_batch_id', $selectedBuilding->id)
                 ->latest('date')->paginate(20)->withQueryString()
             : null;
 
@@ -59,7 +60,7 @@ class EggProductionController extends Controller
      */
     public function destroyBuildingRow(BuildingDaily $buildingDaily)
     {
-        $this->denyPastRecordChangeForStaff($buildingDaily->date);
+        $this->denyStaffChange($buildingDaily);
 
         $label = $buildingDaily->henBatch?->display_label;
         $date  = $buildingDaily->date->toDateString();
@@ -104,29 +105,32 @@ class EggProductionController extends Controller
         $validated['spoilage_count'] = $validated['spoilage_count'] ?? 0;
         $validated['user_id'] = auth()->id();
 
-        $production = EggProduction::create($validated);
+        // Phase 3B item 2: staff entries (including offline replays) wait for review.
+        $production = EggProduction::create($validated + EggProduction::approvalFieldsFor($request->user()));
 
         return redirect()->route('productions.index')
-            ->with('success', 'Production entry saved successfully!')
+            ->with('success', $production->isPending()
+                ? 'Production entry saved. It is waiting for a manager or admin to approve it before it counts in totals.'
+                : 'Production entry saved successfully!')
             ->with('latest_ids', [$production->id]);
     }
 
     public function edit(EggProduction $production)
     {
-        $this->denyPastRecordChangeForStaff($production->date);
+        $this->denyStaffChange($production);
 
         return view('productions.edit', compact('production'));
     }
 
     public function update(Request $request, EggProduction $production)
     {
-        $this->denyPastRecordChangeForStaff($production->date);
+        $this->denyStaffChange($production);
 
         // Same as store(): egg_size/egg_weight are no longer part of this form,
         // so editing a record never touches those two columns (existing values,
         // if any, are left exactly as they were).
         $validated = $request->validate([
-            'date'             => $this->entryDateRules(false),
+            'date'             => $this->editDateRules($production),
             'eggs_collected'   => 'required|integer|min:0|max:200000',
             'active_hens'      => 'required|integer|min:1',
             'mortality'        => 'required|integer|min:0',
@@ -140,14 +144,16 @@ class EggProductionController extends Controller
         $validated['spoilage_count'] = $validated['spoilage_count'] ?? 0;
         $validated['user_id'] = auth()->id();
 
-        $production->update($validated);
+        $production->update($validated + EggProduction::approvalFieldsFor($request->user()));
 
-        return redirect()->route('productions.index')->with('success', 'Production record updated.');
+        return redirect()->route('productions.index')->with('success', $production->isPending()
+            ? 'Production record updated and sent for approval.'
+            : 'Production record updated.');
     }
 
     public function destroy(EggProduction $production)
     {
-        $this->denyPastRecordChangeForStaff($production->date);
+        $this->denyStaffChange($production);
 
         $production->delete();
         return redirect()->route('productions.index')->with('success', 'Production record deleted.');
@@ -162,8 +168,8 @@ class EggProductionController extends Controller
         $eggSize      = $request->input('egg_size');
         $contributor  = $request->input('contributor'); // 'none' = unattributed, numeric = user id, else free-text name
 
-        $productionsQuery = EggProduction::query()->with('user')->orderByDesc('date');
-        $buildingsQuery   = BuildingDaily::query()->with(['user', 'henBatch'])->orderByDesc('date');
+        $productionsQuery = EggProduction::visibleTo($request->user())->with('user')->orderByDesc('date');
+        $buildingsQuery   = BuildingDaily::visibleTo($request->user())->with(['user', 'henBatch'])->orderByDesc('date');
 
         if ($startDate) {
             $productionsQuery->whereDate('date', '>=', $startDate);
@@ -265,15 +271,15 @@ class EggProductionController extends Controller
         $defaultBatch = HenBatch::where('status', 'Active')->first();
 
         // ── Preload existing keys once, so duplicate checks don't hit the DB per row ──
-        $existingProdDates = EggProduction::pluck('date')
+        $existingProdDates = EggProduction::withPending()->pluck('date')
             ->map(fn ($d) => $d->format('Y-m-d'))
             ->flip()->all();
 
-        $existingSaleKeys = EggSale::get(['date', 'egg_size'])
+        $existingSaleKeys = EggSale::withPending()->get(['date', 'egg_size'])
             ->map(fn ($s) => $s->date->format('Y-m-d') . '|' . $s->egg_size)
             ->flip()->all();
 
-        $existingCullDates = CullRecord::pluck('date')
+        $existingCullDates = CullRecord::withPending()->pluck('date')
             ->map(fn ($d) => $d->format('Y-m-d'))
             ->flip()->all();
 
@@ -470,7 +476,9 @@ class EggProductionController extends Controller
     {
         if (empty($rows)) return;
 
-        EggProduction::insert($rows);
+        // Approval only: historical rows keep user_id null (no real contributor).
+        $approval = EggProduction::approvalFieldsFor(auth()->user());
+        EggProduction::insert(array_map(fn ($r) => $approval + $r, $rows));
 
         $rows = [];
     }
@@ -479,7 +487,7 @@ class EggProductionController extends Controller
     {
         if (empty($rows)) return;
 
-        EggSale::insert($rows);
+        EggSale::insert(self::withEntryFields($rows, EggSale::class));
 
         $rows = [];
     }
@@ -488,9 +496,21 @@ class EggProductionController extends Controller
     {
         if (empty($rows)) return;
 
-        CullRecord::insert($rows);
+        CullRecord::insert(self::withEntryFields($rows, CullRecord::class));
 
         $rows = [];
+    }
+
+    /**
+     * Imports are admin/manager only (S16), so rows land approved by the
+     * importer; were a staff member ever let in, they would land pending
+     * (Phase 3B item 2). Every write path decides the same way.
+     */
+    private static function withEntryFields(array $rows, string $model): array
+    {
+        $fields = $model::entryFieldsFor(auth()->user());
+
+        return array_map(fn ($r) => $fields + $r, $rows);
     }
 
     public function downloadImportErrors(string $token)

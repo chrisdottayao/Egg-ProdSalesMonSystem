@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Listeners\RecordAuthActivity;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
@@ -23,6 +25,9 @@ class AppServiceProvider extends ServiceProvider
         if ($this->app->environment('production')) {
             URL::forceScheme('https');
         }
+
+        // Audit Log: logins, failed logins, logouts, password resets (Phase 3 item 2).
+        Event::subscribe(RecordAuthActivity::class);
 
         Storage::extend('google', function ($app, $config) {
             $client = new GoogleClient();

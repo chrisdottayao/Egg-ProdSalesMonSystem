@@ -2,12 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
+use App\Models\Concerns\HasApproval;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Expense extends Model
 {
+    use Auditable; // Phase 3 item 2
+    use HasApproval; // Phase 3B: staff expenses wait for review
+
     // building_id references hen_batches.id — a "building" in this system is
     // a HenBatch (see building_daily.hen_batch_id); there is no standalone
     // buildings table.

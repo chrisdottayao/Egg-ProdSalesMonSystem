@@ -3,16 +3,6 @@
     <h1 class="text-2xl font-bold text-gray-800">Egg Sales Entry</h1>
 
     {{-- Hard block error --}}
-    @if(session('hard_block'))
-        <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg flex items-start gap-3">
-            <svg class="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <div>
-                <p class="text-sm text-red-800 font-semibold">Entry Blocked — Audit Violation</p>
-                <p class="text-sm text-red-700 mt-1">{{ session('hard_block') }}</p>
-            </div>
-        </div>
-    @endif
-
     @if(session('success'))
         <div class="bg-green-50 border-l-4 border-green-500 px-4 py-3 rounded-lg text-sm text-green-800">{{ session('success') }}</div>
     @endif
@@ -21,6 +11,7 @@
     <div class="bg-white rounded-lg shadow-md p-6">
         <form method="POST" action="{{ route('sales.store') }}" class="space-y-4" id="salesForm">
             @csrf
+            <x-sold-gt-produced-confirm />
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
@@ -80,7 +71,7 @@
                     <span class="text-lg font-bold text-[#4CAF50]" id="salesRate">0.0%</span>
                     <span class="text-xs text-gray-500 ml-2">(Qty Sold ÷ Eggs Produced × 100)</span>
                 </div>
-                <button type="submit" class="bg-[#4CAF50] text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors font-medium">Save</button>
+                <button type="submit" class="bg-[#4CAF50] text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors font-medium">{{ session('sold_gt_produced') ? 'Save anyway' : 'Save' }}</button>
             </div>
         </form>
     </div>
@@ -224,7 +215,11 @@
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Total</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Sales Rate</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Remaining</th>
-                        <th class="text-left py-3 text-sm font-semibold text-gray-700">Notes</th>
+                        <th class="text-left py-3 pl-4 text-sm font-semibold text-gray-700">Notes</th>
+                        <th class="text-left py-3 pl-3 text-sm font-semibold text-gray-700">Entered by</th>
+                        <th class="text-left py-3 pl-3 text-sm font-semibold text-gray-700">Status</th>
+                        <th class="text-left py-3 pl-3 text-sm font-semibold text-gray-700">Approved by</th>
+                        <th class="text-left py-3 pl-3 text-sm font-semibold text-gray-700">Approved at</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                 </thead>
@@ -248,9 +243,16 @@
                             @endphp
                             <td class="text-right py-3 text-sm font-semibold text-[#4CAF50]">{{ $salesRate !== null ? $salesRate . '%' : '—' }}</td>
                             <td class="text-right py-3 text-sm text-gray-600">{{ $remaining !== null ? number_format($remaining) : '—' }}</td>
-                            <td class="py-3 text-sm text-gray-600">{{ $sale->notes ?? '—' }}</td>
+                            <td class="py-3 pl-4 text-sm text-gray-600">{{ $sale->notes ?? '—' }}</td>
+                            <td class="py-3 pl-3 text-sm text-gray-700">{{ $sale->enteredBy?->name ?? '—' }}</td>
+                            <td class="py-3 pl-3 text-sm">
+                                <x-approval-status :status="$sale->approval_status" :note="$sale->review_note" />
+                                @if($soldFlags->has($sale->id))<div class="mt-1"><x-audit-flag :log="$soldFlags->get($sale->id)" /></div>@endif
+                            </td>
+                            <td class="py-3 pl-3 text-sm text-gray-700">{{ $sale->isApproved() ? ($sale->approver?->name ?? '—') : '—' }}</td>
+                            <td class="py-3 pl-3 text-sm text-gray-600 whitespace-nowrap">{{ $sale->isApproved() && $sale->approved_at ? $sale->approved_at->copy()->setTimezone(\App\Support\ManilaDate::TZ)->format('M d, Y g:i A') : '—' }}</td>
                             <td class="text-right py-3 text-sm space-x-2">
-                                <x-past-record-guard :date="$sale->date">
+                                <x-past-record-guard :record="$sale">
                                     <a href="{{ route('sales.edit', $sale) }}" class="text-blue-600 hover:underline">Edit</a>
                                     <form method="POST" action="{{ route('sales.destroy', $sale) }}" class="inline" onsubmit="return confirm('Delete this sale?')">
                                         @csrf @method('DELETE')
@@ -260,7 +262,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="py-8 text-center text-gray-400 text-sm">No sales records yet.</td></tr>
+                        <tr><td colspan="13" class="py-8 text-center text-gray-400 text-sm">No sales records yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

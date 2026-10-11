@@ -2,14 +2,22 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasApproval;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EggSale extends Model
 {
+    use HasApproval; // pending/rejected rows excluded by default (Phase 3 item 1)
+
     protected $fillable = [
-        'date', 'egg_size', 'quantity', 'price_per_unit', 'total_amount', 'notes', 'production_id',
+        'date', 'egg_size', 'quantity', 'price_per_unit', 'total_amount', 'notes', 'production_id', 'entered_by',
     ];
+
+    public function enteredBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'entered_by');
+    }
 
     protected $casts = [
         'date' => 'date',
@@ -77,13 +85,9 @@ class EggSale extends Model
         $flagged = false;
         $rule = null;
 
-        // Rule: Sales vs. Production
-        $produced = EggProduction::whereDate('date', $model->date)->sum('eggs_collected');
-        $totalSoldOnDate = EggSale::whereDate('date', $model->date)->sum('quantity');
-        if ($produced > 0 && $totalSoldOnDate > $produced) {
-            $flagged = true;
-            $rule = 'Sales vs. Production';
-        }
+        // Sold > produced is no longer flagged here: since Phase 3 item 3 the
+        // sales form warns, asks for confirmation and records its own
+        // 'sold_gt_produced' flag (with the numbers), which can be resolved.
 
         // Rule: Duplicate Sales Entry
         $duplicates = EggSale::whereDate('date', $model->date)
@@ -121,7 +125,7 @@ class EggSale extends Model
                 'quantity' => $model->quantity,
                 'price_per_unit' => $model->price_per_unit,
                 'total_amount' => $model->total_amount,
-            ],
+            ] + ($action === 'update' ? ['changes' => AuditLog::diff($model)] : []),
             'inconsistency_flagged' => $flagged,
             'inconsistency_rule' => $rule,
         ]);

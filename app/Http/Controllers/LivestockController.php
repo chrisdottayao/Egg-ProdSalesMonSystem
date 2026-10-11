@@ -63,7 +63,8 @@ class LivestockController extends Controller
         ]);
 
         $number  = (int) $validated['building_no'];
-        $batchId = $validated['batch_id'] ?: "Building {$number}";
+        // Optional fields may be absent altogether (e.g. the dashboard form).
+        $batchId = ($validated['batch_id'] ?? null) ?: "Building {$number}";
         if (HenBatch::where('batch_id', $batchId)->exists()) {
             // The default name is taken by an older (ended) flock in the same house.
             $batchId = "Building {$number} ({$validated['placement_date']})";
@@ -75,7 +76,7 @@ class LivestockController extends Controller
             'status'         => 'Active',
             'entry_date'     => $validated['placement_date'],
             'placement_date' => $validated['placement_date'],
-            'breed'          => $validated['breed'] ?: 'Dekalb White',
+            'breed'          => ($validated['breed'] ?? null) ?: 'Dekalb White',
             'building_no'    => $number,
             'building'       => (string) $number, // read by alert clustering's adjacency note
             'display_no'     => null,             // label falls back to building_no
@@ -83,7 +84,7 @@ class LivestockController extends Controller
             'notes'          => $validated['notes'] ?? null,
         ]);
 
-        return redirect()->route('flock-records.index')
+        return $this->backTo($request)
             ->with('success', "{$building->display_label} added — it now appears in Daily Entry.");
     }
 
@@ -109,7 +110,7 @@ class LivestockController extends Controller
      * building reappears in Daily Entry. The cull record it created is kept
      * (it is history, and can be deleted from the Cull page if wrong).
      */
-    public function reopenHen(HenBatch $henBatch)
+    public function reopenHen(Request $request, HenBatch $henBatch)
     {
         $endedAt = $henBatch->ended_at?->toDateString();
         $henBatch->update(['ended_at' => null]);
@@ -122,11 +123,25 @@ class LivestockController extends Controller
             'details'    => ['building' => $henBatch->display_label, 'previous_ended_at' => $endedAt],
         ]);
 
-        return redirect()->route('flock-records.index')->with('success', "{$henBatch->display_label} reopened — it appears in Daily Entry again.");
+        return $this->backTo($request)->with('success', "{$henBatch->display_label} reopened — it appears in Daily Entry again.");
+    }
+
+    /** Add/reopen can be used from the dashboard too (Phase 3 item 9). */
+    private function backTo(Request $request)
+    {
+        return $request->input('return_to') === 'dashboard'
+            ? redirect()->route('dashboard')
+            : redirect()->route('flock-records.index');
     }
 
     public function destroyHen(HenBatch $henBatch)
     {
+        // Deleting a building with records would destroy or orphan its history
+        // (and building_daily blocks it at the database level).
+        if ($henBatch->hasHistory()) {
+            return redirect()->route('flock-records.index')
+                ->with('success', "{$henBatch->display_label} has recorded history, so it can't be deleted. End it from the dashboard (Remove → End building) instead.");
+        }
         $henBatch->delete();
         return redirect()->route('flock-records.index')->with('success', 'Hen record deleted.');
     }

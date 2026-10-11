@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 
 class Setting extends Model
 {
+    use Auditable; // Phase 3 item 2: settings, thresholds and prices, old → new
+
     protected $fillable = ['key', 'value'];
 
     /**

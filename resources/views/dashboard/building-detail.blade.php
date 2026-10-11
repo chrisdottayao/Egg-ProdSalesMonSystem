@@ -46,12 +46,12 @@
     {{-- Trend chart --}}
     <div class="bg-gray-50 rounded-lg p-4"
          data-trend-chart='{{ $trendData->values()->toJson() }}'
-         data-healthy-min="{{ config('dashboard.prod_rate_healthy_min') }}"
-         data-cull-max="{{ config('dashboard.prod_rate_cull_max') }}">
+         data-healthy-min="{{ \App\Support\Thresholds::get('prod_rate_healthy_min') }}"
+         data-cull-max="{{ \App\Support\Thresholds::get('prod_rate_cull_max') }}">
         <div class="flex items-center justify-between mb-3">
             <div>
                 <h3 class="text-sm font-bold text-gray-800">Production-Rate Trend</h3>
-                <p class="text-xs text-gray-500">Dashed lines mark the {{ config('dashboard.prod_rate_healthy_min') }}% healthy and {{ config('dashboard.prod_rate_cull_max') }}% cull-consideration thresholds.</p>
+                <p class="text-xs text-gray-500">Dashed lines mark the {{ \App\Support\Thresholds::get('prod_rate_healthy_min') }}% healthy and {{ \App\Support\Thresholds::get('prod_rate_cull_max') }}% cull-consideration thresholds.</p>
             </div>
             <label class="flex items-center gap-2 text-xs text-gray-600 whitespace-nowrap">
                 <input type="checkbox" id="thiToggle-{{ $henBatch->id }}" class="rounded border-gray-300 text-[#4CAF50] focus:ring-[#4CAF50]" />

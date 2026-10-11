@@ -2,12 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasApproval;
 use App\Services\ProductionRollupService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BuildingDaily extends Model
 {
+    use HasApproval; // pending/rejected rows excluded by default (Phase 3 item 1)
+
+    public const ENTERED_BY_COLUMN = 'user_id';
+
     protected $table = 'building_daily';
 
     protected $fillable = [

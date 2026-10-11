@@ -22,24 +22,28 @@ class MortalityBands
             return null;
         }
 
+        // Boundaries are editable (Settings > Thresholds & Alert Rules, Phase 3
+        // item 5); defaults are the expert's 0.1 / 0.2 / 0.5 / 1.0 / 3.0.
+        $t = Thresholds::all();
+
         return match (true) {
-            $weeklyPct >= 3.0 => [
+            $weeklyPct >= $t['mortality_band_extreme'] => [
                 'label'  => 'extreme, outbreak-level signal',
                 'action' => 'treat as an emergency and report according to veterinary regulations',
             ],
-            $weeklyPct > 1.0 => [
+            $weeklyPct > $t['mortality_band_severe'] => [
                 'label'  => 'severe mortality event',
                 'action' => 'urgent veterinary/disease investigation',
             ],
-            $weeklyPct > 0.5 => [
+            $weeklyPct > $t['mortality_band_high'] => [
                 'label'  => 'highly abnormal',
                 'action' => 'veterinary investigation and diagnostic work-up',
             ],
-            $weeklyPct > 0.2 => [
+            $weeklyPct > $t['mortality_band_abnormal'] => [
                 'label'  => 'abnormal',
                 'action' => 'investigate immediately; necropsy representative birds',
             ],
-            $weeklyPct > 0.1 => [
+            $weeklyPct > $t['mortality_band_elevated'] => [
                 'label'  => 'elevated',
                 'action' => 'check causes, mortality pattern, feed/water, environment',
             ],

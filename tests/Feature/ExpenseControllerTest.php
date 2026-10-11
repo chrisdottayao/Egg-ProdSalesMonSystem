@@ -34,7 +34,7 @@ class ExpenseControllerTest extends TestCase
             'is_estimated'  => '1',
         ])->assertRedirect(route('expenses.index'));
 
-        $expense = Expense::where('category', 'feed')->firstOrFail();
+        $expense = Expense::withPending()->where('category', 'feed')->firstOrFail();
 
         $this->assertSame(1000.0, $expense->kg_total);
         $this->assertSame(30000.0, $expense->amount);
@@ -58,7 +58,7 @@ class ExpenseControllerTest extends TestCase
             'price_per_bag' => 1500,
         ])->assertSessionHasErrors('kg_per_bag');
 
-        $this->assertSame(0, Expense::where('category', 'feed')->count());
+        $this->assertSame(0, Expense::withPending()->where('category', 'feed')->count());
     }
 
     public function test_non_feed_category_saves_generic_fields_directly(): void
@@ -79,7 +79,7 @@ class ExpenseControllerTest extends TestCase
             'amount'      => 8500,
         ])->assertRedirect(route('expenses.index'));
 
-        $expense = Expense::where('category', 'electricity')->firstOrFail();
+        $expense = Expense::withPending()->where('category', 'electricity')->firstOrFail();
 
         $this->assertSame(8500.0, $expense->amount);
         $this->assertNull($expense->kg_total);
@@ -97,7 +97,7 @@ class ExpenseControllerTest extends TestCase
             'amount'      => 500,
         ])->assertSessionHasErrors('category');
 
-        $this->assertSame(0, Expense::count());
+        $this->assertSame(0, Expense::withPending()->count());
     }
 
     public function test_existing_retired_category_row_can_still_be_viewed_and_edited(): void
@@ -106,6 +106,8 @@ class ExpenseControllerTest extends TestCase
         $expense = Expense::create([
             'building_id' => null, 'date' => '2026-09-19', 'category' => 'medicine',
             'description' => 'Old medicine row', 'amount' => 500,
+            // The staff member's own pending row: approved rows are locked for staff (Phase 3B).
+            'approval_status' => 'pending', 'entered_by' => $user->id,
         ]);
 
         $this->actingAs($user)->get(route('expenses.index'))->assertOk()->assertSee('Old medicine row');
@@ -118,8 +120,8 @@ class ExpenseControllerTest extends TestCase
             'amount'      => 600,
         ])->assertRedirect(route('expenses.index'));
 
-        $this->assertSame(600.0, $expense->fresh()->amount);
-        $this->assertSame('medicine', $expense->fresh()->category);
+        $this->assertSame(600.0, Expense::withPending()->find($expense->id)->amount);
+        $this->assertSame('medicine', Expense::withPending()->find($expense->id)->category);
     }
 
     public function test_editing_active_row_cannot_switch_to_retired_category(): void
@@ -128,6 +130,7 @@ class ExpenseControllerTest extends TestCase
         $expense = Expense::create([
             'building_id' => null, 'date' => '2026-09-19', 'category' => 'electricity',
             'description' => 'Meralco', 'amount' => 500,
+            'approval_status' => 'pending', 'entered_by' => $user->id,
         ]);
 
         $this->actingAs($user)->patch(route('expenses.update', $expense), [

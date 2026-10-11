@@ -4,165 +4,213 @@ namespace App\Http\Controllers;
 
 use App\Exports\AuditReportExport;
 use App\Exports\BatchTraceabilityExport;
-use App\Exports\ReportExport;
-use App\Models\EggProduction;
-use App\Models\EggSale;
-use App\Models\Expense;
-use App\Models\ForecastEvaluation;
+use App\Exports\CompleteReportExport;
+use App\Exports\ViewExport;
 use App\Models\AuditLog;
+use App\Models\ForecastEvaluation;
+use App\Support\AuditLogFilter;
+use App\Support\FarmReport;
+use App\Support\FarmReportCsv;
+use App\Support\ManilaDate;
+use App\Support\SalesReport;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ReportsController extends Controller
 {
+    /**
+     * Page and exports read the same FarmReport (Phase 3 item 11), so the
+     * numbers on screen and in every download cannot drift apart.
+     */
     private function getReportData(Request $request): array
     {
-        $startDate = $request->input('start_date', Carbon::now()->subDays(7)->format('Y-m-d'));
-        $endDate   = $request->input('end_date', Carbon::today()->format('Y-m-d'));
-        $period    = $request->input('period', 'Daily');
+        $report = FarmReport::fromRequest($request);
 
-        $productions = EggProduction::whereBetween('date', [$startDate, $endDate])->get();
-        $sales       = EggSale::whereBetween('date', [$startDate, $endDate])->get();
-
-        $totalProduced = $productions->sum('eggs_collected');
-        $totalSold     = $sales->sum('quantity');
-        $totalSpoiled  = $productions->sum(fn ($p) => $p->spoilage_count ?? 0);
-        $totalMortality = $productions->sum('mortality');
-        // Farm-wide, not per-building — same convention BuildingPerformanceService
-        // uses for revenue/expenses (Expense::building_id is nullable/per-building,
-        // but this report has never scoped to a single building).
-        $totalExpenses = (float) Expense::whereBetween('date', [$startDate, $endDate])->sum('amount');
-        $totalRevenue  = $sales->sum('total_amount');
-
-        $summary = [
-            'total_eggs_produced' => $totalProduced,
-            'total_eggs_sold'     => $totalSold,
-            'total_revenue'       => $totalRevenue,
-            'total_mortality'     => $totalMortality,
-            'total_expenses'      => $totalExpenses,
-            'net_income'          => round($totalRevenue - $totalExpenses, 2),
-            'avg_production_rate' => $productions->count()
-                ? round($productions->avg(fn($p) => $p->production_rate), 1)
-                : 0,
-            'avg_sales_rate'      => $totalProduced > 0
-                ? round(($totalSold / $totalProduced) * 100, 1)
-                : 0,
-            // Remaining = Total Collected - Total Sold - Spoiled. spoilage_count
-            // defaults to 0 in the schema and is rarely populated historically —
-            // that's expected, not an error, so it's coalesced above rather than
-            // left to blow up on a null.
-            'remaining_eggs'      => $totalProduced - $totalSold - $totalSpoiled,
+        return [
+            'report'    => $report,
+            'summary'   => $report->summary(),
+            'dailyData' => $report->dailyData(),
+            'batches'   => $report->batches(),
+            'startDate' => $report->start,
+            'endDate'   => $report->end,
+            'period'    => $report->period,
         ];
-
-        $dailyData = EggProduction::whereBetween('date', [$startDate, $endDate])
-            ->orderBy('date')
-            ->get()
-            ->map(function ($prod) {
-                $sold      = EggSale::whereDate('date', $prod->date)->sum('quantity');
-                $revenue   = EggSale::whereDate('date', $prod->date)->sum('total_amount');
-                $expenses  = Expense::whereDate('date', $prod->date)->sum('amount');
-                return [
-                    'date'      => $prod->date->format('M d'),
-                    'eggs'      => $prod->eggs_collected,
-                    'sold'      => $sold,
-                    'revenue'   => $revenue,
-                    'prod_rate' => $prod->production_rate,
-                    'spoiled'   => $prod->spoilage_count ?? 0,
-                    'mortality' => $prod->mortality ?? 0,
-                    'expenses'  => (float) $expenses,
-                ];
-            });
-
-        // Real batch traceability query
-        $batches = EggProduction::with('eggSales')
-            ->whereBetween('date', [$startDate, $endDate])
-            ->orderBy('date', 'desc')
-            ->get();
-
-        // Audit Inconsistency Report: flagged violations only. audit_logs holds
-        // every action (including clean import summaries) — this query backs
-        // only this specific report (page table + its PDF/CSV/Excel exports),
-        // not a general activity log, so filtering here doesn't affect anything
-        // else that reads audit_logs.
-        $auditLogs = AuditLog::with('user')
-            ->where('inconsistency_flagged', true)
-            ->whereBetween('created_at', [Carbon::parse($startDate)->startOfDay(), Carbon::parse($endDate)->endOfDay()])
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        return compact('summary', 'dailyData', 'batches', 'auditLogs', 'startDate', 'endDate', 'period');
     }
 
     public function index(Request $request)
     {
         $data = $this->getReportData($request);
         $data['forecastEvaluations'] = ForecastEvaluation::latest('evaluated_at')->take(10)->get();
+
+        // Audit Log section (Phase 3 item 2) — replaces the inconsistency-only
+        // report; flagged rows remain a badge and a filter.
+        $data['auditFilter']  = AuditLogFilter::fromRequest($request, $data['startDate'], $data['endDate']);
+        $data['auditLogs']    = $data['auditFilter']->query()->paginate(25, ['*'], 'audit_page')->withQueryString()->fragment('audit-log');
+        $data['auditOptions'] = AuditLogFilter::options();
+
+        // Sales & Revenue (Phase 3 item 7).
+        $data['salesReport'] = SalesReport::make($data['startDate'], $data['endDate'], $request->input('sales_group'));
+        $data['salesData']   = $data['salesReport']->data();
+
         return view('reports.index', $data);
+    }
+
+    /** Phase 3 item 2: every report download is itself recorded in the Audit Log. */
+    private function logExport(string $report, string $format, array $details = []): void
+    {
+        AuditLog::create([
+            'user_id'    => auth()->id(),
+            'action'     => 'export',
+            'model_type' => 'Report',
+            'details'    => ['report' => $report, 'format' => $format] + $details,
+        ]);
+    }
+
+    private function salesExportData(Request $request): array
+    {
+        $range  = $this->getReportData($request);
+        $report = SalesReport::make($range['startDate'], $range['endDate'], $request->input('sales_group'));
+
+        return [
+            'salesReport' => $report,
+            'salesData'   => $report->data(),
+            'generatedBy' => auth()->user(),
+            'generatedAt' => ManilaDate::now(),
+        ];
+    }
+
+    // ── Sales & Revenue exports (Phase 3 item 7) ─────────────────────────
+
+    public function exportSalesPdf(Request $request)
+    {
+        $data = $this->salesExportData($request);
+        $this->logExport('Sales & Revenue', 'pdf', ['range' => $data['salesReport']->describe()]);
+
+        return Pdf::loadView('reports.sales_pdf', $data)->setPaper('a4', 'landscape')
+            ->download('sales_revenue_' . $data['salesReport']->start . '_to_' . $data['salesReport']->end . '.pdf');
+    }
+
+    public function exportSalesCsv(Request $request)
+    {
+        $data   = $this->salesExportData($request);
+        $report = $data['salesReport'];
+        $sales  = $data['salesData'];
+        $this->logExport('Sales & Revenue', 'csv', ['range' => $report->describe()]);
+
+        $rows   = [];
+        $rows[] = [config('dashboard.farm_name') . ' — Sales & Revenue Report'];
+        $rows[] = ['Date range', $report->describe()];
+        $rows[] = ['Generated by', $data['generatedBy']->name . ' (' . $data['generatedBy']->role . ')', 'Generated at (Asia/Manila)', $data['generatedAt']->format('Y-m-d H:i')];
+        $rows[] = ['Only approved records are included. 1 tray = 30 pcs, 1 case = 360 pcs.'];
+        $rows[] = [];
+        $rows[] = array_merge(['Period', 'Eggs sold (pcs)', 'Trays', 'Cases', 'Revenue (PHP)', 'Avg price / pc (PHP)'], $sales['sizes']);
+        foreach ($sales['rows']->push($sales['totals']) as $r) {
+            $rows[] = array_merge(
+                [$r['label'], $r['pcs'], $r['trays'], $r['cases'], number_format($r['revenue'], 2, '.', ''), $r['avg_price'] !== null ? number_format($r['avg_price'], 2, '.', '') : ''],
+                array_values($r['by_size'])
+            );
+        }
+
+        return response()->streamDownload(function () use ($rows) {
+            $h = fopen('php://output', 'w');
+            foreach ($rows as $row) {
+                fputcsv($h, $row);
+            }
+            fclose($h);
+        }, 'sales_revenue_' . $report->start . '_to_' . $report->end . '.csv', ['Content-Type' => 'text/csv']);
+    }
+
+    public function exportSalesExcel(Request $request)
+    {
+        $data = $this->salesExportData($request);
+        $this->logExport('Sales & Revenue', 'excel', ['range' => $data['salesReport']->describe()]);
+
+        return Excel::download(new ViewExport('reports.sales_pdf', $data, 'Sales & Revenue'),
+            'sales_revenue_' . $data['salesReport']->start . '_to_' . $data['salesReport']->end . '.xlsx');
+    }
+
+    private function auditExportData(Request $request): array
+    {
+        $range  = $this->getReportData($request);
+        $filter = AuditLogFilter::fromRequest($request, $range['startDate'], $range['endDate']);
+        // Exports cap at 10,000 rows; narrow the filter for more.
+        $logs   = $filter->query()->limit(10000)->get();
+
+        return [
+            'auditLogs'     => $logs,
+            'auditFilter'   => $filter,
+            'generatedBy'   => auth()->user(),
+            'generatedAt'   => ManilaDate::now(),
+        ];
+    }
+
+    // ── Complete report (Phase 3 item 11) ────────────────────────────────
+    // One report per format, honoring the ticked sections and date range,
+    // from the same FarmReport the page uses. Route names unchanged.
+
+    private function completeReportData(Request $request): array
+    {
+        $report = FarmReport::fromRequest($request);
+
+        return $report->build() + [
+            'generatedBy' => auth()->user(),
+            'generatedAt' => ManilaDate::now(),
+        ];
+    }
+
+    private function logCompleteExport(string $format, FarmReport $report): void
+    {
+        $this->logExport('Farm Production & Sales Report', $format, [
+            'range'    => "{$report->start} to {$report->end}",
+            'sections' => $report->sectionsText(),
+        ]);
+    }
+
+    private function completeFilename(FarmReport $report, string $ext): string
+    {
+        return "farm_report_{$report->start}_to_{$report->end}.{$ext}";
     }
 
     public function exportPdf(Request $request)
     {
-        $data = $this->getReportData($request);
-        $pdf  = Pdf::loadView('reports.pdf', $data)->setPaper('a4', 'landscape');
+        $data = $this->completeReportData($request);
+        $this->logCompleteExport('pdf', $data['report']);
 
-        $filename = 'report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.pdf';
-        return $pdf->download($filename);
+        $dompdf = Pdf::loadView('reports.complete.pdf', $data)->setPaper('a4', 'landscape')->getDomPDF();
+        $dompdf->render();
+        // "Page N of M" on every page, now that the page count is known.
+        $canvas = $dompdf->getCanvas();
+        $canvas->page_text($canvas->get_width() - 110, $canvas->get_height() - 34, 'Page {PAGE_NUM} of {PAGE_COUNT}',
+            $dompdf->getFontMetrics()->getFont('DejaVu Sans'), 8, [0.47, 0.47, 0.47]);
+
+        return response($dompdf->output(), 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $this->completeFilename($data['report'], 'pdf') . '"',
+        ]);
     }
 
     public function exportCsv(Request $request)
     {
-        $data      = $this->getReportData($request);
-        $dailyData = $data['dailyData'];
-        $summary   = $data['summary'];
+        $data = $this->completeReportData($request);
+        $this->logCompleteExport('csv', $data['report']);
+        $rows = FarmReportCsv::rows($data);
 
-        $rows   = [];
-        $rows[] = ['Date', 'Eggs Produced', 'Eggs Sold', 'Mortality', 'Revenue (PHP)', 'Utility Expenses (PHP)', 'Prod Rate (%)', 'Remaining'];
-
-        foreach ($dailyData as $row) {
-            $rows[] = [
-                $row['date'],
-                $row['eggs'],
-                $row['sold'],
-                $row['mortality'],
-                number_format($row['revenue'], 2),
-                number_format($row['expenses'], 2),
-                $row['prod_rate'],
-                $row['eggs'] - $row['sold'] - $row['spoiled'],
-            ];
-        }
-
-        $rows[] = [];
-        $rows[] = ['TOTAL', $summary['total_eggs_produced'], $summary['total_eggs_sold'], $summary['total_mortality'],
-                   number_format($summary['total_revenue'], 2), number_format($summary['total_expenses'], 2),
-                   $summary['avg_production_rate'] . '%', $summary['remaining_eggs']];
-        $rows[] = ['NET INCOME', number_format($summary['net_income'], 2)];
-
-        $filename = 'report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.csv';
-
-        $headers = [
-            'Content-Type'        => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-        ];
-
-        $callback = function () use ($rows) {
-            $handle = fopen('php://output', 'w');
+        return response()->streamDownload(function () use ($rows) {
+            $h = fopen('php://output', 'w');
             foreach ($rows as $row) {
-                fputcsv($handle, $row);
+                fputcsv($h, $row);
             }
-            fclose($handle);
-        };
-
-        return response()->stream($callback, 200, $headers);
+            fclose($h);
+        }, $this->completeFilename($data['report'], 'csv'), ['Content-Type' => 'text/csv']);
     }
 
     public function exportExcel(Request $request)
     {
-        $data = $this->getReportData($request);
-        $filename = 'report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.xlsx';
+        $data = $this->completeReportData($request);
+        $this->logCompleteExport('excel', $data['report']);
 
-        return Excel::download(new ReportExport($data), $filename);
+        return Excel::download(new CompleteReportExport($data), $this->completeFilename($data['report'], 'xlsx'));
     }
 
     // ── Batch Traceability Exports ──────────────────────────────────────────
@@ -170,6 +218,7 @@ class ReportsController extends Controller
     public function exportBatchPdf(Request $request)
     {
         $data = $this->getReportData($request);
+        $this->logExport('Batch Traceability', 'pdf', ['range' => "{$data['startDate']} to {$data['endDate']}"]);
         $pdf  = Pdf::loadView('reports.batch_pdf', $data)->setPaper('a4', 'landscape');
 
         $filename = 'batch_traceability_' . $data['startDate'] . '_to_' . $data['endDate'] . '.pdf';
@@ -179,6 +228,7 @@ class ReportsController extends Controller
     public function exportBatchCsv(Request $request)
     {
         $data    = $this->getReportData($request);
+        $this->logExport('Batch Traceability', 'csv', ['range' => "{$data['startDate']} to {$data['endDate']}"]);
         $batches = $data['batches'];
 
         $rows   = [];
@@ -218,6 +268,7 @@ class ReportsController extends Controller
     public function exportBatchExcel(Request $request)
     {
         $data = $this->getReportData($request);
+        $this->logExport('Batch Traceability', 'excel', ['range' => "{$data['startDate']} to {$data['endDate']}"]);
         $filename = 'batch_traceability_' . $data['startDate'] . '_to_' . $data['endDate'] . '.xlsx';
 
         return Excel::download(new BatchTraceabilityExport($data), $filename);
@@ -227,34 +278,43 @@ class ReportsController extends Controller
 
     public function exportAuditPdf(Request $request)
     {
-        $data = $this->getReportData($request);
+        $data = $this->auditExportData($request);
+        $this->logExport('Audit Log', 'pdf', ['filters' => $data['auditFilter']->describe(), 'rows' => $data['auditLogs']->count()]);
         $pdf  = Pdf::loadView('reports.audit_pdf', $data)->setPaper('a4', 'landscape');
 
-        $filename = 'audit_report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.pdf';
-        return $pdf->download($filename);
+        return $pdf->download('audit_log_' . $data['auditFilter']->from . '_to_' . $data['auditFilter']->to . '.pdf');
     }
 
     public function exportAuditCsv(Request $request)
     {
-        $data      = $this->getReportData($request);
+        $data      = $this->auditExportData($request);
         $auditLogs = $data['auditLogs'];
+        $this->logExport('Audit Log', 'csv', ['filters' => $data['auditFilter']->describe(), 'rows' => $auditLogs->count()]);
 
         $rows   = [];
-        $rows[] = ['Entry Date', 'User', 'Action', 'Model Type', 'Model ID', 'Rule Violated / Details', 'Status'];
+        $rows[] = ['SPC Farm Magalang — Audit Log'];
+        $rows[] = ['Filters', $data['auditFilter']->describe()];
+        $rows[] = ['Generated by', $data['generatedBy']->name . ' (' . $data['generatedBy']->role . ')', 'Generated at (Asia/Manila)', $data['generatedAt']->format('Y-m-d H:i')];
+        $rows[] = [];
+        $rows[] = ['When (Asia/Manila)', 'User', 'Role', 'Action', 'Record / Module', 'Record ID', 'Details', 'IP Address', 'Flagged', 'Rule', 'Resolved'];
 
         foreach ($auditLogs as $a) {
             $rows[] = [
-                $a->created_at->format('Y-m-d H:i'),
-                $a->user ? $a->user->name : 'System',
-                strtoupper($a->action),
-                $a->model_type,
+                $a->created_at->copy()->setTimezone(ManilaDate::TZ)->format('Y-m-d H:i:s'),
+                $a->user?->name ?? 'System / not signed in',
+                $a->user?->role ?? '',
+                $a->action_label,
+                $a->module_label,
                 $a->model_id,
-                $a->inconsistency_flagged ? ('[VIOLATION: ' . $a->inconsistency_rule . '] ' . json_encode($a->details)) : json_encode($a->details),
-                $a->inconsistency_flagged ? 'Flagged' : 'Clean',
+                AuditLogFilter::detailsText($a),
+                $a->ip_address,
+                $a->inconsistency_flagged ? 'Yes' : 'No',
+                $a->inconsistency_rule,
+                $a->inconsistency_flagged ? ($a->resolved ? 'Yes' : 'No') : '',
             ];
         }
 
-        $filename = 'audit_report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.csv';
+        $filename = 'audit_log_' . $data['auditFilter']->from . '_to_' . $data['auditFilter']->to . '.csv';
 
         $headers = [
             'Content-Type'        => 'text/csv',
@@ -274,10 +334,10 @@ class ReportsController extends Controller
 
     public function exportAuditExcel(Request $request)
     {
-        $data = $this->getReportData($request);
-        $filename = 'audit_report_' . $data['startDate'] . '_to_' . $data['endDate'] . '.xlsx';
+        $data = $this->auditExportData($request);
+        $this->logExport('Audit Log', 'excel', ['filters' => $data['auditFilter']->describe(), 'rows' => $data['auditLogs']->count()]);
 
-        return Excel::download(new AuditReportExport($data), $filename);
+        return Excel::download(new AuditReportExport($data), 'audit_log_' . $data['auditFilter']->from . '_to_' . $data['auditFilter']->to . '.xlsx');
     }
 }
 

@@ -17,6 +17,15 @@ class EnsureApproved
     {
         $user = Auth::user();
 
+        // A deactivated account (Phase 3 item 6) is signed out on its next request.
+        if ($user && ! $user->isActive()) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')->withErrors(['email' => 'This account has been deactivated. Ask a manager or admin.']);
+        }
+
         if ($user && ! $user->isApproved()) {
             Auth::guard('web')->logout();
             $request->session()->invalidate();

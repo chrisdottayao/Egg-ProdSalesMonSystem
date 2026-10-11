@@ -115,6 +115,18 @@
                 <span>Flock Records</span>
             </a>
 
+            @if(Auth::user()->canManageRecords())
+            @php $pendingApprovalCount = \App\Support\ApprovalQueue::count(); @endphp
+            <a href="{{ route('approvals.index') }}"
+               class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors {{ request()->routeIs('approvals.*') ? 'bg-[#4CAF50] text-white' : 'text-gray-700 hover:bg-gray-100' }}">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span>Pending Approvals</span>
+                @if($pendingApprovalCount > 0)
+                    <span class="ml-auto text-xs font-bold bg-orange-500 text-white rounded-full px-2 py-0.5" aria-label="{{ $pendingApprovalCount }} waiting">{{ $pendingApprovalCount }}</span>
+                @endif
+            </a>
+            @endif
+
             @if(in_array(Auth::user()->role, ['admin', 'manager']))
             <a href="{{ route('reports.index') }}"
                class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors {{ request()->routeIs('reports.*') ? 'bg-[#4CAF50] text-white' : 'text-gray-700 hover:bg-gray-100' }}">
@@ -123,7 +135,7 @@
             </a>
             @endif
 
-            @if(Auth::user()->role === 'admin')
+            @if(Auth::user()->canManageRecords())
             <a href="{{ route('users.index') }}"
                class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors {{ request()->routeIs('users.*') ? 'bg-[#4CAF50] text-white' : 'text-gray-700 hover:bg-gray-100' }}">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>

@@ -26,7 +26,8 @@ class ExpenseController extends Controller
         $startDate      = $request->input('start_date');
         $endDate        = $request->input('end_date');
 
-        $query = Expense::query()->with('building')->latest('date');
+        // Phase 3B: staff also see their own pending/rejected expenses here.
+        $query = Expense::visibleTo($request->user())->with(['building', 'entrant', 'approver'])->latest('date');
 
         if ($buildingFilter === 'farm') {
             $query->farmWide();
@@ -77,16 +78,19 @@ class ExpenseController extends Controller
             $data['receipt_path'] = $request->file('receipt')->store('expenses', 'public');
         }
 
-        $expense = Expense::create($data);
+        // Phase 3B item 2: staff expenses wait for review; admin/manager's are approved on save.
+        $expense = Expense::create($data + Expense::entryFieldsFor($request->user()));
 
         return redirect()->route('expenses.index')
-            ->with('success', 'Utility expense recorded.')
+            ->with('success', $expense->isPending()
+                ? 'Utility expense recorded. It is waiting for a manager or admin to approve it before it counts in totals.'
+                : 'Utility expense recorded.')
             ->with('latest_ids', [$expense->id]);
     }
 
     public function edit(Expense $expense)
     {
-        $this->denyPastRecordChangeForStaff($expense->date);
+        $this->denyStaffChange($expense);
 
         // Running buildings, plus this expense's own building even if it has
         // since been culled, so editing never silently reassigns it.
@@ -105,7 +109,7 @@ class ExpenseController extends Controller
 
     public function update(Request $request, Expense $expense)
     {
-        $this->denyPastRecordChangeForStaff($expense->date);
+        $this->denyStaffChange($expense);
 
         $validated = $this->validateExpense($request, $expense);
         $data      = $this->prepareData($validated, $request);
@@ -117,14 +121,17 @@ class ExpenseController extends Controller
             $data['receipt_path'] = $request->file('receipt')->store('expenses', 'public');
         }
 
-        $expense->update($data);
+        // A staff edit (resubmitting a rejected expense) goes back to pending.
+        $expense->update($data + Expense::approvalFieldsFor($request->user()));
 
-        return redirect()->route('expenses.index')->with('success', 'Utility expense updated.');
+        return redirect()->route('expenses.index')->with('success', $expense->isPending()
+            ? 'Utility expense updated and sent for approval.'
+            : 'Utility expense updated.');
     }
 
     public function destroy(Expense $expense)
     {
-        $this->denyPastRecordChangeForStaff($expense->date);
+        $this->denyStaffChange($expense);
 
         if ($expense->receipt_path) {
             Storage::disk('public')->delete($expense->receipt_path);
@@ -194,7 +201,7 @@ class ExpenseController extends Controller
         }
 
         $rules = [
-            'date'         => $this->entryDateRules($existing === null),
+            'date'         => $existing ? $this->editDateRules($existing) : $this->entryDateRules(),
             'building_id'  => 'nullable|exists:hen_batches,id',
             'category'     => 'required|string|in:' . implode(',', $allowedCategories),
             'description'  => 'required|string|max:255',

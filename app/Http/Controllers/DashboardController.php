@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AnomalyAlert;
+use App\Models\AuditLog;
 use App\Models\CullRecord;
 use App\Models\EggProduction;
 use App\Models\EggSale;
@@ -13,6 +14,9 @@ use App\Services\AiInsightService;
 use App\Services\BuildingPerformanceService;
 use App\Services\ForecastService;
 use App\Services\RecommendationService;
+use App\Support\ManilaDate;
+use App\Support\ProductionAnomalyDetector;
+use App\Support\ProductionCostCaption;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -66,6 +70,12 @@ class DashboardController extends Controller
         $productionChartData = EggProduction::where('date', '>=', Carbon::today()->subDays(29))
             ->orderBy('date')->get(['date', 'eggs_collected'])
             ->map(fn($p) => ['date' => $p->date->format('M d'), 'eggs' => (int) $p->eggs_collected]);
+
+        // S21: what the Production Trend shows, plus feed cost per egg only when
+        // feed expenses exist for the same 30 days (Phase 3 item 8).
+        $productionCaption = ProductionCostCaption::for(
+            Carbon::today()->subDays(29)->toDateString(), Carbon::today()->toDateString()
+        );
 
         $revenueChartData = EggSale::where('date', '>=', Carbon::today()->subDays(9))
             ->orderBy('date')->get(['date', 'total_amount'])
@@ -142,7 +152,7 @@ class DashboardController extends Controller
 
         return view('dashboard', compact(
             'stats', 'recentActivity',
-            'productionChartData', 'revenueChartData',
+            'productionChartData', 'productionCaption', 'revenueChartData',
             'anomalyAlerts', 'recommendations',
             'forecast', 'lastTrained', 'pendingApprovals', 'latestWeather', 'weatherTrend',
             'window', 'perfStart', 'perfEnd', 'buildings', 'farmOverview'
@@ -163,18 +173,40 @@ class DashboardController extends Controller
 
     public function markReviewed(AnomalyAlert $alert)
     {
+        $old = $alert->status;
         $alert->update(['status' => 'reviewed']);
+        $this->auditAlert($alert, $old);
+
         return back()->with('success', 'Alert marked as reviewed.');
     }
 
     public function markResolved(AnomalyAlert $alert)
     {
+        $old = $alert->status;
         $alert->update([
             'status'      => 'resolved',
             'resolved_by' => Auth::id(),
             'resolved_at' => now(),
         ]);
+        $this->auditAlert($alert, $old);
+
         return back()->with('success', 'Alert resolved.');
+    }
+
+    /** Phase 3 item 2: anomaly alert status changes go to the Audit Log. */
+    private function auditAlert(AnomalyAlert $alert, ?string $oldStatus): void
+    {
+        AuditLog::create([
+            'user_id'    => Auth::id(),
+            'action'     => 'alert_' . $alert->status,
+            'model_type' => 'AnomalyAlert',
+            'model_id'   => $alert->id,
+            'details'    => [
+                'type'       => $alert->type,
+                'alert_date' => Carbon::parse($alert->alert_date)->toDateString(),
+                'status'     => ['old' => $oldStatus, 'new' => $alert->status],
+            ],
+        ]);
     }
 
     // ── Detection engine ──────────────────────────────────────────────────
@@ -252,6 +284,12 @@ class DashboardController extends Controller
                     ]);
                 }
             });
+
+        // Production Drop / Production Spike / Mortality Spike (Phase 3 item 4).
+        $today = ManilaDate::todayString();
+        foreach (ProductionAnomalyDetector::detect(ManilaDate::today()->subDays(7)->toDateString(), $today) as $alert) {
+            $this->upsertAlert($alert);
+        }
     }
 
     private function upsertAlert(array $data): void

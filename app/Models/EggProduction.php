@@ -2,12 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasApproval;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class EggProduction extends Model
 {
+    use HasApproval; // Phase 3B: farm-level entries by staff wait for review
+
+    public const ENTERED_BY_COLUMN = 'user_id';
+
     protected $fillable = [
         'user_id',
         'date',
@@ -144,7 +149,7 @@ class EggProduction extends Model
                 'active_hens' => $model->active_hens,
                 'mortality' => $model->mortality,
                 'spoilage_count' => $model->spoilage_count,
-            ],
+            ] + ($action === 'update' ? ['changes' => AuditLog::diff($model)] : []),
             'inconsistency_flagged' => $flagged,
             'inconsistency_rule' => $rule,
         ]);

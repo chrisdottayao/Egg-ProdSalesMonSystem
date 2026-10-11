@@ -216,6 +216,7 @@
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Unit Price</th>
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Amount</th>
                         <th class="text-left py-3 text-sm font-semibold text-gray-700">Supplier</th>
+                        <x-approval-headers />
                         <th class="text-right py-3 text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                 </thead>
@@ -265,8 +266,9 @@
                                 @endif
                             </td>
                             <td class="py-3 text-sm text-gray-600">{{ $expense->supplier ?? '—' }}</td>
+                            <x-approval-cells :record="$expense" />
                             <td class="text-right py-3 text-sm space-x-2 whitespace-nowrap">
-                                <x-past-record-guard :date="$expense->date">
+                                <x-past-record-guard :record="$expense">
                                     <a href="{{ route('expenses.edit', $expense) }}" class="text-blue-600 hover:underline">Edit</a>
                                     <form method="POST" action="{{ route('expenses.destroy', $expense) }}" class="inline" onsubmit="return confirm('Delete this utility expense?')">
                                         @csrf @method('DELETE')
@@ -276,7 +278,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="py-8 text-center text-gray-400 text-sm">No utility expense records yet.</td></tr>
+                        <tr><td colspan="13" class="py-8 text-center text-gray-400 text-sm">No utility expense records yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

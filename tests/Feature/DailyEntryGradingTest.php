@@ -12,6 +12,8 @@ class DailyEntryGradingTest extends TestCase
 {
     use RefreshDatabase;
 
+    private ?User $user = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -21,7 +23,7 @@ class DailyEntryGradingTest extends TestCase
 
     private function postEntry(array $grading, string $date = '2026-09-19')
     {
-        $user  = User::factory()->create(['role' => 'staff']);
+        $user  = $this->user ??= User::factory()->create(['role' => 'staff']);
         $batch = HenBatch::create([
             'batch_id' => 'HB-GRADE-TEST', 'batch_size' => 2000, 'status' => 'Active',
             'entry_date' => '2026-01-01', 'building_no' => 1, 'is_tracked' => true,
@@ -41,7 +43,7 @@ class DailyEntryGradingTest extends TestCase
             'Medium' => ['total_pcs' => 1000, 'cases' => 99, 'trays' => 0, 'pieces' => 0],
         ])->assertRedirect();
 
-        $row = EggGradingDaily::where('category', 'Medium')->firstOrFail();
+        $row = EggGradingDaily::withPending()->where('category', 'Medium')->firstOrFail();
         $this->assertSame(2, (int) $row->cases);
         $this->assertSame(9, (int) $row->trays);
         $this->assertSame(10, (int) $row->pieces);
@@ -56,16 +58,18 @@ class DailyEntryGradingTest extends TestCase
             'Small'  => ['total_pcs' => ''],
         ])->assertRedirect();
 
-        $this->assertSame(['Medium'], EggGradingDaily::pluck('category')->all());
+        $this->assertSame(['Medium'], EggGradingDaily::withPending()->pluck('category')->all());
     }
 
     public function test_setting_a_size_to_zero_removes_the_previously_saved_row(): void
     {
-        EggGradingDaily::create(['date' => '2026-09-19', 'category' => 'Large', 'cases' => 1, 'trays' => 0, 'pieces' => 0]);
+        // The staff member's own row, still pending — they may still clear it (Phase 3B item 4).
+        $this->user = User::factory()->create(['role' => 'staff']);
+        EggGradingDaily::create(['date' => '2026-09-19', 'category' => 'Large', 'cases' => 1, 'trays' => 0, 'pieces' => 0, 'approval_status' => 'pending', 'entered_by' => $this->user->id]);
 
         $this->postEntry(['Large' => ['total_pcs' => 0], 'Medium' => ['total_pcs' => 30]])->assertRedirect();
 
-        $this->assertSame(['Medium'], EggGradingDaily::pluck('category')->all());
+        $this->assertSame(['Medium'], EggGradingDaily::withPending()->pluck('category')->all());
     }
 
     public function test_grading_total_equals_sum_of_sizes(): void
@@ -76,7 +80,23 @@ class DailyEntryGradingTest extends TestCase
             'Large'  => ['total_pcs' => 29],
         ])->assertRedirect();
 
-        $this->assertSame(1390, (int) EggGradingDaily::sum('total_pcs'));
+        $this->assertSame(1390, (int) EggGradingDaily::withPending()->sum('total_pcs'));
+    }
+
+    public function test_grading_section_renders_before_the_buildings_section(): void
+    {
+        $user = User::factory()->create(['role' => 'staff']);
+        HenBatch::create(['batch_id' => 'HB-ORDER', 'batch_size' => 100, 'status' => 'Active', 'entry_date' => '2026-01-01', 'building_no' => 1, 'is_tracked' => true]);
+
+        $html = $this->actingAs($user)->get(route('daily-entry.index'))->assertOk()->getContent();
+
+        $grading   = strpos($html, 'Egg Grading (farm-wide)');
+        $buildings = strpos($html, 'class="border-b last:border-0 building-row"');
+        $this->assertNotFalse($grading);
+        $this->assertNotFalse($buildings);
+        $this->assertLessThan($buildings, $grading);
+        // Still one form with one Save.
+        $this->assertSame(1, substr_count($html, 'id="dailyEntryForm"'));
     }
 
     public function test_entry_page_prefills_total_pieces_and_shows_match_indicator(): void
