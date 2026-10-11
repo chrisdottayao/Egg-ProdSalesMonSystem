@@ -177,8 +177,17 @@ class ReportsController extends Controller
         $data = $this->completeReportData($request);
         $this->logCompleteExport('pdf', $data['report']);
 
-        return Pdf::loadView('reports.complete.pdf', $data)->setPaper('a4', 'landscape')
-            ->download($this->completeFilename($data['report'], 'pdf'));
+        $dompdf = Pdf::loadView('reports.complete.pdf', $data)->setPaper('a4', 'landscape')->getDomPDF();
+        $dompdf->render();
+        // "Page N of M" on every page, now that the page count is known.
+        $canvas = $dompdf->getCanvas();
+        $canvas->page_text($canvas->get_width() - 110, $canvas->get_height() - 34, 'Page {PAGE_NUM} of {PAGE_COUNT}',
+            $dompdf->getFontMetrics()->getFont('DejaVu Sans'), 8, [0.47, 0.47, 0.47]);
+
+        return response($dompdf->output(), 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $this->completeFilename($data['report'], 'pdf') . '"',
+        ]);
     }
 
     public function exportCsv(Request $request)
