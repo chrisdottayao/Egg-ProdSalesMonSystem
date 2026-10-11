@@ -40,8 +40,8 @@ class DailyEntryCulledTest extends TestCase
             $this->b2->id => ['population' => 1750, 'choice' => 'culled'],
         ])->assertRedirect()->assertSessionHasNoErrors();
 
-        $this->assertSame(1, CullRecord::count());
-        $cull = CullRecord::first();
+        $this->assertSame(1, CullRecord::withPending()->count());
+        $cull = CullRecord::withPending()->first();
         $this->assertSame($this->b2->id, $cull->hen_batch_id);
         $this->assertSame(1750, (int) $cull->quantity_culled);
         $this->assertSame('Building culled (daily entry)', $cull->reason);

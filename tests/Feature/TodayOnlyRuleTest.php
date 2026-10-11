@@ -63,7 +63,7 @@ class TodayOnlyRuleTest extends TestCase
 
         $this->assertSame(array_fill_keys(array_keys($this->forms()), [ManilaDate::MESSAGE]), $dateErrors);
 
-        $this->assertSame(0, EggSale::withPending()->count() + Expense::count() + CullRecord::count() + EggProduction::count());
+        $this->assertSame(0, EggSale::withPending()->count() + Expense::withPending()->count() + CullRecord::withPending()->count() + EggProduction::withPending()->count());
     }
 
     public function test_staff_can_post_manila_today_even_while_utc_is_still_yesterday(): void
@@ -74,8 +74,8 @@ class TodayOnlyRuleTest extends TestCase
         }
 
         $this->assertSame(1, EggSale::withPending()->count()); // staff sale: pending until approved
-        $this->assertSame(1, Expense::count());
-        $this->assertSame(1, CullRecord::count());
+        $this->assertSame(1, Expense::withPending()->count()); // pending too (Phase 3B)
+        $this->assertSame(1, CullRecord::withPending()->count());
     }
 
     public function test_new_records_are_today_only_for_admin_too(): void

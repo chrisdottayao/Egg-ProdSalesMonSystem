@@ -238,11 +238,9 @@ class BulkImportController extends Controller
                         'soft_shell'   => $row['soft_shell'],
                         'age_weeks'    => $row['age_weeks'],
                         'prod_rate'    => $prodRate,
-                        'user_id'      => auth()->id(),
-                        // Imports are admin/manager only (S16): rows land approved.
-                        'approval_status' => BuildingDaily::STATUS_APPROVED,
-                        'approved_by'  => auth()->id(),
-                        'approved_at'  => now(),
+                        // Imports are admin/manager only (S16): rows land approved
+                        // by the importer; a staff import would land pending (3B).
+                        ...BuildingDaily::entryFieldsFor(auth()->user()),
                         'created_at'   => now(),
                         'updated_at'   => now(),
                     ];
@@ -374,6 +372,7 @@ class BulkImportController extends Controller
                     'trays'      => $trays,
                     'pieces'     => $pieces,
                     'total_pcs'  => $totalPcs,
+                    ...EggGradingDaily::entryFieldsFor(auth()->user()),
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];

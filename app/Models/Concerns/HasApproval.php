@@ -119,4 +119,10 @@ trait HasApproval
 
         return ['approval_status' => self::STATUS_PENDING, 'approved_by' => null, 'approved_at' => null, 'review_note' => null];
     }
+
+    /** approvalFieldsFor() plus who entered the row — for a new row (Phase 3B item 2). */
+    public static function entryFieldsFor(?User $user): array
+    {
+        return static::approvalFieldsFor($user) + [static::enteredByColumn() => $user?->id];
+    }
 }

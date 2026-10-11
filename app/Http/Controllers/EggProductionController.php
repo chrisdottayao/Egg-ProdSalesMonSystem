@@ -24,7 +24,8 @@ class EggProductionController extends Controller
 
     public function index(Request $request)
     {
-        $productions = EggProduction::latest('date')->paginate(20);
+        // Phase 3B: staff also see their own pending/rejected entries here.
+        $productions = EggProduction::visibleTo($request->user())->with(['user', 'approver'])->latest('date')->paginate(20);
         $activeHens  = HenBatch::activeHenCount();
 
         // S4: per-building view. egg_productions is the farm-wide daily rollup
@@ -104,10 +105,13 @@ class EggProductionController extends Controller
         $validated['spoilage_count'] = $validated['spoilage_count'] ?? 0;
         $validated['user_id'] = auth()->id();
 
-        $production = EggProduction::create($validated);
+        // Phase 3B item 2: staff entries (including offline replays) wait for review.
+        $production = EggProduction::create($validated + EggProduction::approvalFieldsFor($request->user()));
 
         return redirect()->route('productions.index')
-            ->with('success', 'Production entry saved successfully!')
+            ->with('success', $production->isPending()
+                ? 'Production entry saved. It is waiting for a manager or admin to approve it before it counts in totals.'
+                : 'Production entry saved successfully!')
             ->with('latest_ids', [$production->id]);
     }
 
@@ -140,9 +144,11 @@ class EggProductionController extends Controller
         $validated['spoilage_count'] = $validated['spoilage_count'] ?? 0;
         $validated['user_id'] = auth()->id();
 
-        $production->update($validated);
+        $production->update($validated + EggProduction::approvalFieldsFor($request->user()));
 
-        return redirect()->route('productions.index')->with('success', 'Production record updated.');
+        return redirect()->route('productions.index')->with('success', $production->isPending()
+            ? 'Production record updated and sent for approval.'
+            : 'Production record updated.');
     }
 
     public function destroy(EggProduction $production)
@@ -162,7 +168,7 @@ class EggProductionController extends Controller
         $eggSize      = $request->input('egg_size');
         $contributor  = $request->input('contributor'); // 'none' = unattributed, numeric = user id, else free-text name
 
-        $productionsQuery = EggProduction::query()->with('user')->orderByDesc('date');
+        $productionsQuery = EggProduction::visibleTo($request->user())->with('user')->orderByDesc('date');
         $buildingsQuery   = BuildingDaily::withPending()->with(['user', 'henBatch'])->orderByDesc('date');
 
         if ($startDate) {
@@ -470,7 +476,9 @@ class EggProductionController extends Controller
     {
         if (empty($rows)) return;
 
-        EggProduction::insert($rows);
+        // Approval only: historical rows keep user_id null (no real contributor).
+        $approval = EggProduction::approvalFieldsFor(auth()->user());
+        EggProduction::insert(array_map(fn ($r) => $approval + $r, $rows));
 
         $rows = [];
     }
@@ -479,9 +487,7 @@ class EggProductionController extends Controller
     {
         if (empty($rows)) return;
 
-        // Imports are admin/manager only (S16), so rows land approved (Phase 3 item 1).
-        $approval = ['entered_by' => auth()->id(), 'approval_status' => EggSale::STATUS_APPROVED, 'approved_by' => auth()->id(), 'approved_at' => now()];
-        EggSale::insert(array_map(fn ($r) => $r + $approval, $rows));
+        EggSale::insert(self::withEntryFields($rows, EggSale::class));
 
         $rows = [];
     }
@@ -490,9 +496,21 @@ class EggProductionController extends Controller
     {
         if (empty($rows)) return;
 
-        CullRecord::insert($rows);
+        CullRecord::insert(self::withEntryFields($rows, CullRecord::class));
 
         $rows = [];
+    }
+
+    /**
+     * Imports are admin/manager only (S16), so rows land approved by the
+     * importer; were a staff member ever let in, they would land pending
+     * (Phase 3B item 2). Every write path decides the same way.
+     */
+    private static function withEntryFields(array $rows, string $model): array
+    {
+        $fields = $model::entryFieldsFor(auth()->user());
+
+        return array_map(fn ($r) => $fields + $r, $rows);
     }
 
     public function downloadImportErrors(string $token)

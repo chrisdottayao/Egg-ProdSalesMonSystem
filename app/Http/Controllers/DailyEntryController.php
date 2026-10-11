@@ -88,13 +88,17 @@ class DailyEntryController extends Controller
             ];
         });
 
-        $existingGrading = EggGradingDaily::whereDate('date', $date)->get()->keyBy('category');
+        // withPending(): like the building rows, the sheet shows what was
+        // entered whether or not it has been approved yet (Phase 3B).
+        $existingGrading = EggGradingDaily::withPending()->whereDate('date', $date)->get()->keyBy('category');
 
         $gradingRows = collect(EggGradingDaily::CATEGORIES)->map(function (string $category) use ($existingGrading) {
             $existing = $existingGrading->get($category);
             return [
                 'category'  => $category,
                 'total_pcs' => $existing->total_pcs ?? null,
+                'status'    => $existing?->approval_status,
+                'review_note' => $existing?->review_note,
             ];
         });
 
@@ -169,7 +173,7 @@ class DailyEntryController extends Controller
                 }
 
                 $batch = HenBatch::find($henBatchId);
-                CullRecord::create([
+                CullRecord::create(CullRecord::entryFieldsFor($request->user()) + [
                     'date'            => $date,
                     'hen_batch_id'    => $henBatchId,
                     'quantity_culled' => (int) $row['population'],
@@ -247,6 +251,9 @@ class DailyEntryController extends Controller
                 }
             });
 
+            // Phase 3B item 2: the grading sheet saved in the same submit follows
+            // the same rule as the building rows — staff rows wait for review.
+            $gradingFields = EggGradingDaily::entryFieldsFor($request->user());
             $gradingSaved = 0;
             foreach ($validated['grading'] ?? [] as $category => $row) {
                 if (! in_array($category, EggGradingDaily::CATEGORIES, true)) {
@@ -265,13 +272,14 @@ class DailyEntryController extends Controller
                 // Only sizes with a value are saved; 0/blank means no row
                 // (and clears a row saved earlier for this date).
                 if ($totalPcs <= 0) {
-                    EggGradingDaily::whereDate('date', $date)->where('category', $category)->delete();
+                    EggGradingDaily::withPending()->whereDate('date', $date)->where('category', $category)->delete();
                     continue;
                 }
 
-                EggGradingDaily::updateOrCreate(
+                // withPending(): (date, category) is unique whatever the status.
+                EggGradingDaily::withPending()->updateOrCreate(
                     ['date' => $date, 'category' => $category],
-                    [
+                    $gradingFields + [
                         'cases'  => intdiv($totalPcs, self::PCS_PER_CASE),
                         'trays'  => intdiv($totalPcs % self::PCS_PER_CASE, self::PCS_PER_TRAY),
                         'pieces' => $totalPcs % self::PCS_PER_TRAY,
@@ -292,7 +300,7 @@ class DailyEntryController extends Controller
                 // History highlights as the latest entry. Touch it so a
                 // re-save with unchanged numbers still counts as the newest
                 // (the rollup's update() is a no-op when nothing is dirty).
-                $production = EggProduction::whereDate('date', $date)->first();
+                $production = EggProduction::withPending()->whereDate('date', $date)->first();
                 if ($production) {
                     $production->touchQuietly();
                     $latestProductionIds[] = $production->id;
@@ -310,7 +318,7 @@ class DailyEntryController extends Controller
                     'buildings_skipped'  => $buildingsSkipped - count($culledLabels),
                     'buildings_culled'   => $culledLabels,
                     'grading_saved'      => $gradingSaved,
-                    'status'             => $buildingsSaved ? $approval['approval_status'] : null,
+                    'status'             => ($buildingsSaved || $gradingSaved) ? $approval['approval_status'] : null,
                     'entries'            => collect($savedValues)->mapWithKeys(fn ($v, $id) => [HenBatch::find($id)?->display_label ?? "#{$id}" => $v])->all(),
                 ],
             ]);
@@ -326,8 +334,8 @@ class DailyEntryController extends Controller
         if ($culledLabels) {
             $message .= ' Marked as culled: ' . implode(', ', $culledLabels) . '.';
         }
-        if ($buildingsSaved > 0 && ! $request->user()->canManageRecords()) {
-            $message .= ' Building rows are waiting for a manager or admin to approve them before they count in totals.';
+        if (($buildingsSaved > 0 || $gradingSaved > 0 || $culledLabels) && ! $request->user()->canManageRecords()) {
+            $message .= ' Everything you saved is waiting for a manager or admin to approve it before it counts in totals.';
         }
 
         return redirect()->route('daily-entry.index', ['date' => $date])

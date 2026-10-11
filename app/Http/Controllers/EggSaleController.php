@@ -328,11 +328,9 @@ class EggSaleController extends Controller
                     'total_amount'   => $row['quantity'] * $row['price'],
                     'production_id'  => null, // backfilled after import via a single join query
                     'notes'          => $row['notes'],
-                    'entered_by'     => auth()->id(),
-                    // Imports are admin/manager only, so rows land approved.
-                    'approval_status' => EggSale::STATUS_APPROVED,
-                    'approved_by'    => auth()->id(),
-                    'approved_at'    => now(),
+                    // Imports are admin/manager only, so rows land approved by
+                    // the importer; a staff import would land pending (3B).
+                    ...EggSale::entryFieldsFor(auth()->user()),
                     'created_at'     => now(),
                     'updated_at'     => now(),
                 ];

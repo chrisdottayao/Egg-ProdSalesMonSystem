@@ -41,7 +41,7 @@ class DailyEntryGradingTest extends TestCase
             'Medium' => ['total_pcs' => 1000, 'cases' => 99, 'trays' => 0, 'pieces' => 0],
         ])->assertRedirect();
 
-        $row = EggGradingDaily::where('category', 'Medium')->firstOrFail();
+        $row = EggGradingDaily::withPending()->where('category', 'Medium')->firstOrFail();
         $this->assertSame(2, (int) $row->cases);
         $this->assertSame(9, (int) $row->trays);
         $this->assertSame(10, (int) $row->pieces);
@@ -56,7 +56,7 @@ class DailyEntryGradingTest extends TestCase
             'Small'  => ['total_pcs' => ''],
         ])->assertRedirect();
 
-        $this->assertSame(['Medium'], EggGradingDaily::pluck('category')->all());
+        $this->assertSame(['Medium'], EggGradingDaily::withPending()->pluck('category')->all());
     }
 
     public function test_setting_a_size_to_zero_removes_the_previously_saved_row(): void
@@ -65,7 +65,7 @@ class DailyEntryGradingTest extends TestCase
 
         $this->postEntry(['Large' => ['total_pcs' => 0], 'Medium' => ['total_pcs' => 30]])->assertRedirect();
 
-        $this->assertSame(['Medium'], EggGradingDaily::pluck('category')->all());
+        $this->assertSame(['Medium'], EggGradingDaily::withPending()->pluck('category')->all());
     }
 
     public function test_grading_total_equals_sum_of_sizes(): void
@@ -76,7 +76,7 @@ class DailyEntryGradingTest extends TestCase
             'Large'  => ['total_pcs' => 29],
         ])->assertRedirect();
 
-        $this->assertSame(1390, (int) EggGradingDaily::sum('total_pcs'));
+        $this->assertSame(1390, (int) EggGradingDaily::withPending()->sum('total_pcs'));
     }
 
     public function test_grading_section_renders_before_the_buildings_section(): void
