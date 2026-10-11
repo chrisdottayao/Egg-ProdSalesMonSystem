@@ -16,6 +16,7 @@ use App\Services\ForecastService;
 use App\Services\RecommendationService;
 use App\Support\ManilaDate;
 use App\Support\ProductionAnomalyDetector;
+use App\Support\ProductionCostCaption;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -69,6 +70,12 @@ class DashboardController extends Controller
         $productionChartData = EggProduction::where('date', '>=', Carbon::today()->subDays(29))
             ->orderBy('date')->get(['date', 'eggs_collected'])
             ->map(fn($p) => ['date' => $p->date->format('M d'), 'eggs' => (int) $p->eggs_collected]);
+
+        // S21: what the Production Trend shows, plus feed cost per egg only when
+        // feed expenses exist for the same 30 days (Phase 3 item 8).
+        $productionCaption = ProductionCostCaption::for(
+            Carbon::today()->subDays(29)->toDateString(), Carbon::today()->toDateString()
+        );
 
         $revenueChartData = EggSale::where('date', '>=', Carbon::today()->subDays(9))
             ->orderBy('date')->get(['date', 'total_amount'])
@@ -145,7 +152,7 @@ class DashboardController extends Controller
 
         return view('dashboard', compact(
             'stats', 'recentActivity',
-            'productionChartData', 'revenueChartData',
+            'productionChartData', 'productionCaption', 'revenueChartData',
             'anomalyAlerts', 'recommendations',
             'forecast', 'lastTrained', 'pendingApprovals', 'latestWeather', 'weatherTrend',
             'window', 'perfStart', 'perfEnd', 'buildings', 'farmOverview'

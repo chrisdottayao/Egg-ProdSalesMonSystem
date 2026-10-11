@@ -75,6 +75,11 @@
                 <p class="text-sm text-gray-500">Last 30 days{{ $forecast['active'] ? ' + 7-day forecast' : '' }}</p>
             </div>
             <div class="relative h-64 sm:h-72"><canvas id="productionChart"></canvas></div>
+            {{-- S21 cost description (Phase 3 item 8) --}}
+            <p class="mt-2 text-xs text-gray-600" data-production-caption>
+                {{ $productionCaption['shows'] }}
+                <span class="{{ $productionCaption['has_cost'] ? 'text-gray-700 font-medium' : 'text-gray-500 italic' }}">{{ $productionCaption['cost'] }}</span>
+            </p>
             @if($forecast['active'])
                 <div class="mt-3 flex items-center gap-2">
                     <span class="text-xs px-2 py-1 rounded-full font-semibold
