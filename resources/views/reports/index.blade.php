@@ -4,21 +4,32 @@
     @php $exportParams = http_build_query(['start_date' => $startDate, 'end_date' => $endDate, 'period' => $period]); @endphp
 
     {{-- === SECTION 1: DATE FILTER + EXPORTS === --}}
+    {{-- Changing Period fills the dates relative to today in Manila (server clock,
+         not the browser's) and submits. Page load keeps the request's own values. --}}
+    @php
+        $periodToday = \App\Support\ManilaDate::today();
+        $periodStarts = [
+            'Daily'   => $periodToday->toDateString(),
+            'Weekly'  => $periodToday->copy()->subDays(7)->toDateString(),
+            'Monthly' => $periodToday->copy()->subMonthNoOverflow()->toDateString(),
+        ];
+    @endphp
     <div class="bg-white rounded-lg shadow-md p-6">
-        <form method="GET" action="{{ route('reports.index') }}" class="flex flex-wrap items-end gap-4">
+        <form method="GET" action="{{ route('reports.index') }}" class="flex flex-wrap items-end gap-4"
+            x-data="{ starts: { Daily: '{{ $periodStarts['Daily'] }}', Weekly: '{{ $periodStarts['Weekly'] }}', Monthly: '{{ $periodStarts['Monthly'] }}' }, end: '{{ $periodToday->toDateString() }}' }">
             <div class="flex-1 min-w-[160px]">
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Start Date</label>
-                <input type="date" name="start_date" value="{{ $startDate }}"
+                <input type="date" name="start_date" value="{{ $startDate }}" x-ref="start"
                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
             </div>
             <div class="flex-1 min-w-[160px]">
                 <label class="block text-sm font-semibold text-gray-700 mb-2">End Date</label>
-                <input type="date" name="end_date" value="{{ $endDate }}"
+                <input type="date" name="end_date" value="{{ $endDate }}" x-ref="end"
                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]" />
             </div>
             <div class="flex-1 min-w-[140px]">
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Period</label>
-                <select name="period" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]">
+                <select name="period" @change="$refs.start.value = starts[$event.target.value]; $refs.end.value = end; $event.target.form.submit()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4CAF50]">
                     @foreach(['Daily','Weekly','Monthly'] as $p)
                         <option value="{{ $p }}" {{ $period === $p ? 'selected' : '' }}>{{ $p }}</option>
                     @endforeach
