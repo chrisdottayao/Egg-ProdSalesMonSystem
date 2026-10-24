@@ -32,7 +32,7 @@ Egg Monitor digitizes the daily workflow of a multi-building layer farm:
 3. **Forecast** — project near-term production using a regression model trained on flock age, production trend, and weather (THI).
 4. **Report** — surface farm-wide and per-building performance — including estimated revenue, expenses, and net contribution — for decision-making.
 
-The system is trained and validated on **real farm data**: ~5 years of logs and 1 month of inputted data
+The system is trained and validated on **real farm data**: ~1 month of real inputted logs plus a ~4-year synthetic backfill (Aug 2021–Jul 2025; trimmed from an original 5-year/Aug 2020 start in Prototype 3O — statistical re-validation against the trimmed range is still pending)
 
 ---
 
@@ -198,7 +198,7 @@ php artisan weather:backfill
 - ✅ Core production & sales monitoring — deployed
 - ✅ Forecast + anomaly detection — deployed
 - ✅ Standalone accounts — deployed
-- ✅ 5-year synthetic historical backfill, validated against real data
+- ✅ ~4-year synthetic historical backfill (Aug 2021–Jul 2025); statistical re-validation against the trimmed range still pending (3O)
 - ✅ Weather / THI module (3F) — deployed
 - ✅ Feed & expense capture (3G) — deployed
 - ✅ Per-building investment dashboard (3H) — deployed
